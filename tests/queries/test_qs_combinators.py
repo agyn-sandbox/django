@@ -228,3 +228,26 @@ class QuerySetSetOperationTests(TestCase):
         qs1 = Number.objects.all()
         qs2 = Number.objects.intersection(Number.objects.filter(num__gt=1))
         self.assertEqual(qs1.difference(qs2).count(), 2)
+
+    def test_union_order_by_then_values_list_does_not_break_original(self):
+        """
+        Regression: UNION queryset with ordering on a field, followed by a
+        projection change on a derived queryset (values_list) should not break
+        subsequent evaluation of the original queryset.
+        """
+        rn1 = ReservedName.objects.create(name='rn1', order=1)
+        rn2 = ReservedName.objects.create(name='rn2', order=2)
+        rn3 = ReservedName.objects.create(name='rn3', order=3)
+        rn4 = ReservedName.objects.create(name='rn4', order=4)
+        qs = (
+            ReservedName.objects.filter(pk__in=[rn1.pk, rn2.pk]).union(
+                ReservedName.objects.filter(pk__in=[rn3.pk, rn4.pk])
+            ).order_by('order')
+        )
+        # Derived queryset that changes projection.
+        list(qs.order_by().values_list('pk', flat=True))
+        # Original queryset evaluation should not error and includes all pks.
+        self.assertEqual(
+            set(obj.pk for obj in qs),
+            {rn1.pk, rn2.pk, rn3.pk, rn4.pk},
+        )

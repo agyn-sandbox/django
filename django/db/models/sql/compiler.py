@@ -343,20 +343,12 @@ class SQLCompiler:
         for expr, is_ref in order_by:
             resolved = expr.resolve_expression(self.query, allow_joins=True, reuse=None)
             if self.query.combinator:
-                src = resolved.get_source_expressions()[0]
-                # Relabel order by columns to raw numbers if this is a combined
-                # query; necessary since the columns can't be referenced by the
-                # fully qualified name and the simple column names may collide.
-                for idx, (sel_expr, _, col_alias) in enumerate(self.select):
-                    if is_ref and col_alias == src.refs:
-                        src = src.source
-                    elif col_alias:
-                        continue
-                    if src == sel_expr:
-                        resolved.set_source_expressions([RawSQL('%d' % (idx + 1), ())])
-                        break
-                else:
-                    raise DatabaseError('ORDER BY term does not match any column in the result set.')
+                # Defer positional ORDER BY mapping for compound queries.
+                # Mapping is performed in as_sql() using the final combined
+                # select list produced by get_combinator_sql().
+                if not hasattr(self, '_order_by_for_combinator'):
+                    self._order_by_for_combinator = []
+                self._order_by_for_combinator.append((resolved, is_ref))
             sql, params = self.compile(resolved)
             # Don't add the same column twice, but the order direction is
             # not taken into account so we strip it. When this entire method
@@ -457,6 +449,10 @@ class SQLCompiler:
         braces = '({})' if features.supports_slicing_ordering_in_compound else '{}'
         sql_parts, args_parts = zip(*((braces.format(sql), args) for sql, args in parts))
         result = [' {} '.format(combinator_sql).join(sql_parts)]
+        # Capture the combined select list for deferred ORDER BY mapping.
+        # Use the top-level compiler's select which represents the normalized
+        # projection.
+        self._combined_select = self.select
         params = []
         for part in args_parts:
             params.extend(part)
@@ -581,9 +577,28 @@ class SQLCompiler:
 
             if order_by:
                 ordering = []
-                for _, (o_sql, o_params, _) in order_by:
-                    ordering.append(o_sql)
-                    params.extend(o_params)
+                if combinator and hasattr(self, '_order_by_for_combinator'):
+                    # Perform positional ORDER BY mapping against the final
+                    # combined select list.
+                    for resolved, is_ref in getattr(self, '_order_by_for_combinator', []):
+                        src = resolved.get_source_expressions()[0]
+                        for idx, (sel_expr, _, col_alias) in enumerate(getattr(self, '_combined_select', []) or []):
+                            if is_ref and col_alias == getattr(src, 'refs', None):
+                                src = src.source
+                            elif col_alias:
+                                continue
+                            if src == sel_expr:
+                                resolved.set_source_expressions([RawSQL('%d' % (idx + 1), ())])
+                                break
+                        else:
+                            raise DatabaseError('ORDER BY term does not match any column in the result set.')
+                        o_sql, o_params = self.compile(resolved)
+                        ordering.append(o_sql)
+                        params.extend(o_params)
+                else:
+                    for _, (o_sql, o_params, _) in order_by:
+                        ordering.append(o_sql)
+                        params.extend(o_params)
                 result.append('ORDER BY %s' % ', '.join(ordering))
 
             if with_limit_offset:
