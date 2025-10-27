@@ -116,13 +116,23 @@ class DjangoTranslation(gettext_module.GNUTranslations):
         Using param `use_null_fallback` to avoid confusion with any other
         references to 'fallback'.
         """
-        return gettext_module.translation(
-            domain=self.domain,
-            localedir=localedir,
-            languages=[self.__locale],
-            codeset='utf-8',
-            fallback=use_null_fallback,
-        )
+        # Python 3.12+ removed the 'codeset' argument from gettext.translation.
+        # Try with codeset for compatibility with older Pythons, fallback without.
+        try:
+            return gettext_module.translation(
+                domain=self.domain,
+                localedir=localedir,
+                languages=[self.__locale],
+                codeset='utf-8',
+                fallback=use_null_fallback,
+            )
+        except TypeError:
+            return gettext_module.translation(
+                domain=self.domain,
+                localedir=localedir,
+                languages=[self.__locale],
+                fallback=use_null_fallback,
+            )
 
     def _init_translation_catalog(self):
         """Create a base catalog using global django translations."""
