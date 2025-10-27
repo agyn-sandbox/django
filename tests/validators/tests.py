@@ -305,6 +305,11 @@ with open(create_path('invalid_urls.txt'), encoding='utf8') as f:
     for url in f:
         TEST_DATA.append((URLValidator(), url.strip(), ValidationError))
 
+# Ensure that invalid URLs remain invalid even if a query string with '@' is appended
+with open(create_path('invalid_urls.txt'), encoding='utf8') as f:
+    for url in f:
+        TEST_DATA.append((URLValidator(), (url.strip() + '?m=foo@example.com'), ValidationError))
+
 
 def create_simple_test_method(validator, expected, value, num):
     if expected is not None and issubclass(expected, Exception):
