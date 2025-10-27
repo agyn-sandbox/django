@@ -251,3 +251,16 @@ class QuerySetSetOperationTests(TestCase):
             set(obj.pk for obj in qs),
             {rn1.pk, rn2.pk, rn3.pk, rn4.pk},
         )
+
+    def test_union_order_by_on_non_selected_column_raises(self):
+        """
+        Negative regression: Ordering a compound queryset (UNION) by a column
+        not present in the combined projection must raise DatabaseError.
+        """
+        ReservedName.objects.create(name='rn1', order=1)
+        ReservedName.objects.create(name='rn2', order=2)
+        qs1 = ReservedName.objects.values('name')
+        qs2 = ReservedName.objects.values('name')
+        # 'order' is not part of the projection; ordering by it must raise.
+        with self.assertRaisesMessage(DatabaseError, 'ORDER BY term does not match any column in the result set'):
+            list(qs1.union(qs2).order_by('order'))

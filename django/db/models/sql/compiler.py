@@ -343,13 +343,16 @@ class SQLCompiler:
         for expr, is_ref in order_by:
             resolved = expr.resolve_expression(self.query, allow_joins=True, reuse=None)
             if self.query.combinator:
-                # Defer positional ORDER BY mapping for compound queries.
-                # Mapping is performed in as_sql() using the final combined
-                # select list produced by get_combinator_sql().
+                # Defer positional ORDER BY mapping and compilation for compound
+                # queries. Mapping will be performed in as_sql() using the final
+                # combined select list produced by get_combinator_sql().
                 if not hasattr(self, '_order_by_for_combinator'):
                     self._order_by_for_combinator = []
                 self._order_by_for_combinator.append((resolved, is_ref))
-            sql, params = self.compile(resolved)
+                # Skip compilation here; we'll compile after mapping in as_sql().
+                sql, params = '', ()
+            else:
+                sql, params = self.compile(resolved)
             # Don't add the same column twice, but the order direction is
             # not taken into account so we strip it. When this entire method
             # is refactored into expressions, then we can check each part as we
@@ -449,10 +452,9 @@ class SQLCompiler:
         braces = '({})' if features.supports_slicing_ordering_in_compound else '{}'
         sql_parts, args_parts = zip(*((braces.format(sql), args) for sql, args in parts))
         result = [' {} '.format(combinator_sql).join(sql_parts)]
-        # Capture the combined select list for deferred ORDER BY mapping.
-        # Use the top-level compiler's select which represents the normalized
-        # projection.
-        self._combined_select = self.select
+        # Capture a defensive copy of the combined select list for deferred
+        # ORDER BY mapping.
+        self._combined_select = list(self.select)
         params = []
         for part in args_parts:
             params.extend(part)
@@ -595,6 +597,9 @@ class SQLCompiler:
                         o_sql, o_params = self.compile(resolved)
                         ordering.append(o_sql)
                         params.extend(o_params)
+                    # Clear temporary state used for deferred mapping.
+                    self._order_by_for_combinator = []
+                    self._combined_select = []
                 else:
                     for _, (o_sql, o_params, _) in order_by:
                         ordering.append(o_sql)
