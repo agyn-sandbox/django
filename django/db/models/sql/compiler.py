@@ -347,7 +347,28 @@ class SQLCompiler:
                 # Relabel order by columns to raw numbers if this is a combined
                 # query; necessary since the columns can't be referenced by the
                 # fully qualified name and the simple column names may collide.
-                for idx, (sel_expr, _, col_alias) in enumerate(self.select):
+                # Use the effective select list of the compound query to avoid
+                # mismatches caused by derived querysets mutating the outer
+                # compiler's select list. Default to this compiler's select
+                # when not combining queries or when no child select is found.
+                select_for_ordering = self.select
+                try:
+                    # Prefer the first non-empty child query's select list as it
+                    # represents the columns actually yielded by the UNION.
+                    for child_query in getattr(self.query, 'combined_queries', ()):
+                        if not child_query.is_empty():
+                            child_compiler = child_query.get_compiler(self.using, self.connection)
+                            # Ensure the child's select list is populated.
+                            child_compiler.setup_query()
+                            if child_compiler.select:
+                                select_for_ordering = child_compiler.select
+                                break
+                except Exception:
+                    # If anything goes wrong, fall back to the current compiler's
+                    # select list to preserve existing behavior.
+                    select_for_ordering = self.select
+
+                for idx, (sel_expr, _, col_alias) in enumerate(select_for_ordering):
                     if is_ref and col_alias == src.refs:
                         src = src.source
                     elif col_alias:
