@@ -340,34 +340,37 @@ class SQLCompiler:
         result = []
         seen = set()
 
+        # Precompute the effective select list to use for ORDER BY ordinal
+        # mapping in the context of combined queries (UNION/INTERSECT/EXCEPT).
+        # This aligns ordinals to the actual columns produced by the compound
+        # query and avoids mismatches after evaluating derived querysets.
+        select_for_ordering = self.select
+        if self.query.combinator:
+            chosen = None
+            lengths_match = True
+            for child_query in getattr(self.query, 'combined_queries', ()):
+                if child_query.is_empty():
+                    continue
+                child_compiler = child_query.get_compiler(self.using, self.connection)
+                child_compiler.setup_query()
+                if child_compiler.select:
+                    if chosen is None:
+                        chosen = child_compiler.select
+                        base_len = len(chosen)
+                    else:
+                        # Ensure positional consistency across children.
+                        lengths_match = lengths_match and (len(child_compiler.select) == base_len)
+            if chosen is not None and lengths_match and (not self.select or len(self.select) == len(chosen)):
+                select_for_ordering = chosen
+
         for expr, is_ref in order_by:
+
             resolved = expr.resolve_expression(self.query, allow_joins=True, reuse=None)
             if self.query.combinator:
                 src = resolved.get_source_expressions()[0]
                 # Relabel order by columns to raw numbers if this is a combined
                 # query; necessary since the columns can't be referenced by the
                 # fully qualified name and the simple column names may collide.
-                # Use the effective select list of the compound query to avoid
-                # mismatches caused by derived querysets mutating the outer
-                # compiler's select list. Default to this compiler's select
-                # when not combining queries or when no child select is found.
-                select_for_ordering = self.select
-                try:
-                    # Prefer the first non-empty child query's select list as it
-                    # represents the columns actually yielded by the UNION.
-                    for child_query in getattr(self.query, 'combined_queries', ()):
-                        if not child_query.is_empty():
-                            child_compiler = child_query.get_compiler(self.using, self.connection)
-                            # Ensure the child's select list is populated.
-                            child_compiler.setup_query()
-                            if child_compiler.select:
-                                select_for_ordering = child_compiler.select
-                                break
-                except Exception:
-                    # If anything goes wrong, fall back to the current compiler's
-                    # select list to preserve existing behavior.
-                    select_for_ordering = self.select
-
 
                     # Note: Selecting from the child compiler's select list ensures
                     # ORDER BY ordinals refer to columns actually returned by the
