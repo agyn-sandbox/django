@@ -346,26 +346,20 @@ class SQLCompiler:
         # query and avoids mismatches after evaluating derived querysets.
         select_for_ordering = self.select
         if self.query.combinator:
+            # Functional change: Always prefer the first non-empty child query's
+            # select list for ORDER BY ordinal mapping so ordinals refer to the
+            # actual columns produced by the compound query.
             chosen = None
-            base_len = None
-            lengths_match = True
             for child_query in getattr(self.query, 'combined_queries', ()):
                 if child_query.is_empty():
                     continue
                 child_compiler = child_query.get_compiler(self.using, self.connection)
                 child_compiler.setup_query()
                 sel = child_compiler.select
-                if not sel:
-                    continue
-                if chosen is None:
+                if sel:
                     chosen = sel
-                    base_len = len(sel)
-                elif len(sel) != base_len:
-                    lengths_match = False
                     break
-            # Prefer the child select when available; if lengths diverge,
-            # keep fallback to current select to avoid misaligned ordinals.
-            if chosen is not None and (lengths_match or not self.select or len(self.select) == len(chosen)):
+            if chosen is not None:
                 select_for_ordering = chosen
 
         for expr, is_ref in order_by:
