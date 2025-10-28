@@ -6,7 +6,7 @@ from django.core.exceptions import FieldError
 from django.db import connection
 from django.db.models import (
     Avg, Count, DecimalField, DurationField, F, FloatField, Func, IntegerField,
-    Max, Min, Sum, Value,
+    Max, Min, Sum, Value, Case, When, Q,
 )
 from django.test import TestCase
 from django.test.utils import Approximate, CaptureQueriesContext
@@ -1107,3 +1107,32 @@ class AggregateTestCase(TestCase):
             Book.objects.aggregate(is_book=True)
         with self.assertRaisesMessage(TypeError, msg % ', '.join([str(FloatField()), 'True'])):
             Book.objects.aggregate(FloatField(), Avg('price'), is_book=True)
+
+    def test_count_distinct_with_case_spacing(self):
+        # Build a CASE expression that starts the aggregate input.
+        expr = Case(
+            When(pages__gt=100, then='id'),
+            default=None,
+            output_field=IntegerField(),
+        )
+        qs = Book.objects.annotate(c=Count(expr, distinct=True))
+        sql = str(qs.query)
+        self.assertIn('COUNT(DISTINCT CASE', sql)
+        self.assertNotIn('COUNT(DISTINCTCASE', sql)
+
+        # Sanity: when distinct=False, there shouldn't be stray spacing.
+        qs2 = Book.objects.annotate(c=Count(expr, distinct=False))
+        sql2 = str(qs2.query)
+        self.assertIn('COUNT(CASE', sql2)
+
+    def test_count_distinct_with_filter_case_spacing(self):
+        # Using FILTER clause when supported; otherwise, emulate with CASE
+        qs = Book.objects.annotate(c=Count('id', distinct=True, filter=Q(pages__gt=100)))
+        sql = str(qs.query)
+        if not connection.features.supports_aggregate_filter_clause:
+            # Backend uses CASE emulation; ensure spacing around DISTINCT CASE.
+            self.assertIn('COUNT(DISTINCT CASE', sql)
+            self.assertNotIn('COUNT(DISTINCTCASE', sql)
+        else:
+            # FILTER clause is used; at minimum ensure DISTINCT not glued to CASE.
+            self.assertNotIn('DISTINCTCASE', sql)
