@@ -347,20 +347,25 @@ class SQLCompiler:
         select_for_ordering = self.select
         if self.query.combinator:
             chosen = None
+            base_len = None
             lengths_match = True
             for child_query in getattr(self.query, 'combined_queries', ()):
                 if child_query.is_empty():
                     continue
                 child_compiler = child_query.get_compiler(self.using, self.connection)
                 child_compiler.setup_query()
-                if child_compiler.select:
-                    if chosen is None:
-                        chosen = child_compiler.select
-                        base_len = len(chosen)
-                    else:
-                        # Ensure positional consistency across children.
-                        lengths_match = lengths_match and (len(child_compiler.select) == base_len)
-            if chosen is not None and lengths_match and (not self.select or len(self.select) == len(chosen)):
+                sel = child_compiler.select
+                if not sel:
+                    continue
+                if chosen is None:
+                    chosen = sel
+                    base_len = len(sel)
+                elif len(sel) != base_len:
+                    lengths_match = False
+                    break
+            # Prefer the child select when available; if lengths diverge,
+            # keep fallback to current select to avoid misaligned ordinals.
+            if chosen is not None and (lengths_match or not self.select or len(self.select) == len(chosen)):
                 select_for_ordering = chosen
 
         for expr, is_ref in order_by:
