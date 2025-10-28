@@ -368,6 +368,12 @@ class SQLCompiler:
                     # select list to preserve existing behavior.
                     select_for_ordering = self.select
 
+
+                    # Note: Selecting from the child compiler's select list ensures
+                    # ORDER BY ordinals refer to columns actually returned by the
+                    # UNION. This avoids "ORDER BY position N is not in select list"
+                    # errors observed after evaluating derived querysets, e.g.,
+                    # qs.order_by().values_list(...), then re-evaluating the original qs.
                 for idx, (sel_expr, _, col_alias) in enumerate(select_for_ordering):
                     if is_ref and col_alias == src.refs:
                         src = src.source
