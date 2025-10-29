@@ -1178,6 +1178,35 @@ class CaseExpressionTests(TestCase):
             lambda x: x[1:]
         )
 
+    def test_compiled_sql_has_space_after_distinct_case(self):
+        # Reproducer for malformed SQL when using Count(Case(...), distinct=True)
+        # The generated SQL should contain 'COUNT(DISTINCT CASE', not
+        # 'COUNT(DISTINCTCASE'.
+        case_expr = Case(
+            When(integer=2, then=1),
+            default=0,
+            output_field=models.IntegerField(),
+        )
+        qs = CaseTestModel.objects.annotate(
+            c=models.Count(case_expr, distinct=True)
+        )
+        sql = str(qs.query)
+        self.assertIn('COUNT(DISTINCT CASE', sql)
+
+    def test_count_distinct_case_exec(self):
+        # Executing COUNT(DISTINCT CASE ...) should succeed on SQLite.
+        # Before the fix, SQLite raises: OperationalError: near "WHEN".
+        case_expr = Case(
+            When(integer=2, then=1),
+            default=0,
+            output_field=models.IntegerField(),
+        )
+        result = CaseTestModel.objects.aggregate(
+            c=models.Count(case_expr, distinct=True)
+        )
+        # Distinct values of CASE ... END across dataset are {0, 1} -> 2.
+        self.assertEqual(result['c'], 2)
+
 
 class CaseDocumentationExamples(TestCase):
     @classmethod
