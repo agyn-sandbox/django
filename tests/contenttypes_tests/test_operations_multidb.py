@@ -34,7 +34,7 @@ class ContentTypesRouter:
 @override_settings(
     MIGRATION_MODULES=dict(
         # Reuse the operations migrations used by existing contenttypes tests.
-        settings.MIGRATION_MODULES,
+        getattr(settings, 'MIGRATION_MODULES', {}) or {},
         contenttypes_tests='contenttypes_tests.operations_migrations',
     ),
     DATABASE_ROUTERS=[
