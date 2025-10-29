@@ -91,6 +91,8 @@ class DurationParseTests(unittest.TestCase):
         self.assertEqual(parse_duration('10:15:30'), timedelta(hours=10, minutes=15, seconds=30))
         self.assertEqual(parse_duration('1:15:30'), timedelta(hours=1, minutes=15, seconds=30))
         self.assertEqual(parse_duration('100:200:300'), timedelta(hours=100, minutes=200, seconds=300))
+        # Explicitly lock per-component behavior for '-HH:MM:SS' (negative hours only).
+        self.assertEqual(parse_duration('-01:02:03'), timedelta(hours=-1, minutes=2, seconds=3))
 
     def test_days(self):
         self.assertEqual(parse_duration('4 15:30'), timedelta(days=4, minutes=15, seconds=30))
@@ -113,13 +115,30 @@ class DurationParseTests(unittest.TestCase):
         test_values = (
             ('-4 15:30', timedelta(days=-4, minutes=15, seconds=30)),
             ('-172800', timedelta(days=-2)),
+            # Preserve legacy semantics for -MM:SS (minutes negative only).
             ('-15:30', timedelta(minutes=-15, seconds=30)),
+            # Preserve existing behavior for -H:MM:SS (no global sign).
             ('-1:15:30', timedelta(hours=-1, minutes=15, seconds=30)),
             ('-30.1', timedelta(seconds=-30, milliseconds=-100)),
+            # Global sign on zero-padded hours for HH:MM:SS.
+            ('-00:01:01', timedelta(seconds=-61)),
+            # Legacy semantics for -MM:SS: minutes negative only.
+            ('-01:01', timedelta(minutes=-1, seconds=1)),
         )
         for source, expected in test_values:
             with self.subTest(source=source):
                 self.assertEqual(parse_duration(source), expected)
+
+    def test_invalid_negative_positions(self):
+        invalid = (
+            '00:-01:-01',
+            '-01:-01',
+            '--01:02:03',
+            '1 days, -2:03:04',
+        )
+        for source in invalid:
+            with self.subTest(source=source):
+                self.assertIsNone(parse_duration(source))
 
     def test_iso_8601(self):
         test_values = (
