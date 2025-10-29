@@ -1,4 +1,5 @@
 import os
+import subprocess
 import signal
 from unittest import mock
 
@@ -19,6 +20,10 @@ class PostgreSqlDbshellCommandTestCase(SimpleTestCase):
             self.subprocess_args = list(*args)
             env = kwargs.get('env') or {}
             self.pgpassword = env.get('PGPASSWORD')
+            # Capture check=True
+            self.assertTrue(kwargs.get('check'))
+            # Ensure PGPASSFILE not passed in env
+            self.assertNotIn('PGPASSFILE', env)
             class Result:
                 returncode = 0
             return Result()
@@ -101,7 +106,7 @@ class PostgreSqlDbshellCommandTestCase(SimpleTestCase):
         )
 
     def test_sigint_handler(self):
-        """SIGINT is ignored in Python and passed to psql to abort quries."""
+        """SIGINT is ignored in Python and passed to psql to abort queries."""
         def _mock_subprocess_run(*args, **kwargs):
             handler = signal.getsignal(signal.SIGINT)
             self.assertEqual(handler, signal.SIG_IGN)
@@ -116,3 +121,31 @@ class PostgreSqlDbshellCommandTestCase(SimpleTestCase):
             DatabaseClient.runshell_db({})
         # dbshell restores the original handler.
         self.assertEqual(sigint_handler, signal.getsignal(signal.SIGINT))
+
+    def test_env_not_mutated_and_error_restores_sigint(self):
+        """Environment is not mutated and SIGINT restored on error."""
+        # Ensure PGPASSWORD not in os.environ before call.
+        self.assertNotIn('PGPASSWORD', os.environ)
+
+        def _mock_subprocess_run(*args, **kwargs):
+            # During the call, ensure SIGINT is ignored.
+            self.assertEqual(signal.getsignal(signal.SIGINT), signal.SIG_IGN)
+            # The env passed to subprocess.run must not include PGPASSFILE.
+            env = kwargs.get('env') or {}
+            self.assertNotIn('PGPASSFILE', env)
+            # Simulate a failure.
+            raise subprocess.CalledProcessError(returncode=1, cmd=kwargs.get('args', []))
+
+        sigint_handler = signal.getsignal(signal.SIGINT)
+        with mock.patch('subprocess.run', new=_mock_subprocess_run):
+            with self.assertRaises(subprocess.CalledProcessError):
+                DatabaseClient.runshell_db({
+                    'database': 'dbname',
+                    'user': 'u',
+                    'password': 'p',
+                    'host': 'h',
+                    'port': '444',
+                })
+        # After call, original SIGINT handler restored and os.environ unchanged.
+        self.assertEqual(sigint_handler, signal.getsignal(signal.SIGINT))
+        self.assertNotIn('PGPASSWORD', os.environ)
