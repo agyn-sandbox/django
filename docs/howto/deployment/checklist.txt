@@ -158,9 +158,10 @@ Now is a good time to check your backup strategy for these files.
 ----------------------------------
 
 The default for :setting:`FILE_UPLOAD_PERMISSIONS` is ``0o644``.
-Setting it to ``None`` restores operating system-dependent behavior
-(umask for in-memory uploads; typically ``0o600`` for temporary uploads).
-You may override this setting to ensure all files are uploaded with the same
+Setting it to ``None`` restores operating system-dependent behavior.
+In that mode, files saved from memory use the system umask, and files first
+uploaded to a temporary location typically have mode ``0o600``. You may
+override this setting to ensure all files are uploaded with the same
 permissions.
 
 HTTPS

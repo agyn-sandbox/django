@@ -921,6 +921,21 @@ class FileStoragePermissions(unittest.TestCase):
         actual_mode = os.stat(self.storage.path(name))[0] & 0o777
         self.assertEqual(actual_mode, 0o644)
 
+    @override_settings(FILE_UPLOAD_PERMISSIONS=None)
+    def test_none_permissions_temporary_upload_matches_temp_mode(self):
+        """
+        With FILE_UPLOAD_PERMISSIONS=None, saving a TemporaryUploadedFile should
+        not chmod the destination; its mode matches the original temp file mode.
+        """
+        self.storage = FileSystemStorage(self.storage_dir)
+        with TemporaryUploadedFile('tmp_upload2', 'text/plain', 1, 'utf8') as tmp:
+            tmp.write(b'data')
+            tmp.flush()
+            temp_mode = os.fstat(tmp.file.fileno())[0] & 0o777
+            name = self.storage.save("tmp_upload2", tmp)
+        dest_mode = os.stat(self.storage.path(name))[0] & 0o777
+        self.assertEqual(dest_mode, temp_mode)
+
     @override_settings(FILE_UPLOAD_DIRECTORY_PERMISSIONS=0o765)
     def test_file_upload_directory_permissions(self):
         self.storage = FileSystemStorage(self.storage_dir)
