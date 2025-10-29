@@ -228,3 +228,59 @@ class QuerySetSetOperationTests(TestCase):
         qs1 = Number.objects.all()
         qs2 = Number.objects.intersection(Number.objects.filter(num__gt=1))
         self.assertEqual(qs1.difference(qs2).count(), 2)
+
+    @skipUnlessDBFeature('supports_slicing_ordering_in_compound')
+    def test_union_derived_order_by_values_list_does_not_mutate_original(self):
+        qs1 = Number.objects.filter(num__lte=3).order_by('num')
+        qs2 = Number.objects.filter(num__gte=8)
+        combined = qs1.union(qs2)
+        derived = combined.order_by('num').values_list('num', flat=True)
+        # Evaluate derived combined queryset.
+        self.assertEqual(list(derived), [0, 1, 2, 3, 8, 9])
+        # Re-evaluate original queryset to ensure stability.
+        self.assertNumbersEqual(qs1, [0, 1, 2, 3])
+
+    @skipUnlessDBFeature('supports_slicing_ordering_in_compound')
+    def test_union_all_derived_order_by_values_list_does_not_mutate_original(self):
+        qs1 = Number.objects.filter(num__lte=3).order_by('num')
+        qs2 = Number.objects.filter(num__gte=8)
+        combined = qs1.union(qs2, all=True)
+        derived = combined.order_by('num').values_list('num', flat=True)
+        # Evaluate derived combined queryset.
+        self.assertEqual(list(derived), [0, 1, 2, 3, 8, 9])
+        # Re-evaluate original queryset to ensure stability.
+        self.assertNumbersEqual(qs1, [0, 1, 2, 3])
+
+    @skipUnlessDBFeature('supports_select_intersection', 'supports_slicing_ordering_in_compound')
+    def test_intersection_derived_order_by_values_list_does_not_mutate_original(self):
+        qs1 = Number.objects.filter(num__lte=5).order_by('num')
+        qs2 = Number.objects.filter(num__gte=3)
+        combined = qs1.intersection(qs2)
+        derived = combined.order_by('num').values_list('num', flat=True)
+        # Evaluate derived combined queryset.
+        self.assertEqual(list(derived), [3, 4, 5])
+        # Re-evaluate original queryset to ensure stability.
+        self.assertNumbersEqual(qs1, [0, 1, 2, 3, 4, 5])
+
+    @skipUnlessDBFeature('supports_select_difference', 'supports_slicing_ordering_in_compound')
+    def test_difference_derived_order_by_values_list_does_not_mutate_original(self):
+        qs1 = Number.objects.filter(num__lte=5).order_by('num')
+        qs2 = Number.objects.filter(num__lte=4)
+        combined = qs1.difference(qs2)
+        derived = combined.order_by('num').values_list('num', flat=True)
+        # Evaluate derived combined queryset.
+        self.assertEqual(list(derived), [5])
+        # Re-evaluate original queryset to ensure stability.
+        self.assertNumbersEqual(qs1, [0, 1, 2, 3, 4, 5])
+
+    @skipUnlessDBFeature('supports_slicing_ordering_in_compound')
+    def test_clear_ordering_on_combined_then_values_list_does_not_mutate_originals(self):
+        qs1 = Number.objects.filter(num__lte=3).order_by('num')
+        qs2 = Number.objects.filter(num__gte=8)
+        combined = qs1.union(qs2)
+        # Clear ordering at combined level and then apply values_list.
+        derived = combined.order_by().values_list('num', flat=True)
+        # Evaluate derived combined queryset without raising.
+        self.assertCountEqual(list(derived), [0, 1, 2, 3, 8, 9])
+        # Original querysets remain stable.
+        self.assertNumbersEqual(qs1, [0, 1, 2, 3])
