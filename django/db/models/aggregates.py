@@ -68,7 +68,9 @@ class Aggregate(Func):
         return []
 
     def as_sql(self, compiler, connection, **extra_context):
-        extra_context['distinct'] = 'DISTINCT' if self.distinct else ''
+        # Add trailing space after DISTINCT to avoid generating
+        # malformed SQL like 'DISTINCTCASE' when expressions follow.
+        extra_context['distinct'] = 'DISTINCT ' if self.distinct else ''
         if self.filter:
             if connection.features.supports_aggregate_filter_clause:
                 filter_sql, filter_params = self.filter.as_sql(compiler, connection)
