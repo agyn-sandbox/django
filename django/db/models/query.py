@@ -931,7 +931,12 @@ class QuerySet:
         # Clear limits and ordering so they can be reapplied
         clone.query.clear_ordering(True)
         clone.query.clear_limits()
-        clone.query.combined_queries = (self.query,) + tuple(qs.query for qs in other_qs)
+        # Store clones of underlying Query objects to avoid cross-mutation
+        # by derived evaluations (e.g., values()/values_list()) on combined
+        # querysets. This mirrors the approach used in SQLCompiler when
+        # values_select is set and ensures consistent behavior regardless of
+        # values_select.
+        clone.query.combined_queries = (self.query.clone(),) + tuple(qs.query.clone() for qs in other_qs)
         clone.query.combinator = combinator
         clone.query.combinator_all = all
         return clone
