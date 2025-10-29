@@ -24,7 +24,9 @@ class RenameContentType(migrations.RunPython):
             content_type.model = new_model
             try:
                 with transaction.atomic(using=db):
-                    content_type.save(update_fields={'model'})
+                    # Ensure save occurs on the migration's DB alias (schema_editor)
+                    # to respect multi-DB routing and avoid touching the default DB.
+                    content_type.save(using=db, update_fields={'model'})
             except IntegrityError:
                 # Gracefully fallback if a stale content type causes a
                 # conflict as remove_stale_contenttypes will take care of
