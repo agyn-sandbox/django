@@ -897,7 +897,29 @@ class FileStoragePermissions(unittest.TestCase):
         self.storage = FileSystemStorage(self.storage_dir)
         fname = self.storage.save("some_file", ContentFile("data"))
         mode = os.stat(self.storage.path(fname))[0] & 0o777
+        # With FILE_UPLOAD_PERMISSIONS=None, OS umask-based behavior applies.
         self.assertEqual(mode, 0o666 & ~self.umask)
+
+    def test_default_permissions_memory_upload(self):
+        """
+        Saving a ContentFile (memory upload path) applies default 0o644
+        permissions to the destination file.
+        """
+        self.storage = FileSystemStorage(self.storage_dir)
+        name = self.storage.save("mem_upload", ContentFile("data"))
+        actual_mode = os.stat(self.storage.path(name))[0] & 0o777
+        self.assertEqual(actual_mode, 0o644)
+
+    def test_default_permissions_temporary_upload(self):
+        """
+        Saving a TemporaryUploadedFile applies default 0o644
+        permissions to the destination file.
+        """
+        self.storage = FileSystemStorage(self.storage_dir)
+        with TemporaryUploadedFile('tmp_upload', 'text/plain', 1, 'utf8') as tmp:
+            name = self.storage.save("tmp_upload", tmp)
+        actual_mode = os.stat(self.storage.path(name))[0] & 0o777
+        self.assertEqual(actual_mode, 0o644)
 
     @override_settings(FILE_UPLOAD_DIRECTORY_PERMISSIONS=0o765)
     def test_file_upload_directory_permissions(self):
