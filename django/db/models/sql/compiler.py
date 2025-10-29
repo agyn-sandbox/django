@@ -36,6 +36,9 @@ class SQLCompiler:
         # Multiline ordering SQL clause may appear from RawSQL.
         self.ordering_parts = re.compile(r'^(.*)\s(ASC|DESC)(.*)', re.MULTILINE | re.DOTALL)
         self._meta_ordering = None
+        # Effective select list of the first part of a compound query (e.g., UNION).
+        # Captured during get_combinator_sql() for use when computing ORDER BY.
+        self._combinator_select = None
 
     def setup_query(self):
         if all(self.query.alias_refcount[a] == 0 for a in self.query.alias_map):
@@ -433,6 +436,9 @@ class SQLCompiler:
                         *self.query.annotation_select,
                     ))
                 part_sql, part_args = compiler.as_sql()
+                # Capture the select list from the first compiled non-empty part.
+                if self._combinator_select is None:
+                    self._combinator_select = compiler.select
                 if compiler.query.combinator:
                     # Wrap in a subquery if wrapping in parentheses isn't
                     # supported.
@@ -482,6 +488,15 @@ class SQLCompiler:
                 if not getattr(features, 'supports_select_{}'.format(combinator)):
                     raise NotSupportedError('{} is not supported on this database backend.'.format(combinator))
                 result, params = self.get_combinator_sql(combinator, self.query.combinator_all)
+                # Recompute ORDER BY using the effective select list of the combination
+                # to ensure correct mapping of references to positional columns.
+                if self._combinator_select is not None:
+                    saved_select = self.select
+                    try:
+                        self.select = self._combinator_select
+                        order_by = self.get_order_by()
+                    finally:
+                        self.select = saved_select
             else:
                 distinct_fields, distinct_params = self.get_distinct()
                 # This must come after 'select', 'ordering', and 'distinct'
