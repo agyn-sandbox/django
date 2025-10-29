@@ -931,7 +931,10 @@ class QuerySet:
         # Clear limits and ordering so they can be reapplied
         clone.query.clear_ordering(True)
         clone.query.clear_limits()
-        clone.query.combined_queries = (self.query,) + tuple(qs.query for qs in other_qs)
+        # Store clones of component queries to avoid mutating original queries
+        # when imposing combined-level masks (e.g., values()/values_list()) or
+        # other adjustments during SQL compilation.
+        clone.query.combined_queries = (self.query.clone(),) + tuple(qs.query.clone() for qs in other_qs)
         clone.query.combinator = combinator
         clone.query.combinator_all = all
         return clone
