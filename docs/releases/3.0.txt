@@ -290,6 +290,18 @@ Miscellaneous
 * ``ContentType.__str__()`` now includes the model's ``app_label`` to
   disambiguate model's with the same name in different apps.
 
+File uploads
+------------
+
+* The default for :setting:`FILE_UPLOAD_PERMISSIONS` changed from ``None`` to
+  ``0o644``. Set it to ``None`` to restore the previous operating
+  system-dependent behavior (umask for in-memory uploads; typically ``0o600``
+  for temporary uploads). This change affects only the final stored files; the
+  permissions of temporary upload files remain governed by the operating
+  system and are not modified by Django. Permissions of temporary files stored
+  in :setting:`FILE_UPLOAD_TEMP_DIR` remain unchanged and continue to use
+  security-leaning defaults.
+
 .. _deprecated-features-3.0:
 
 Features deprecated in 3.0

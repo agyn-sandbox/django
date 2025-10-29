@@ -157,12 +157,12 @@ Now is a good time to check your backup strategy for these files.
 :setting:`FILE_UPLOAD_PERMISSIONS`
 ----------------------------------
 
-With the default file upload settings, files smaller than
-:setting:`FILE_UPLOAD_MAX_MEMORY_SIZE` may be stored with a different mode
-than larger files as described in :setting:`FILE_UPLOAD_PERMISSIONS`.
-
-Setting :setting:`FILE_UPLOAD_PERMISSIONS` ensures all files are uploaded with
-the same permissions.
+The default for :setting:`FILE_UPLOAD_PERMISSIONS` is ``0o644``.
+Setting it to ``None`` restores operating system-dependent behavior.
+In that mode, files saved from memory use the system umask, and files first
+uploaded to a temporary location typically have mode ``0o600``. You may
+override this setting to ensure all files are uploaded with the same
+permissions.
 
 HTTPS
 =====
