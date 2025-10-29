@@ -91,6 +91,8 @@ class DurationParseTests(unittest.TestCase):
         self.assertEqual(parse_duration('10:15:30'), timedelta(hours=10, minutes=15, seconds=30))
         self.assertEqual(parse_duration('1:15:30'), timedelta(hours=1, minutes=15, seconds=30))
         self.assertEqual(parse_duration('100:200:300'), timedelta(hours=100, minutes=200, seconds=300))
+        # Explicitly lock per-component behavior for '-HH:MM:SS' (negative hours only).
+        self.assertEqual(parse_duration('-01:02:03'), timedelta(hours=-1, minutes=2, seconds=3))
 
     def test_days(self):
         self.assertEqual(parse_duration('4 15:30'), timedelta(days=4, minutes=15, seconds=30))

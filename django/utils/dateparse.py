@@ -146,11 +146,10 @@ def parse_duration(value):
         minutes_s = kw.get('minutes')
         seconds_s = kw.get('seconds') or ''
 
-        # Reject mixed-sign forms like "1 days, -2:03:04" (positive days, negative time).
+        # Reject mixed-sign forms like "1 days, -2:03:04" (positive days with negative time).
         if days_str is not None and not str(days_str).startswith('-'):
-            if (hours_s and str(hours_s).startswith('-')) or (
-                minutes_s and str(minutes_s).startswith('-')
-            ) or str(seconds_s).startswith('-'):
+            time_parts = [p for p in (hours_s, minutes_s, seconds_s) if p]
+            if any(str(p).startswith('-') for p in time_parts):
                 return None
 
         # Reject minus signs in components after any colon.

@@ -145,8 +145,9 @@ The functions defined in this module share the following properties:
 
     Minus sign semantics:
     - A single leading minus may be used to negate the entire time-only value
-      (``SS`` or zero-padded ``HH:MM:SS`` such as ``-00:01:01``). For example,
-      ``-01:01`` equals ``-61`` seconds.
+      (``SS`` or zero-padded ``HH:MM:SS`` such as ``-00:01:01``). Global
+      negation does not apply to ``-MM:SS``; in that case, only the minutes
+      component is negative.
     - A minus sign is not allowed in components after a colon (e.g. ``00:-01``)
       and mixed-sign inputs like ``"1 days, -2:03:04"`` are rejected.
     - When no global leading minus is present, existing semantics are preserved:
