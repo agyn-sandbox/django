@@ -81,6 +81,12 @@ class TestParseISODurationRoundtrip(unittest.TestCase):
     def test_negative(self):
         duration = datetime.timedelta(days=-1, hours=1, minutes=3, seconds=5)
         self.assertEqual(parse_duration(duration_iso_string(duration)).total_seconds(), duration.total_seconds())
+        # Leading sign applies to entire ISO duration including days.
+        self.assertEqual(parse_duration('-P1D'), datetime.timedelta(days=-1))
+        self.assertEqual(
+            parse_duration('-P1DT01H03M05S'),
+            -datetime.timedelta(days=1, hours=1, minutes=3, seconds=5),
+        )
 
 
 class TestDurationMicroseconds(unittest.TestCase):

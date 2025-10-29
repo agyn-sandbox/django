@@ -113,13 +113,29 @@ class DurationParseTests(unittest.TestCase):
         test_values = (
             ('-4 15:30', timedelta(days=-4, minutes=15, seconds=30)),
             ('-172800', timedelta(days=-2)),
-            ('-15:30', timedelta(minutes=-15, seconds=30)),
+            # Leading minus negates entire MM:SS or SS.
+            ('-15:30', timedelta(seconds=-930)),
+            # Preserve existing behavior for -H:MM:SS (no global sign).
             ('-1:15:30', timedelta(hours=-1, minutes=15, seconds=30)),
             ('-30.1', timedelta(seconds=-30, milliseconds=-100)),
+            # Global sign on zero-padded hours for HH:MM:SS.
+            ('-00:01:01', timedelta(seconds=-61)),
+            ('-01:01', timedelta(seconds=-61)),
         )
         for source, expected in test_values:
             with self.subTest(source=source):
                 self.assertEqual(parse_duration(source), expected)
+
+    def test_invalid_negative_positions(self):
+        invalid = (
+            '00:-01:-01',
+            '-01:-01',
+            '--01:02:03',
+            '1 days, -2:03:04',
+        )
+        for source in invalid:
+            with self.subTest(source=source):
+                self.assertIsNone(parse_duration(source))
 
     def test_iso_8601(self):
         test_values = (

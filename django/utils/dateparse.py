@@ -129,13 +129,79 @@ def parse_duration(value):
     Also supports ISO 8601 representation and PostgreSQL's day-time interval
     format.
     """
-    match = (
-        standard_duration_re.match(value) or
-        iso8601_duration_re.match(value) or
-        postgres_interval_re.match(value)
-    )
-    if match:
-        kw = match.groupdict()
+    # Prefer standard duration handling first to implement stricter minus rules.
+    std_match = standard_duration_re.match(value)
+    if std_match:
+        # Reject any minus sign appearing after a colon.
+        if ':-' in value:
+            return None
+        # Reject double leading minus.
+        if value.startswith('--'):
+            return None
+
+        kw = std_match.groupdict()
+        days_str = kw.get('days')
+
+        # Reject mixed-sign forms like "1 days, -2:03:04" (positive days, negative time).
+        if days_str is not None and not days_str.startswith('-'):
+            hours_s = kw.get('hours') or ''
+            minutes_s = kw.get('minutes') or ''
+            seconds_s = kw.get('seconds') or ''
+            if hours_s.startswith('-') or minutes_s.startswith('-') or seconds_s.startswith('-'):
+                return None
+
+        # Apply a single leading minus to negate entire time-only duration.
+        apply_global_sign = False
+        if days_str is None and value.startswith('-'):
+            colon_count = value.count(':')
+            # For SS or MM:SS always apply global sign; for HH:MM:SS apply it
+            # only when hours are zero-padded (e.g., "-00:01:01").
+            if colon_count <= 1 or (colon_count == 2 and value.startswith('-0')):
+                apply_global_sign = True
+
+        if apply_global_sign:
+            unsigned = value[1:]
+            unsigned_match = standard_duration_re.match(unsigned)
+            if not unsigned_match:
+                return None
+            ukw = unsigned_match.groupdict()
+            days = datetime.timedelta(float(ukw.pop('days', 0) or 0))
+            if ukw.get('microseconds'):
+                ukw['microseconds'] = ukw['microseconds'].ljust(6, '0')
+            if ukw.get('seconds') and ukw.get('microseconds') and ukw['seconds'].startswith('-'):
+                ukw['microseconds'] = '-' + ukw['microseconds']
+            ukw = {k: float(v) for k, v in ukw.items() if v is not None}
+            return -(days + datetime.timedelta(**ukw))
+
+        # Default behavior preserves existing per-component signs.
+        days = datetime.timedelta(float(kw.pop('days', 0) or 0))
+        # 'sign' only applies to ISO 8601/postgres formats.
+        kw.pop('sign', None)
+        if kw.get('microseconds'):
+            kw['microseconds'] = kw['microseconds'].ljust(6, '0')
+        if kw.get('seconds') and kw.get('microseconds') and kw['seconds'].startswith('-'):
+            kw['microseconds'] = '-' + kw['microseconds']
+        kw = {k: float(v) for k, v in kw.items() if v is not None}
+        return days + datetime.timedelta(**kw)
+
+    # ISO 8601: apply leading sign uniformly to all components including days.
+    iso_match = iso8601_duration_re.match(value)
+    if iso_match:
+        kw = iso_match.groupdict()
+        sign = -1 if kw.pop('sign', '+') == '-' else 1
+        days = float(kw.pop('days', 0) or 0)
+        if kw.get('microseconds'):
+            kw['microseconds'] = kw['microseconds'].ljust(6, '0')
+        if kw.get('seconds') and kw.get('microseconds') and kw['seconds'].startswith('-'):
+            kw['microseconds'] = '-' + kw['microseconds']
+        kw = {k: float(v) for k, v in kw.items() if v is not None}
+        total = datetime.timedelta(days=days, **kw)
+        return sign * total
+
+    # PostgreSQL interval format.
+    pg_match = postgres_interval_re.match(value)
+    if pg_match:
+        kw = pg_match.groupdict()
         days = datetime.timedelta(float(kw.pop('days', 0) or 0))
         sign = -1 if kw.pop('sign', '+') == '-' else 1
         if kw.get('microseconds'):
@@ -144,3 +210,5 @@ def parse_duration(value):
             kw['microseconds'] = '-' + kw['microseconds']
         kw = {k: float(v) for k, v in kw.items() if v is not None}
         return days + sign * datetime.timedelta(**kw)
+
+    return None
