@@ -113,14 +113,15 @@ class DurationParseTests(unittest.TestCase):
         test_values = (
             ('-4 15:30', timedelta(days=-4, minutes=15, seconds=30)),
             ('-172800', timedelta(days=-2)),
-            # Leading minus negates entire MM:SS or SS.
-            ('-15:30', timedelta(seconds=-930)),
+            # Preserve legacy semantics for -MM:SS (minutes negative only).
+            ('-15:30', timedelta(minutes=-15, seconds=30)),
             # Preserve existing behavior for -H:MM:SS (no global sign).
             ('-1:15:30', timedelta(hours=-1, minutes=15, seconds=30)),
             ('-30.1', timedelta(seconds=-30, milliseconds=-100)),
             # Global sign on zero-padded hours for HH:MM:SS.
             ('-00:01:01', timedelta(seconds=-61)),
-            ('-01:01', timedelta(seconds=-61)),
+            # Legacy semantics for -MM:SS: minutes negative only.
+            ('-01:01', timedelta(minutes=-1, seconds=1)),
         )
         for source, expected in test_values:
             with self.subTest(source=source):

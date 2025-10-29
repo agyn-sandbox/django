@@ -87,6 +87,9 @@ class TestParseISODurationRoundtrip(unittest.TestCase):
             parse_duration('-P1DT01H03M05S'),
             -datetime.timedelta(days=1, hours=1, minutes=3, seconds=5),
         )
+        # Additional ISO cases
+        self.assertEqual(parse_duration('-P2DT03H'), -datetime.timedelta(days=2, hours=3))
+        self.assertEqual(parse_duration('-PT0.5S'), -datetime.timedelta(seconds=0.5))
 
 
 class TestDurationMicroseconds(unittest.TestCase):

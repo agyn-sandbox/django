@@ -130,33 +130,45 @@ def parse_duration(value):
     format.
     """
     # Prefer standard duration handling first to implement stricter minus rules.
+    def _normalize_time_parts(parts):
+        """Normalize microseconds padding and sign based on seconds sign."""
+        d = dict(parts)
+        if d.get('microseconds'):
+            d['microseconds'] = d['microseconds'].ljust(6, '0')
+        if d.get('seconds') and d.get('microseconds') and str(d['seconds']).startswith('-'):
+            d['microseconds'] = '-' + d['microseconds']
+        return {k: float(v) for k, v in d.items() if v is not None}
     std_match = standard_duration_re.match(value)
     if std_match:
-        # Reject any minus sign appearing after a colon.
-        if ':-' in value:
-            return None
-        # Reject double leading minus.
-        if value.startswith('--'):
-            return None
-
         kw = std_match.groupdict()
         days_str = kw.get('days')
+        hours_s = kw.get('hours')
+        minutes_s = kw.get('minutes')
+        seconds_s = kw.get('seconds') or ''
 
         # Reject mixed-sign forms like "1 days, -2:03:04" (positive days, negative time).
-        if days_str is not None and not days_str.startswith('-'):
-            hours_s = kw.get('hours') or ''
-            minutes_s = kw.get('minutes') or ''
-            seconds_s = kw.get('seconds') or ''
-            if hours_s.startswith('-') or minutes_s.startswith('-') or seconds_s.startswith('-'):
+        if days_str is not None and not str(days_str).startswith('-'):
+            if (hours_s and str(hours_s).startswith('-')) or (
+                minutes_s and str(minutes_s).startswith('-')
+            ) or str(seconds_s).startswith('-'):
                 return None
 
-        # Apply a single leading minus to negate entire time-only duration.
+        # Reject minus signs in components after any colon.
+        # - For H:M:S, minutes and seconds cannot be negative.
+        # - For M:S (no hours), seconds cannot be negative.
+        if hours_s is not None:
+            if (minutes_s and str(minutes_s).startswith('-')) or str(seconds_s).startswith('-'):
+                return None
+        elif minutes_s is not None:
+            if str(seconds_s).startswith('-'):
+                return None
+
+        # Apply a single leading minus to negate entire time-only duration
+        # only for HH:MM:SS where hours == '00'. For MM:SS, preserve legacy
+        # behavior where only minutes may be negative.
         apply_global_sign = False
-        if days_str is None and value.startswith('-'):
-            colon_count = value.count(':')
-            # For SS or MM:SS always apply global sign; for HH:MM:SS apply it
-            # only when hours are zero-padded (e.g., "-00:01:01").
-            if colon_count <= 1 or (colon_count == 2 and value.startswith('-0')):
+        if days_str is None and value.startswith('-') and hours_s is not None:
+            if str(hours_s).lstrip('-') == '00':
                 apply_global_sign = True
 
         if apply_global_sign:
@@ -166,22 +178,13 @@ def parse_duration(value):
                 return None
             ukw = unsigned_match.groupdict()
             days = datetime.timedelta(float(ukw.pop('days', 0) or 0))
-            if ukw.get('microseconds'):
-                ukw['microseconds'] = ukw['microseconds'].ljust(6, '0')
-            if ukw.get('seconds') and ukw.get('microseconds') and ukw['seconds'].startswith('-'):
-                ukw['microseconds'] = '-' + ukw['microseconds']
-            ukw = {k: float(v) for k, v in ukw.items() if v is not None}
+            ukw = _normalize_time_parts(ukw)
             return -(days + datetime.timedelta(**ukw))
 
         # Default behavior preserves existing per-component signs.
         days = datetime.timedelta(float(kw.pop('days', 0) or 0))
-        # 'sign' only applies to ISO 8601/postgres formats.
         kw.pop('sign', None)
-        if kw.get('microseconds'):
-            kw['microseconds'] = kw['microseconds'].ljust(6, '0')
-        if kw.get('seconds') and kw.get('microseconds') and kw['seconds'].startswith('-'):
-            kw['microseconds'] = '-' + kw['microseconds']
-        kw = {k: float(v) for k, v in kw.items() if v is not None}
+        kw = _normalize_time_parts(kw)
         return days + datetime.timedelta(**kw)
 
     # ISO 8601: apply leading sign uniformly to all components including days.
@@ -190,11 +193,7 @@ def parse_duration(value):
         kw = iso_match.groupdict()
         sign = -1 if kw.pop('sign', '+') == '-' else 1
         days = float(kw.pop('days', 0) or 0)
-        if kw.get('microseconds'):
-            kw['microseconds'] = kw['microseconds'].ljust(6, '0')
-        if kw.get('seconds') and kw.get('microseconds') and kw['seconds'].startswith('-'):
-            kw['microseconds'] = '-' + kw['microseconds']
-        kw = {k: float(v) for k, v in kw.items() if v is not None}
+        kw = _normalize_time_parts(kw)
         total = datetime.timedelta(days=days, **kw)
         return sign * total
 
@@ -204,11 +203,7 @@ def parse_duration(value):
         kw = pg_match.groupdict()
         days = datetime.timedelta(float(kw.pop('days', 0) or 0))
         sign = -1 if kw.pop('sign', '+') == '-' else 1
-        if kw.get('microseconds'):
-            kw['microseconds'] = kw['microseconds'].ljust(6, '0')
-        if kw.get('seconds') and kw.get('microseconds') and kw['seconds'].startswith('-'):
-            kw['microseconds'] = '-' + kw['microseconds']
-        kw = {k: float(v) for k, v in kw.items() if v is not None}
+        kw = _normalize_time_parts(kw)
         return days + sign * datetime.timedelta(**kw)
 
     return None
