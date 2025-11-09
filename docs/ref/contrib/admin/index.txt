@@ -1608,20 +1608,33 @@ templates used by the :class:`ModelAdmin` views:
             def get_sortable_by(self, request):
                 return {*self.get_list_display(request)} - {'rank'}
 
+.. method:: ModelAdmin.get_inlines(request, obj=None)
+
+    The ``get_inlines`` method receives the ``HttpRequest`` and the ``obj``
+    being edited (or ``None`` on an add form) and should return the iterable of
+    inline classes to display. By default it returns the value of
+    :attr:`~ModelAdmin.inlines`. Override it to vary the set of inline classes
+    based on the current request or object. If the method returns ``None``,
+    :meth:`get_inline_instances` falls back to :attr:`inlines`.
+
 .. method:: ModelAdmin.get_inline_instances(request, obj=None)
 
     The ``get_inline_instances`` method is given the ``HttpRequest`` and the
     ``obj`` being edited (or ``None`` on an add form) and is expected to return
     a ``list`` or ``tuple`` of :class:`~django.contrib.admin.InlineModelAdmin`
     objects, as described below in the :class:`~django.contrib.admin.InlineModelAdmin`
-    section. For example, the following would return inlines without the default
-    filtering based on add, change, delete, and view permissions::
+    section. It uses :meth:`get_inlines` to retrieve the inline classes before
+    instantiating them. For example, the following would return inlines without
+    the default filtering based on add, change, delete, and view permissions::
 
         class MyModelAdmin(admin.ModelAdmin):
             inlines = (MyInline,)
 
             def get_inline_instances(self, request, obj=None):
-                return [inline(self.model, self.admin_site) for inline in self.inlines]
+                return [
+                    inline(self.model, self.admin_site)
+                    for inline in self.get_inlines(request, obj)
+                ]
 
     If you override this method, make sure that the returned inlines are
     instances of the classes defined in :attr:`inlines` or you might encounter
