@@ -580,9 +580,32 @@ class ModelAdmin(BaseModelAdmin):
     def __str__(self):
         return "%s.%s" % (self.model._meta.app_label, self.__class__.__name__)
 
+    def get_inlines(self, request, obj=None):
+        """
+        Return an iterable of inline classes displayed in the admin.
+
+        Override this method to customize the inlines returned based on the
+        current request or the object being edited.
+        """
+        return self.inlines
+
     def get_inline_instances(self, request, obj=None):
         inline_instances = []
-        for inline_class in self.inlines:
+        inline_classes = self.get_inlines(request, obj)
+        if inline_classes is None:
+            inline_classes = self.inlines
+
+        for inline_class in inline_classes:
+            try:
+                is_inline = issubclass(inline_class, InlineModelAdmin)
+            except TypeError:
+                is_inline = False
+
+            if not is_inline:
+                name = getattr(inline_class, '__module__', inline_class.__class__.__module__)
+                qualname = getattr(inline_class, '__name__', repr(inline_class))
+                raise TypeError("%s.%s must inherit from InlineModelAdmin." % (name, qualname))
+
             inline = inline_class(self.model, self.admin_site)
             if request:
                 if not (inline.has_view_or_change_permission(request, obj) or
