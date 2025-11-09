@@ -1608,14 +1608,35 @@ templates used by the :class:`ModelAdmin` views:
             def get_sortable_by(self, request):
                 return {*self.get_list_display(request)} - {'rank'}
 
+.. method:: ModelAdmin.get_inlines(request, obj=None)
+
+    The ``get_inlines`` method is given the ``HttpRequest`` and the ``obj``
+    being edited (or ``None`` on an add form) and is expected to return an
+    iterable of :class:`~django.contrib.admin.InlineModelAdmin` **classes**
+    that should be used. The default implementation returns the classes listed
+    in :attr:`inlines`.
+
+    Override this method when the set of inline classes should be determined
+    dynamically based on the current user or object. The instances returned by
+    :meth:`get_inline_instances` will be created from these classes, and the
+    usual permission-based filtering still applies there.
+
 .. method:: ModelAdmin.get_inline_instances(request, obj=None)
 
-    The ``get_inline_instances`` method is given the ``HttpRequest`` and the
-    ``obj`` being edited (or ``None`` on an add form) and is expected to return
-    a ``list`` or ``tuple`` of :class:`~django.contrib.admin.InlineModelAdmin`
-    objects, as described below in the :class:`~django.contrib.admin.InlineModelAdmin`
-    section. For example, the following would return inlines without the default
-    filtering based on add, change, delete, and view permissions::
+    The ``get_inline_instances`` method instantiates each inline class returned
+    by :meth:`get_inlines` and applies the default filtering based on add,
+    change, delete, and view permissions. It returns a ``list`` or ``tuple`` of
+    :class:`~django.contrib.admin.InlineModelAdmin` objects, as described below
+    in the :class:`~django.contrib.admin.InlineModelAdmin` section.
+
+    Overriding this method is rarely required now that you can customize the
+    set of inline classes in :meth:`get_inlines`. If you do override it, make
+    sure that the returned inlines are instances of the classes defined in
+    :attr:`inlines` (or those returned by :meth:`get_inlines`) or you might
+    encounter a "Bad Request" error when adding related objects.
+
+    For example, the following would return inlines without the default
+    permission filtering::
 
         class MyModelAdmin(admin.ModelAdmin):
             inlines = (MyInline,)

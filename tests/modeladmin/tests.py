@@ -719,6 +719,116 @@ class ModelAdminTests(TestCase):
         self.assertEqual(perms_needed, {'band'})
         self.assertEqual(protected, [])
 
+    def test_get_inlines_default_returns_attribute(self):
+        class ConcertInline(TabularInline):
+            model = Concert
+            fk_name = 'main_band'
+
+        class BandAdmin(ModelAdmin):
+            inlines = [ConcertInline]
+
+        ma = BandAdmin(Band, self.site)
+        mock_request = MockRequest()
+        self.assertEqual(ma.get_inlines(mock_request), [ConcertInline])
+
+    def test_dynamic_inlines_based_on_request_and_obj(self):
+        class SongInline(TabularInline):
+            model = Song
+
+        class ConcertInline(TabularInline):
+            model = Concert
+            fk_name = 'main_band'
+
+        class DynamicBandAdmin(ModelAdmin):
+            # Default inlines contain both, but get_inlines will filter dynamically.
+            inlines = [SongInline, ConcertInline]
+
+            def get_inlines(self, request, obj=None):
+                inlines = []
+                if getattr(request.user, 'is_superuser', False):
+                    inlines.append(ConcertInline)
+                if obj is not None:
+                    inlines.append(SongInline)
+                return inlines
+
+        class InlineUser:
+            def __init__(self, *, is_superuser=False):
+                self.is_superuser = is_superuser
+
+            def has_perm(self, perm):
+                return True
+
+        ma = DynamicBandAdmin(Band, self.site)
+        mock_request = MockRequest()
+        mock_request.user = InlineUser()
+
+        # Not superuser and no obj: no inlines.
+        self.assertEqual(ma.get_inline_instances(mock_request), [])
+
+        # Not superuser but with obj: SongInline only.
+        inline_instances = ma.get_inline_instances(mock_request, self.band)
+        self.assertEqual(len(inline_instances), 1)
+        self.assertIsInstance(inline_instances[0], SongInline)
+
+        # Superuser and no obj: ConcertInline only.
+        mock_request.user = InlineUser(is_superuser=True)
+        inline_instances = ma.get_inline_instances(mock_request)
+        self.assertEqual(len(inline_instances), 1)
+        self.assertIsInstance(inline_instances[0], ConcertInline)
+
+        # Superuser and obj present: both inlines.
+        inline_instances = ma.get_inline_instances(mock_request, self.band)
+        self.assertEqual({type(i) for i in inline_instances}, {SongInline, ConcertInline})
+
+    def test_get_inline_instances_filters_inlines_without_permissions(self):
+        class RestrictedSongInline(TabularInline):
+            model = Song
+            max_num = 1
+
+            def has_view_or_change_permission(self, request, obj=None):
+                return getattr(request.user, 'can_view_song_inline', False)
+
+            def has_add_permission(self, request, obj=None):
+                return getattr(request.user, 'can_add_song_inline', False)
+
+            def has_delete_permission(self, request, obj=None):
+                return getattr(request.user, 'can_delete_song_inline', False)
+
+        class DynamicBandAdmin(ModelAdmin):
+            inlines = [RestrictedSongInline]
+
+            def get_inlines(self, request, obj=None):
+                return [RestrictedSongInline]
+
+        ma = DynamicBandAdmin(Band, self.site)
+        mock_request = MockRequest()
+
+        class NoInlinePermissions:
+            can_view_song_inline = False
+            can_add_song_inline = False
+            can_delete_song_inline = False
+
+        mock_request.user = NoInlinePermissions()
+        self.assertEqual(ma.get_inline_instances(mock_request, self.band), [])
+
+        class ViewInlinePermissions(NoInlinePermissions):
+            can_view_song_inline = True
+
+        mock_request.user = ViewInlinePermissions()
+        inline_instances = ma.get_inline_instances(mock_request, self.band)
+        self.assertEqual(len(inline_instances), 1)
+        inline = inline_instances[0]
+        self.assertIsInstance(inline, RestrictedSongInline)
+        self.assertEqual(inline.max_num, 0)
+
+        class AddInlinePermissions(ViewInlinePermissions):
+            can_add_song_inline = True
+
+        mock_request.user = AddInlinePermissions()
+        inline_instances = ma.get_inline_instances(mock_request, self.band)
+        self.assertEqual(len(inline_instances), 1)
+        self.assertEqual(inline_instances[0].max_num, RestrictedSongInline.max_num)
+
 
 class ModelAdminPermissionTests(SimpleTestCase):
 
@@ -854,55 +964,3 @@ class ModelAdminPermissionTests(SimpleTestCase):
             self.assertFalse(ma.has_module_permission(request))
         finally:
             ma.opts.app_label = original_app_label
-
-    def test_get_inlines_default_returns_attribute(self):
-        class ConcertInline(TabularInline):
-            model = Concert
-            fk_name = 'main_band'
-
-        class BandAdmin(ModelAdmin):
-            inlines = [ConcertInline]
-
-        ma = BandAdmin(Band, self.site)
-        self.assertEqual(ma.get_inlines(request), [ConcertInline])
-
-    def test_dynamic_inlines_based_on_request_and_obj(self):
-        class SongInline(TabularInline):
-            model = Song
-
-        class ConcertInline(TabularInline):
-            model = Concert
-            fk_name = 'main_band'
-
-        class DynamicBandAdmin(ModelAdmin):
-            # Default inlines contain both, but get_inlines will filter dynamically.
-            inlines = [SongInline, ConcertInline]
-
-            def get_inlines(self, request, obj=None):
-                inlines = []
-                if getattr(request.user, 'is_superuser', False):
-                    inlines.append(ConcertInline)
-                if obj is not None:
-                    inlines.append(SongInline)
-                return inlines
-
-        ma = DynamicBandAdmin(Band, self.site)
-        # Not superuser and no obj: no inlines.
-        mock_request = MockRequest()
-        mock_request.user = User.objects.create(username='regular')
-        self.assertEqual(ma.get_inline_instances(mock_request), [])
-
-        # Not superuser but with obj: SongInline only.
-        inline_instances = ma.get_inline_instances(mock_request, self.band)
-        self.assertEqual(len(inline_instances), 1)
-        self.assertIsInstance(inline_instances[0], SongInline)
-
-        # Superuser and no obj: ConcertInline only.
-        mock_request.user = User.objects.create_superuser('admin', 'a@example.com', 'x')
-        inline_instances = ma.get_inline_instances(mock_request)
-        self.assertEqual(len(inline_instances), 1)
-        self.assertIsInstance(inline_instances[0], ConcertInline)
-
-        # Superuser and obj present: both inlines.
-        inline_instances = ma.get_inline_instances(mock_request, self.band)
-        self.assertEqual({type(i) for i in inline_instances}, {SongInline, ConcertInline})
