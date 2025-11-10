@@ -84,27 +84,37 @@ class DatabaseOperations(BaseDatabaseOperations):
     def time_trunc_sql(self, lookup_type, field_name):
         return "django_time_trunc('%s', %s)" % (lookup_type.lower(), field_name)
 
-    def _convert_tzname_to_sql(self, tzname):
-        return "'%s'" % tzname if settings.USE_TZ else 'NULL'
+    def _convert_tznames_to_sql(self, tzname):
+        if not settings.USE_TZ:
+            return 'NULL', 'NULL'
+        source_tz = self.connection.timezone_name
+        target_tz = tzname or source_tz
+        source_sql = "'%s'" % source_tz if source_tz else 'NULL'
+        target_sql = "'%s'" % target_tz if target_tz else 'NULL'
+        return source_sql, target_sql
 
     def datetime_cast_date_sql(self, field_name, tzname):
-        return "django_datetime_cast_date(%s, %s)" % (
-            field_name, self._convert_tzname_to_sql(tzname),
+        source_tz_sql, target_tz_sql = self._convert_tznames_to_sql(tzname)
+        return "django_datetime_cast_date(%s, %s, %s)" % (
+            field_name, source_tz_sql, target_tz_sql,
         )
 
     def datetime_cast_time_sql(self, field_name, tzname):
-        return "django_datetime_cast_time(%s, %s)" % (
-            field_name, self._convert_tzname_to_sql(tzname),
+        source_tz_sql, target_tz_sql = self._convert_tznames_to_sql(tzname)
+        return "django_datetime_cast_time(%s, %s, %s)" % (
+            field_name, source_tz_sql, target_tz_sql,
         )
 
     def datetime_extract_sql(self, lookup_type, field_name, tzname):
-        return "django_datetime_extract('%s', %s, %s)" % (
-            lookup_type.lower(), field_name, self._convert_tzname_to_sql(tzname),
+        source_tz_sql, target_tz_sql = self._convert_tznames_to_sql(tzname)
+        return "django_datetime_extract('%s', %s, %s, %s)" % (
+            lookup_type.lower(), field_name, source_tz_sql, target_tz_sql,
         )
 
     def datetime_trunc_sql(self, lookup_type, field_name, tzname):
-        return "django_datetime_trunc('%s', %s, %s)" % (
-            lookup_type.lower(), field_name, self._convert_tzname_to_sql(tzname),
+        source_tz_sql, target_tz_sql = self._convert_tznames_to_sql(tzname)
+        return "django_datetime_trunc('%s', %s, %s, %s)" % (
+            lookup_type.lower(), field_name, source_tz_sql, target_tz_sql,
         )
 
     def time_extract_sql(self, lookup_type, field_name):
