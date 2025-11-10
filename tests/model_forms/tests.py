@@ -1790,6 +1790,12 @@ class ModelMultipleChoiceFieldTests(TestCase):
         self.assertCountEqual(form['categories'].value(), [self.c2.slug, self.c3.slug])
 
 
+class ModelToDictBehaviorTests(TestCase):
+    def test_empty_fields_returns_empty_dict(self):
+        writer = Writer.objects.create(name='Test writer')
+        self.assertEqual(model_to_dict(writer, fields=[]), {})
+
+
 class ModelOneToOneFieldTests(TestCase):
     def test_modelform_onetoonefield(self):
         class ImprovedArticleForm(forms.ModelForm):
