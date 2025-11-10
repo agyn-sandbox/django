@@ -154,3 +154,11 @@ class HttpResponseTests(SimpleTestCase):
         cache.set('my-response-key', response)
         response = cache.get('my-response-key')
         self.assertEqual(response.content, b'0123456789')
+
+    def test_memoryview_content(self):
+        response = HttpResponse(memoryview(b'abc'))
+        self.assertEqual(response.content, b'abc')
+
+    def test_bytearray_content(self):
+        response = HttpResponse(bytearray(b'abc'))
+        self.assertEqual(response.content, b'abc')
