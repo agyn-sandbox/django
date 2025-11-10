@@ -189,6 +189,17 @@ class LoaderTests(TestCase):
                 "App with migrations module file not in unmigrated apps."
             )
 
+    def test_namespace_package_with_migration(self):
+        """
+        A migrations module that's a namespace package (no __init__.py)
+        with actual migration files should be loaded by the MigrationLoader.
+        """
+        with override_settings(MIGRATION_MODULES={"migrations": "migrations.namespace_migrations"}):
+            loader = MigrationLoader(connection)
+            self.assertNotIn("migrations", loader.unmigrated_apps)
+            # The graph should contain the namespace migration.
+            self.assertIn(("migrations", "0001_initial"), loader.graph.nodes)
+
     def test_load_empty_dir(self):
         with override_settings(MIGRATION_MODULES={"migrations": "migrations.faulty_migrations.namespace"}):
             loader = MigrationLoader(connection)
