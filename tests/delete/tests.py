@@ -522,3 +522,10 @@ class FastDeleteTests(TestCase):
                 User.objects.filter(avatar__desc='missing').delete(),
                 (0, {'delete.User': 0})
             )
+
+    def test_instance_pk_cleared_after_fast_delete(self):
+        from .models import Base
+        b = Base.objects.create()
+        self.assertIsNotNone(b.pk)
+        b.delete()
+        self.assertIsNone(b.pk)
