@@ -21,6 +21,16 @@ class RenderToStringTest(SimpleTestCase):
             'obj:test\n',
         )
 
+    def test_render_to_string_honors_engine_autoescape_false(self):
+        engine = Engine(autoescape=False, dirs=[TEMPLATE_DIR])
+        result = engine.render_to_string('test_context.html', {'obj': '<b>bold</b>'})
+        self.assertEqual(result, 'obj:<b>bold</b>\n')
+
+    def test_render_to_string_autoescape_true_unchanged(self):
+        engine = Engine(autoescape=True, dirs=[TEMPLATE_DIR])
+        result = engine.render_to_string('test_context.html', {'obj': '<b>bold</b>'})
+        self.assertEqual(result, 'obj:&lt;b&gt;bold&lt;/b&gt;\n')
+
 
 class GetDefaultTests(SimpleTestCase):
 
