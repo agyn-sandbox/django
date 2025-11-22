@@ -118,7 +118,8 @@ for more about ``add_argument`` usage.
 
 In addition to being able to add custom command line options, all
 :doc:`management commands</ref/django-admin>` can accept some default options
-such as :option:`--verbosity` and :option:`--traceback`.
+such as :option:`--verbosity`, :option:`--skip-checks`, and
+:option:`--traceback`.
 
 .. _management-commands-and-locales:
 

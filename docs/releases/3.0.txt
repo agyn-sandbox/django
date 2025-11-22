@@ -169,6 +169,10 @@ Internationalization
 Management Commands
 ~~~~~~~~~~~~~~~~~~~
 
+* Added :option:`django-admin --skip-checks` (also available via
+  :option:`manage.py --skip-checks`) to bypass the system checks framework
+  before running a command.
+
 * The new :option:`compilemessages --ignore` option allows ignoring specific
   directories when searching for ``.po`` files to compile.
 

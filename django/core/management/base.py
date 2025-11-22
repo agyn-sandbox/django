@@ -95,7 +95,7 @@ class DjangoHelpFormatter(HelpFormatter):
     """
     show_last = {
         '--version', '--verbosity', '--traceback', '--settings', '--pythonpath',
-        '--no-color', '--force-color',
+        '--skip-checks', '--no-color', '--force-color',
     }
 
     def _reordered_actions(self, actions):
@@ -276,6 +276,10 @@ class BaseCommand:
         parser.add_argument(
             '--pythonpath',
             help='A directory to add to the Python path, e.g. "/home/djangoprojects/myproject".',
+        )
+        parser.add_argument(
+            '--skip-checks', action='store_true',
+            help='Skip system checks before executing the command.',
         )
         parser.add_argument('--traceback', action='store_true', help='Raise on CommandError exceptions')
         parser.add_argument(

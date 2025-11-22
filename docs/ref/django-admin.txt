@@ -1682,6 +1682,16 @@ Example usage::
 
     django-admin migrate --settings=mysite.settings
 
+.. django-admin-option:: --skip-checks
+
+Skips core system checks before executing a command. Commands that require
+system checks run them automatically; use this option if you want to bypass
+those checks explicitly.
+
+Example usage::
+
+    django-admin migrate --skip-checks
+
 .. django-admin-option:: --traceback
 
 Displays a full stack trace when a :exc:`~django.core.management.CommandError`
