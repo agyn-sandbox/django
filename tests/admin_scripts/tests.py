@@ -1865,6 +1865,24 @@ class ArgumentOrder(AdminScriptTestCase):
         )
 
 
+class SkipChecks(AdminScriptTestCase):
+
+    def setUp(self):
+        super().setUp()
+        self.write_settings('settings.py')
+
+    def test_skip_checks_suppresses_system_checks(self):
+        out, err = self.run_manage(['syscheck_command'])
+        self.assertNoOutput(out)
+        self.assertOutput(err, 'SystemCheckError')
+        self.assertOutput(err, 'admin_scripts.E001')
+
+        out, err = self.run_manage(['syscheck_command', '--skip-checks'])
+        self.assertNoOutput(err)
+        self.assertOutput(out, 'EXECUTE:SysCheckCommand')
+        self.assertOutput(out, "('skip_checks', True)")
+
+
 @override_settings(ROOT_URLCONF='admin_scripts.urls')
 class StartProject(LiveServerTestCase, AdminScriptTestCase):
 
