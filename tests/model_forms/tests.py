@@ -2514,6 +2514,30 @@ class OtherModelFormTests(TestCase):
         bound_form = PublicationDefaultsForm(empty_data)
         self.assertFalse(bound_form.has_changed())
 
+    def test_cleaned_data_for_undeclared_field_overrides_default(self):
+        class PublicationDefaultsForm(forms.ModelForm):
+            class Meta:
+                model = PublicationDefaults
+                fields = ('title', 'date_published', 'mode', 'category')
+
+            def __init__(self, *args, **kwargs):
+                super().__init__(*args, **kwargs)
+                self.fields.pop('mode')
+
+            def clean(self):
+                cleaned_data = super().clean()
+                cleaned_data['mode'] = 'de'
+                return cleaned_data
+
+        form = PublicationDefaultsForm({
+            'title': 'Delayed Launch',
+            'date_published': '2019-06-03',
+            'category': '3',
+        })
+        self.assertTrue(form.is_valid())
+        publication = form.save()
+        self.assertEqual(publication.mode, 'de')
+
 
 class ModelFormCustomErrorTests(SimpleTestCase):
     def test_custom_error_messages(self):
