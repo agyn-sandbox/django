@@ -50,6 +50,7 @@ def construct_instance(form, instance, fields=None, exclude=None):
         # doesn't provide a replacement (keeping behavior for widgets that
         # intentionally omit data like checkboxes or select-multiple).
         if f.has_default():
+            value = cleaned_data.get(f.name)
             form_field = form.fields.get(f.name)
             if form_field is not None:
                 bf = form[f.name]
@@ -57,9 +58,9 @@ def construct_instance(form, instance, fields=None, exclude=None):
                 value_omitted = bf.field.widget.value_omitted_from_data(
                     form.data, form.files, form.add_prefix(f.name)
                 )
-                if value_omitted and cleaned_data[f.name] in empty_values:
+                if value_omitted and value in empty_values:
                     continue
-            elif cleaned_data[f.name] in Field.empty_values:
+            elif value in Field.empty_values:
                 continue
         # Defer saving file-type fields until after the other fields, so a
         # callable upload_to can use the values from other fields.
