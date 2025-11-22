@@ -2240,6 +2240,26 @@ django\-admin migrate \-\-settings=mysite.settings
 .UNINDENT
 .INDENT 0.0
 .TP
+.B \-\-skip\-checks
+.UNINDENT
+.sp
+Skips running system checks before executing the command. This does not
+affect the \fBcheck\fP command or checks that are invoked inside command
+handlers.
+.sp
+Example usage:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+django\-admin migrate \-\-skip\-checks
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.INDENT 0.0
+.TP
 .B \-\-traceback
 .UNINDENT
 .sp
