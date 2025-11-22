@@ -7,7 +7,7 @@ from django.utils.html import (
     conditional_escape, escape, escapejs, format_html, html_safe, json_script,
     linebreaks, smart_urlquote, strip_spaces_between_tags, strip_tags, urlize,
 )
-from django.utils.safestring import mark_safe
+from django.utils.safestring import SafeString, mark_safe
 
 
 class TestUtilsHtml(SimpleTestCase):
@@ -41,6 +41,7 @@ class TestUtilsHtml(SimpleTestCase):
                 self.check_output(escape, value * 2, output * 2)
         # Verify it doesn't double replace &.
         self.check_output(escape, '<&', '&lt;&amp;')
+        self.assertIsInstance(escape("'"), SafeString)
 
     def test_format_html(self):
         self.assertEqual(
