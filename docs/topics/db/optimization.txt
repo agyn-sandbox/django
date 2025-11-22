@@ -211,6 +211,20 @@ them:
 * in view code or other layers, possibly making use of
   :func:`~django.db.models.prefetch_related_objects` where needed.
 
+.. admonition:: Limitations
+
+    Forward :class:`~django.contrib.contenttypes.fields.GenericForeignKey`
+    fields do not support :meth:`~django.db.models.query.QuerySet.prefetch_related`
+    on this Django version. Use a
+    :class:`~django.contrib.contenttypes.fields.GenericRelation` on the
+    reverse side when you need to prefetch generic relations, or upgrade to
+    Django 5.0+ and use
+    :class:`~django.contrib.contenttypes.fields.GenericPrefetch`.
+    For models with :class:`~django.db.models.UUIDField` primary keys,
+    store object IDs in 36-character canonical string form using
+    :class:`~django.db.models.CharField` on the model that declares the
+    :class:`~django.contrib.contenttypes.fields.GenericForeignKey`.
+
 Don't retrieve things you don't need
 ====================================
 

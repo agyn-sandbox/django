@@ -1,3 +1,4 @@
+import uuid
 from urllib.parse import quote
 
 from django.contrib.contenttypes.fields import (
@@ -136,3 +137,18 @@ class ModelWithM2MToSite(models.Model):
 
     def get_absolute_url(self):
         return '/title/%s/' % quote(self.title)
+
+
+class UUIDFoo(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    bars = GenericRelation(
+        'UUIDBar',
+        content_type_field='foo_content_type',
+        object_id_field='foo_object_id',
+    )
+
+
+class UUIDBar(models.Model):
+    foo_content_type = models.ForeignKey(ContentType, models.CASCADE)
+    foo_object_id = models.CharField(max_length=36)
+    foo = GenericForeignKey('foo_content_type', 'foo_object_id')

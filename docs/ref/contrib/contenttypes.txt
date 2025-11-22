@@ -357,6 +357,24 @@ normal field object, these examples will *not* work::
 Likewise, :class:`~django.contrib.contenttypes.fields.GenericForeignKey`\s
 does not appear in :class:`~django.forms.ModelForm`\s.
 
+.. admonition:: Limitations
+
+    Forward :class:`~django.contrib.contenttypes.fields.GenericForeignKey`
+    fields on this Django version do not support
+    :meth:`~django.db.models.query.QuerySet.prefetch_related`,
+    :meth:`~django.db.models.query.QuerySet.filter`, or
+    :meth:`~django.db.models.query.QuerySet.exclude`. Use a
+    :class:`~django.contrib.contenttypes.fields.GenericRelation` on the
+    reverse side when you need queryset optimizations. Django 5.0+
+    introduces :class:`~django.contrib.contenttypes.fields.GenericPrefetch`
+    for forward prefetch support.
+
+    When working with models that use
+    :class:`~django.db.models.UUIDField` primary keys, store object IDs in
+    canonical string form (36 characters including hyphens) by using a
+    :class:`~django.db.models.CharField` on the model that declares the
+    :class:`~django.contrib.contenttypes.fields.GenericForeignKey`.
+
 Reverse generic relations
 -------------------------
 

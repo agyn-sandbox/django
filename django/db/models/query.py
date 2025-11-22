@@ -35,6 +35,14 @@ REPR_OUTPUT_SIZE = 20
 EmptyResultSet = sql.EmptyResultSet
 
 
+def _is_forward_generic_foreign_key(descriptor):
+    try:
+        from django.contrib.contenttypes.fields import GenericForeignKey
+    except ImportError:
+        return False
+    return isinstance(descriptor, GenericForeignKey)
+
+
 class BaseIterable:
     def __init__(self, queryset, chunked_fetch=False, chunk_size=GET_ITERATOR_CHUNK_SIZE):
         self.queryset = queryset
@@ -1602,13 +1610,19 @@ def prefetch_related_objects(model_instances, *related_lookups):
                                      "parameter to prefetch_related()" %
                                      (through_attr, first_obj.__class__.__name__, lookup.prefetch_through))
 
-            if level == len(through_attrs) - 1 and prefetcher is None:
-                # Last one, this *must* resolve to something that supports
-                # prefetching, otherwise there is no point adding it and the
-                # developer asking for it has made a mistake.
-                raise ValueError("'%s' does not resolve to an item that supports "
-                                 "prefetching - this is an invalid parameter to "
-                                 "prefetch_related()." % lookup.prefetch_through)
+            if level == len(through_attrs) - 1:
+                if _is_forward_generic_foreign_key(descriptor):
+                    raise ValueError(
+                        "prefetch_related() does not support forward GenericForeignKey on this Django version. "
+                        "Use a GenericRelation on the reverse side or upgrade to Django 5.0+ and use GenericPrefetch."
+                    )
+                if prefetcher is None:
+                    # Last one, this *must* resolve to something that supports
+                    # prefetching, otherwise there is no point adding it and the
+                    # developer asking for it has made a mistake.
+                    raise ValueError("'%s' does not resolve to an item that supports "
+                                     "prefetching - this is an invalid parameter to "
+                                     "prefetch_related()." % lookup.prefetch_through)
 
             if prefetcher is not None and not is_fetched:
                 obj_list, additional_lookups = prefetch_one_level(obj_list, prefetcher, lookup, level)
