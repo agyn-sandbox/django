@@ -25,6 +25,7 @@ class PostgreSqlDbshellCommandTestCase(SimpleTestCase):
         return self.subprocess_args, self.subprocess_env
 
     def test_basic(self):
+        baseline_env = os.environ.copy()
         args, env = self._run_it({
             'database': 'dbname',
             'user': 'someuser',
@@ -38,9 +39,10 @@ class PostgreSqlDbshellCommandTestCase(SimpleTestCase):
         )
         self.assertEqual(env.get('PGPASSWORD'), 'somepassword')
         for key in ('PGSSLMODE', 'PGSSLROOTCERT', 'PGSSLCERT', 'PGSSLKEY'):
-            self.assertNotIn(key, env)
+            self.assertEqual(env.get(key), baseline_env.get(key))
 
     def test_nopass(self):
+        baseline_env = os.environ.copy()
         args, env = self._run_it({
             'database': 'dbname',
             'user': 'someuser',
@@ -51,11 +53,12 @@ class PostgreSqlDbshellCommandTestCase(SimpleTestCase):
             args,
             ['psql', '-U', 'someuser', '-h', 'somehost', '-p', '444', 'dbname'],
         )
-        self.assertNotIn('PGPASSWORD', env)
+        self.assertEqual(env.get('PGPASSWORD'), baseline_env.get('PGPASSWORD'))
         for key in ('PGSSLMODE', 'PGSSLROOTCERT', 'PGSSLCERT', 'PGSSLKEY'):
-            self.assertNotIn(key, env)
+            self.assertEqual(env.get(key), baseline_env.get(key))
 
     def test_column(self):
+        baseline_env = os.environ.copy()
         args, env = self._run_it({
             'database': 'dbname',
             'user': 'some:user',
@@ -69,11 +72,12 @@ class PostgreSqlDbshellCommandTestCase(SimpleTestCase):
         )
         self.assertEqual(env.get('PGPASSWORD'), 'some:password')
         for key in ('PGSSLMODE', 'PGSSLROOTCERT', 'PGSSLCERT', 'PGSSLKEY'):
-            self.assertNotIn(key, env)
+            self.assertEqual(env.get(key), baseline_env.get(key))
 
     def test_accent(self):
         username = 'rôle'
         password = 'sésame'
+        baseline_env = os.environ.copy()
         args, env = self._run_it({
             'database': 'dbname',
             'user': username,
@@ -87,7 +91,7 @@ class PostgreSqlDbshellCommandTestCase(SimpleTestCase):
         )
         self.assertEqual(env.get('PGPASSWORD'), password)
         for key in ('PGSSLMODE', 'PGSSLROOTCERT', 'PGSSLCERT', 'PGSSLKEY'):
-            self.assertNotIn(key, env)
+            self.assertEqual(env.get(key), baseline_env.get(key))
 
     def test_ssl_options(self):
         args, env = self._run_it({
@@ -112,6 +116,7 @@ class PostgreSqlDbshellCommandTestCase(SimpleTestCase):
         self.assertEqual(env.get('PGSSLKEY'), '/path/to/client.key')
 
     def test_partial_ssl_options(self):
+        baseline_env = os.environ.copy()
         args, env = self._run_it({
             'database': 'dbname',
             'user': 'someuser',
@@ -124,13 +129,14 @@ class PostgreSqlDbshellCommandTestCase(SimpleTestCase):
             args,
             ['psql', '-U', 'someuser', '-h', 'somehost', '-p', '444', 'dbname'],
         )
-        self.assertNotIn('PGPASSWORD', env)
+        self.assertEqual(env.get('PGPASSWORD'), baseline_env.get('PGPASSWORD'))
         self.assertEqual(env.get('PGSSLMODE'), 'require')
         self.assertEqual(env.get('PGSSLKEY'), '/path/to/client.key')
-        self.assertNotIn('PGSSLROOTCERT', env)
-        self.assertNotIn('PGSSLCERT', env)
+        self.assertEqual(env.get('PGSSLROOTCERT'), baseline_env.get('PGSSLROOTCERT'))
+        self.assertEqual(env.get('PGSSLCERT'), baseline_env.get('PGSSLCERT'))
 
     def test_without_ssl_options(self):
+        baseline_env = os.environ.copy()
         args, env = self._run_it({
             'database': 'dbname',
             'user': 'someuser',
@@ -146,7 +152,7 @@ class PostgreSqlDbshellCommandTestCase(SimpleTestCase):
         )
         self.assertEqual(env.get('PGPASSWORD'), 'somepassword')
         for key in ('PGSSLMODE', 'PGSSLROOTCERT', 'PGSSLCERT', 'PGSSLKEY'):
-            self.assertNotIn(key, env)
+            self.assertEqual(env.get(key), baseline_env.get(key))
 
     def test_sigint_handler(self):
         """SIGINT is ignored in Python and passed to psql to abort quries."""
