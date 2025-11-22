@@ -75,7 +75,8 @@ def get_resolver(urlconf=None):
 
 get_resolver.cache_clear = _cached_get_resolver.cache_clear
 get_resolver.cache_info = _cached_get_resolver.cache_info
-get_resolver.cache_parameters = _cached_get_resolver.cache_parameters
+if hasattr(_cached_get_resolver, 'cache_parameters'):
+    get_resolver.cache_parameters = _cached_get_resolver.cache_parameters
 
 
 @functools.lru_cache(maxsize=None)
