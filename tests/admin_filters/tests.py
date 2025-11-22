@@ -1,6 +1,7 @@
 import datetime
 import sys
 import unittest
+from unittest import mock
 
 from django.contrib.admin import (
     AllValuesFieldListFilter, BooleanFieldListFilter, ModelAdmin,
@@ -591,6 +592,28 @@ class ListFiltersTests(TestCase):
         expected = [(self.john.pk, 'John Blue'), (self.jack.pk, 'Jack Red')]
         self.assertEqual(filterspec.lookup_choices, expected)
 
+    def test_relatedfieldlistfilter_foreignkey_meta_ordering(self):
+        class BookAdmin(ModelAdmin):
+            list_filter = ('employee',)
+
+        registered_admin = site._registry.pop(Employee, None)
+        if registered_admin is not None:
+            admin_class = registered_admin.__class__
+
+            def restore_admin():
+                if Employee not in site._registry:
+                    site.register(Employee, admin_class)
+
+            self.addCleanup(restore_admin)
+        modeladmin = BookAdmin(Book, site)
+
+        request = self.request_factory.get('/')
+        request.user = self.alfred
+        changelist = modeladmin.get_changelist_instance(request)
+        filterspec = changelist.get_filters(request)[0][0]
+        expected = [(self.jack.pk, 'Jack Red'), (self.john.pk, 'John Blue')]
+        self.assertEqual(filterspec.lookup_choices, expected)
+
     def test_relatedfieldlistfilter_manytomany(self):
         modeladmin = BookAdmin(Book, site)
 
@@ -740,6 +763,138 @@ class ListFiltersTests(TestCase):
         filterspec = changelist.get_filters(request)[0][5]
         expected = [(self.bob.pk, 'bob'), (self.lisa.pk, 'lisa')]
         self.assertEqual(sorted(filterspec.lookup_choices), sorted(expected))
+
+    def test_relatedonlyfieldlistfilter_foreignkey_ordering(self):
+        class EmployeeAdminWithOrdering(ModelAdmin):
+            ordering = ('-name',)
+
+        class BookAdmin(ModelAdmin):
+            list_filter = (('employee', RelatedOnlyFieldListFilter),)
+
+        site.register(Employee, EmployeeAdminWithOrdering)
+        self.addCleanup(lambda: site.unregister(Employee))
+        original_djangonaut_employee = self.djangonaut_book.employee_id
+        original_bio_employee = self.bio_book.employee_id
+        self.djangonaut_book.employee = self.john
+        self.djangonaut_book.save(update_fields=['employee'])
+        self.bio_book.employee = self.jack
+        self.bio_book.save(update_fields=['employee'])
+
+        def restore_employees():
+            Book.objects.filter(pk=self.djangonaut_book.pk).update(employee_id=original_djangonaut_employee)
+            Book.objects.filter(pk=self.bio_book.pk).update(employee_id=original_bio_employee)
+            self.djangonaut_book.refresh_from_db()
+            self.bio_book.refresh_from_db()
+
+        self.addCleanup(restore_employees)
+
+        modeladmin = BookAdmin(Book, site)
+        request = self.request_factory.get('/')
+        request.user = self.alfred
+        changelist = modeladmin.get_changelist_instance(request)
+        filterspec = changelist.get_filters(request)[0][0]
+        expected = [(self.john.pk, 'John Blue'), (self.jack.pk, 'Jack Red')]
+        self.assertEqual(filterspec.lookup_choices, expected)
+
+    def test_relatedonlyfieldlistfilter_foreignkey_meta_ordering(self):
+        class BookAdmin(ModelAdmin):
+            list_filter = (('employee', RelatedOnlyFieldListFilter),)
+
+        registered_admin = site._registry.pop(Employee, None)
+        if registered_admin is not None:
+            admin_class = registered_admin.__class__
+
+            def restore_admin():
+                if Employee not in site._registry:
+                    site.register(Employee, admin_class)
+
+            self.addCleanup(restore_admin)
+        original_djangonaut_employee = self.djangonaut_book.employee_id
+        original_bio_employee = self.bio_book.employee_id
+        self.djangonaut_book.employee = self.john
+        self.djangonaut_book.save(update_fields=['employee'])
+        self.bio_book.employee = self.jack
+        self.bio_book.save(update_fields=['employee'])
+
+        def restore_employees():
+            Book.objects.filter(pk=self.djangonaut_book.pk).update(employee_id=original_djangonaut_employee)
+            Book.objects.filter(pk=self.bio_book.pk).update(employee_id=original_bio_employee)
+            self.djangonaut_book.refresh_from_db()
+            self.bio_book.refresh_from_db()
+
+        self.addCleanup(restore_employees)
+
+        modeladmin = BookAdmin(Book, site)
+        request = self.request_factory.get('/')
+        request.user = self.alfred
+        changelist = modeladmin.get_changelist_instance(request)
+        filterspec = changelist.get_filters(request)[0][0]
+        expected = [(self.jack.pk, 'Jack Red'), (self.john.pk, 'John Blue')]
+        self.assertEqual(filterspec.lookup_choices, expected)
+
+    def test_related_field_filters_without_ordering_pass_empty_tuple(self):
+        class BookAdmin(ModelAdmin):
+            list_filter = ('employee',)
+
+        class BookAdminRelatedOnly(ModelAdmin):
+            list_filter = (('employee', RelatedOnlyFieldListFilter),)
+
+        registered_admin = site._registry.pop(Employee, None)
+        if registered_admin is not None:
+            admin_class = registered_admin.__class__
+
+            def restore_admin():
+                if Employee not in site._registry:
+                    site.register(Employee, admin_class)
+
+            self.addCleanup(restore_admin)
+        original_meta_ordering = Employee._meta.ordering
+        Employee._meta.ordering = ()
+
+        def restore_meta_ordering():
+            Employee._meta.ordering = original_meta_ordering
+
+        self.addCleanup(restore_meta_ordering)
+
+        original_djangonaut_employee = self.djangonaut_book.employee_id
+        original_bio_employee = self.bio_book.employee_id
+        self.djangonaut_book.employee = self.john
+        self.djangonaut_book.save(update_fields=['employee'])
+        self.bio_book.employee = self.jack
+        self.bio_book.save(update_fields=['employee'])
+
+        def restore_employees():
+            Book.objects.filter(pk=self.djangonaut_book.pk).update(employee_id=original_djangonaut_employee)
+            Book.objects.filter(pk=self.bio_book.pk).update(employee_id=original_bio_employee)
+            self.djangonaut_book.refresh_from_db()
+            self.bio_book.refresh_from_db()
+
+        self.addCleanup(restore_employees)
+
+        field = Book._meta.get_field('employee')
+        captured_orderings = []
+        original_get_choices = field.__class__.get_choices
+
+        def capture(self, *args, **kwargs):
+            captured_orderings.append(kwargs.get('ordering'))
+            return original_get_choices(self, *args, **kwargs)
+
+        with mock.patch.object(field.__class__, 'get_choices', new=capture):
+            request = self.request_factory.get('/')
+            request.user = self.alfred
+            modeladmin = BookAdmin(Book, site)
+            changelist = modeladmin.get_changelist_instance(request)
+            changelist.get_filters(request)[0][0]
+
+            request_related_only = self.request_factory.get('/')
+            request_related_only.user = self.alfred
+            modeladmin_related_only = BookAdminRelatedOnly(Book, site)
+            changelist_related_only = modeladmin_related_only.get_changelist_instance(request_related_only)
+            changelist_related_only.get_filters(request_related_only)[0][0]
+
+        non_none_orderings = [ordering for ordering in captured_orderings if ordering is not None]
+        self.assertGreaterEqual(len(non_none_orderings), 2)
+        self.assertEqual(set(non_none_orderings), {()})
 
     def test_listfilter_genericrelation(self):
         django_bookmark = Bookmark.objects.create(url='https://www.djangoproject.com/')
