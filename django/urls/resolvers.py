@@ -64,10 +64,19 @@ class ResolverMatch:
 
 
 @functools.lru_cache(maxsize=None)
+def _cached_get_resolver(normalized_urlconf):
+    return URLResolver(RegexPattern(r'^/'), normalized_urlconf)
+
+
 def get_resolver(urlconf=None):
-    if urlconf is None:
-        urlconf = settings.ROOT_URLCONF
-    return URLResolver(RegexPattern(r'^/'), urlconf)
+    normalized_urlconf = settings.ROOT_URLCONF if urlconf is None else urlconf
+    return _cached_get_resolver(normalized_urlconf)
+
+
+get_resolver.cache_clear = _cached_get_resolver.cache_clear
+get_resolver.cache_info = _cached_get_resolver.cache_info
+if hasattr(_cached_get_resolver, 'cache_parameters'):
+    get_resolver.cache_parameters = _cached_get_resolver.cache_parameters
 
 
 @functools.lru_cache(maxsize=None)
