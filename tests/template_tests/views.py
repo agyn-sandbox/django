@@ -19,6 +19,10 @@ def client2(request, tag):
     pass
 
 
+def articles(request, year=None):
+    pass
+
+
 def template_response_view(request):
     return TemplateResponse(request, 'response.html', {})
 

@@ -119,6 +119,11 @@ class UrlTagTests(SimpleTestCase):
         output = self.engine.render_to_string('url21', {'client': {'id': 1}})
         self.assertEqual(output, '/client/1/!$&\'()*+,;=~:@,/')
 
+    @setup({'url_optional_none': '{% url "articles" year=maybe %}'})
+    def test_optional_group_none(self):
+        output = self.engine.render_to_string('url_optional_none', {'maybe': None})
+        self.assertEqual(output, '/articles')
+
     # Failures
     @setup({'url-fail01': '{% url %}'})
     def test_url_fail01(self):

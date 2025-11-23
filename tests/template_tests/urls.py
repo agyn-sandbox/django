@@ -16,6 +16,7 @@ urlpatterns = ns_patterns + [
     # Unicode strings are permitted everywhere.
     re_path(r'^Юникод/(\w+)/$', views.client2, name="метка_оператора"),
     re_path(r'^Юникод/(?P<tag>\S+)/$', views.client2, name="метка_оператора_2"),
+    re_path(r'^articles(?:/(?P<year>[0-9]{4}))?$', views.articles, name='articles'),
 
     # Test urls for namespaces and current_app
     path('ns1/', include((ns_patterns, 'app'), 'ns1')),

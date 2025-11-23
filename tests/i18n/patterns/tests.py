@@ -149,6 +149,11 @@ class URLTranslationTests(URLTestCaseBase):
         with translation.override('pt-br'):
             self.assertEqual(reverse('users'), '/pt-br/usuarios/')
 
+    def test_translate_url_optional_segment_none(self):
+        with translation.override('en'):
+            self.assertEqual(translate_url('/en/account/optional/', 'nl'), '/nl/account/optional/')
+            self.assertEqual(translation.get_language(), 'en')
+
     def test_translate_url_utility(self):
         with translation.override('en'):
             self.assertEqual(translate_url('/en/nonexistent/', 'nl'), '/en/nonexistent/')
@@ -197,6 +202,14 @@ class URLRedirectTests(URLTestCaseBase):
     def test_en_redirect_wrong_url(self):
         response = self.client.get('/profiel/registreren/', HTTP_ACCEPT_LANGUAGE='en')
         self.assertEqual(response.status_code, 404)
+
+    def test_set_language_optional_segment_none(self):
+        response = self.client.post('/i18n/setlang/', data={'language': 'nl', 'next': '/en/account/optional/'})
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response['Location'], '/nl/account/optional/')
+
+        follow = self.client.get(response['Location'])
+        self.assertEqual(follow.status_code, 200)
 
     def test_nl_redirect(self):
         response = self.client.get('/profiel/registreren/', HTTP_ACCEPT_LANGUAGE='nl')

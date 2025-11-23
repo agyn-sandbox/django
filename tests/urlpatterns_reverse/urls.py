@@ -15,6 +15,7 @@ urlpatterns = [
     re_path(r'^places?/$', empty_view, name='places?'),
     re_path(r'^places+/$', empty_view, name='places+'),
     re_path(r'^places*/$', empty_view, name='places*'),
+    re_path(r'^articles(?:/(?P<year>[0-9]{4}))?$', empty_view, name='articles'),
     re_path(r'^(?:places/)?$', empty_view, name='places2?'),
     re_path(r'^(?:places/)+$', empty_view, name='places2+'),
     re_path(r'^(?:places/)*$', empty_view, name='places2*'),
