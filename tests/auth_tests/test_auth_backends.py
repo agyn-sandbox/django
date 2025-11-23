@@ -8,11 +8,13 @@ from django.contrib.auth.backends import BaseBackend, ModelBackend
 from django.contrib.auth.hashers import MD5PasswordHasher
 from django.contrib.auth.models import AnonymousUser, Group, Permission, User
 from django.contrib.contenttypes.models import ContentType
+from django.db import connection
 from django.core.exceptions import ImproperlyConfigured, PermissionDenied
 from django.http import HttpRequest
 from django.test import (
     SimpleTestCase, TestCase, modify_settings, override_settings,
 )
+from django.test.utils import CaptureQueriesContext
 
 from .models import (
     CustomPermissionsUser, CustomUser, CustomUserWithoutIsActiveField,
@@ -226,6 +228,21 @@ class BaseModelBackendTest:
         authenticate(username='no_such_user', password='test')
         self.assertEqual(CountingMD5PasswordHasher.calls, 1)
 
+    @override_settings(PASSWORD_HASHERS=['auth_tests.test_auth_backends.CountingMD5PasswordHasher'])
+    def test_authentication_timing_nonexistent_user_requires_both_credentials(self):
+        CountingMD5PasswordHasher.calls = 0
+        authenticate(username='no_such_user', password='test')
+        self.assertEqual(CountingMD5PasswordHasher.calls, 1)
+
+        CountingMD5PasswordHasher.calls = 0
+        authenticate(password='test')
+        self.assertEqual(CountingMD5PasswordHasher.calls, 0)
+
+        CountingMD5PasswordHasher.calls = 0
+        authenticate(username='no_such_user')
+        self.assertEqual(CountingMD5PasswordHasher.calls, 0)
+        CountingMD5PasswordHasher.calls = 0
+
 
 class ModelBackendTest(BaseModelBackendTest, TestCase):
     """
@@ -250,6 +267,17 @@ class ModelBackendTest(BaseModelBackendTest, TestCase):
         self.user.is_active = False
         self.user.save()
         self.assertIsNone(authenticate(**self.user_credentials))
+
+    def test_no_queries_when_username_or_password_none(self):
+        username = getattr(self.user, self.UserModel.USERNAME_FIELD)
+
+        with CaptureQueriesContext(connection) as queries:
+            self.assertIsNone(authenticate(password='secret'))
+        self.assertEqual(len(queries), 0)
+
+        with CaptureQueriesContext(connection) as queries:
+            self.assertIsNone(authenticate(username=username, password=None))
+        self.assertEqual(len(queries), 0)
 
     @override_settings(AUTH_USER_MODEL='auth_tests.CustomUserWithoutIsActiveField')
     def test_authenticate_user_without_is_active_field(self):
@@ -337,6 +365,17 @@ class CustomUserModelBackendAuthenticateTest(TestCase):
         )
         authenticated_user = authenticate(email='test@example.com', password='test')
         self.assertEqual(test_user, authenticated_user)
+
+    def test_no_queries_when_kwargs_missing_username_field(self):
+        CustomUser._default_manager.create_user(
+            email='existing@example.com',
+            password='secret',
+            date_of_birth=date(2000, 1, 1),
+            first_name='Existing',
+        )
+        with CaptureQueriesContext(connection) as queries:
+            self.assertIsNone(authenticate(password='secret'))
+        self.assertEqual(len(queries), 0)
 
 
 @override_settings(AUTH_USER_MODEL='auth_tests.UUIDUser')
