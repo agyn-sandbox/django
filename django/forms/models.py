@@ -46,11 +46,22 @@ def construct_instance(form, instance, fields=None, exclude=None):
             continue
         if exclude and f.name in exclude:
             continue
-        # Leave defaults for fields that aren't in POST data, except for
-        # checkbox inputs because they don't appear in POST data if not checked.
-        if (f.has_default() and
-                form[f.name].field.widget.value_omitted_from_data(form.data, form.files, form.add_prefix(f.name))):
-            continue
+        # Retain model defaults when no value was submitted and cleaned_data
+        # doesn't provide a replacement (keeping behavior for widgets that
+        # intentionally omit data like checkboxes or select-multiple).
+        if f.has_default():
+            value = cleaned_data.get(f.name)
+            form_field = form.fields.get(f.name)
+            if form_field is not None:
+                bf = form[f.name]
+                empty_values = getattr(bf, 'empty_values', bf.field.empty_values)
+                value_omitted = bf.field.widget.value_omitted_from_data(
+                    form.data, form.files, form.add_prefix(f.name)
+                )
+                if value_omitted and value in empty_values:
+                    continue
+            elif value in Field.empty_values:
+                continue
         # Defer saving file-type fields until after the other fields, so a
         # callable upload_to can use the values from other fields.
         if isinstance(f, models.FileField):
