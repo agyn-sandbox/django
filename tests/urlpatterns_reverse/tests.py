@@ -182,6 +182,7 @@ test_data = (
     ('named_optional', '/optional/1/2/', [], {'arg1': 1, 'arg2': 2}),
     ('named_optional_terminated', '/optional/1/2/', [1, 2], {}),
     ('named_optional_terminated', '/optional/1/2/', [], {'arg1': 1, 'arg2': 2}),
+    ('articles', '/articles', [], {'year': None}),
     ('hardcoded', '/hardcoded/', [], {}),
     ('hardcoded2', '/hardcoded/doc.pdf', [], {}),
     ('people3', '/people/il/adrian/', [], {'state': 'il', 'name': 'adrian'}),
