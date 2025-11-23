@@ -911,7 +911,8 @@ class ManageAlternateSettings(AdminScriptTestCase):
             out,
             "EXECUTE: noargs_command options=[('force_color', False), "
             "('no_color', False), ('pythonpath', None), ('settings', "
-            "'alternate_settings'), ('traceback', False), ('verbosity', 1)]"
+            "'alternate_settings'), ('skip_checks', False), ('traceback', False), "
+            "('verbosity', 1)]"
         )
         self.assertNoOutput(err)
 
@@ -923,7 +924,7 @@ class ManageAlternateSettings(AdminScriptTestCase):
             out,
             "EXECUTE: noargs_command options=[('force_color', False), "
             "('no_color', False), ('pythonpath', None), ('settings', None), "
-            "('traceback', False), ('verbosity', 1)]"
+            "('skip_checks', False), ('traceback', False), ('verbosity', 1)]"
         )
         self.assertNoOutput(err)
 
@@ -935,7 +936,8 @@ class ManageAlternateSettings(AdminScriptTestCase):
             out,
             "EXECUTE: noargs_command options=[('force_color', False), "
             "('no_color', True), ('pythonpath', None), ('settings', "
-            "'alternate_settings'), ('traceback', False), ('verbosity', 1)]"
+            "'alternate_settings'), ('skip_checks', False), ('traceback', False), "
+            "('verbosity', 1)]"
         )
         self.assertNoOutput(err)
 
@@ -1612,8 +1614,8 @@ class CommandTypes(AdminScriptTestCase):
             "EXECUTE:BaseCommand labels=%s, "
             "options=[('force_color', False), ('no_color', False), "
             "('option_a', %s), ('option_b', %s), ('option_c', '3'), "
-            "('pythonpath', None), ('settings', None), ('traceback', False), "
-            "('verbosity', 1)]") % (labels, option_a, option_b)
+            "('pythonpath', None), ('settings', None), ('skip_checks', False), "
+            "('traceback', False), ('verbosity', 1)]") % (labels, option_a, option_b)
         self.assertNoOutput(err)
         self.assertOutput(out, expected_out)
 
@@ -1689,7 +1691,7 @@ class CommandTypes(AdminScriptTestCase):
             out,
             "EXECUTE: noargs_command options=[('force_color', False), "
             "('no_color', False), ('pythonpath', None), ('settings', None), "
-            "('traceback', False), ('verbosity', 1)]"
+            "('skip_checks', False), ('traceback', False), ('verbosity', 1)]"
         )
 
     def test_noargs_with_args(self):
@@ -1707,8 +1709,8 @@ class CommandTypes(AdminScriptTestCase):
         self.assertOutput(
             out,
             ", options=[('force_color', False), ('no_color', False), "
-            "('pythonpath', None), ('settings', None), ('traceback', False), "
-            "('verbosity', 1)]"
+            "('pythonpath', None), ('settings', None), ('skip_checks', False), "
+            "('traceback', False), ('verbosity', 1)]"
         )
 
     def test_app_command_no_apps(self):
@@ -1726,15 +1728,15 @@ class CommandTypes(AdminScriptTestCase):
         self.assertOutput(
             out,
             ", options=[('force_color', False), ('no_color', False), "
-            "('pythonpath', None), ('settings', None), ('traceback', False), "
-            "('verbosity', 1)]"
+            "('pythonpath', None), ('settings', None), ('skip_checks', False), "
+            "('traceback', False), ('verbosity', 1)]"
         )
         self.assertOutput(out, "EXECUTE:AppCommand name=django.contrib.contenttypes, options=")
         self.assertOutput(
             out,
             ", options=[('force_color', False), ('no_color', False), "
-            "('pythonpath', None), ('settings', None), ('traceback', False), "
-            "('verbosity', 1)]"
+            "('pythonpath', None), ('settings', None), ('skip_checks', False), "
+            "('traceback', False), ('verbosity', 1)]"
         )
 
     def test_app_command_invalid_app_label(self):
@@ -1758,7 +1760,7 @@ class CommandTypes(AdminScriptTestCase):
             out,
             "EXECUTE:LabelCommand label=testlabel, options=[('force_color', "
             "False), ('no_color', False), ('pythonpath', None), ('settings', "
-            "None), ('traceback', False), ('verbosity', 1)]"
+            "None), ('skip_checks', False), ('traceback', False), ('verbosity', 1)]"
         )
 
     def test_label_command_no_label(self):
@@ -1776,13 +1778,15 @@ class CommandTypes(AdminScriptTestCase):
             out,
             "EXECUTE:LabelCommand label=testlabel, options=[('force_color', "
             "False), ('no_color', False), ('pythonpath', None), "
-            "('settings', None), ('traceback', False), ('verbosity', 1)]"
+            "('settings', None), ('skip_checks', False), ('traceback', False), "
+            "('verbosity', 1)]"
         )
         self.assertOutput(
             out,
             "EXECUTE:LabelCommand label=anotherlabel, options=[('force_color', "
             "False), ('no_color', False), ('pythonpath', None), "
-            "('settings', None), ('traceback', False), ('verbosity', 1)]"
+            "('settings', None), ('skip_checks', False), ('traceback', False), "
+            "('verbosity', 1)]"
         )
 
 
@@ -1812,8 +1816,8 @@ class ArgumentOrder(AdminScriptTestCase):
     """Tests for 2-stage argument parsing scheme.
 
     django-admin command arguments are parsed in 2 parts; the core arguments
-    (--settings, --traceback and --pythonpath) are parsed using a basic parser,
-    ignoring any unknown options. Then the full settings are
+    (--pythonpath, --settings, and --skip-checks) are parsed using a basic
+    parser, ignoring any unknown options. Then the full settings are
     passed to the command parser, which extracts commands of interest to the
     individual command.
     """
@@ -1856,9 +1860,27 @@ class ArgumentOrder(AdminScriptTestCase):
             "EXECUTE:BaseCommand labels=('testlabel',), options=["
             "('force_color', False), ('no_color', False), ('option_a', 'x'), "
             "('option_b', %s), ('option_c', '3'), ('pythonpath', None), "
-            "('settings', 'alternate_settings'), ('traceback', False), "
-            "('verbosity', 1)]" % option_b
+            "('settings', 'alternate_settings'), ('skip_checks', False), "
+            "('traceback', False), ('verbosity', 1)]" % option_b
         )
+
+
+class SkipChecks(AdminScriptTestCase):
+
+    def setUp(self):
+        super().setUp()
+        self.write_settings('settings.py')
+
+    def test_skip_checks_suppresses_system_checks(self):
+        out, err = self.run_manage(['syscheck_command'])
+        self.assertNoOutput(out)
+        self.assertOutput(err, 'SystemCheckError')
+        self.assertOutput(err, 'admin_scripts.E001')
+
+        out, err = self.run_manage(['syscheck_command', '--skip-checks'])
+        self.assertNoOutput(err)
+        self.assertOutput(out, 'EXECUTE:SysCheckCommand')
+        self.assertOutput(out, "('skip_checks', True)")
 
 
 @override_settings(ROOT_URLCONF='admin_scripts.urls')
