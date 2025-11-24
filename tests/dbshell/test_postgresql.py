@@ -14,72 +14,145 @@ class PostgreSqlDbshellCommandTestCase(SimpleTestCase):
         That function invokes the runshell command, while mocking
         subprocess.run(). It returns a 2-tuple with:
         - The command line list
-        - The the value of the PGPASSWORD environment variable, or None.
+        - A dict representing the environment passed to subprocess.run().
         """
         def _mock_subprocess_run(*args, env=os.environ, **kwargs):
-            self.subprocess_args = list(*args)
-            self.pgpassword = env.get('PGPASSWORD')
+            self.subprocess_args = list(args[0])
+            self.subprocess_env = env.copy()
             return subprocess.CompletedProcess(self.subprocess_args, 0)
         with mock.patch('subprocess.run', new=_mock_subprocess_run):
             DatabaseClient.runshell_db(dbinfo)
-        return self.subprocess_args, self.pgpassword
+        return self.subprocess_args, self.subprocess_env
 
     def test_basic(self):
+        baseline_env = os.environ.copy()
+        args, env = self._run_it({
+            'database': 'dbname',
+            'user': 'someuser',
+            'password': 'somepassword',
+            'host': 'somehost',
+            'port': '444',
+        })
         self.assertEqual(
-            self._run_it({
-                'database': 'dbname',
-                'user': 'someuser',
-                'password': 'somepassword',
-                'host': 'somehost',
-                'port': '444',
-            }), (
-                ['psql', '-U', 'someuser', '-h', 'somehost', '-p', '444', 'dbname'],
-                'somepassword',
-            )
+            args,
+            ['psql', '-U', 'someuser', '-h', 'somehost', '-p', '444', 'dbname'],
         )
+        self.assertEqual(env.get('PGPASSWORD'), 'somepassword')
+        for key in ('PGSSLMODE', 'PGSSLROOTCERT', 'PGSSLCERT', 'PGSSLKEY'):
+            self.assertEqual(env.get(key), baseline_env.get(key))
 
     def test_nopass(self):
+        baseline_env = os.environ.copy()
+        args, env = self._run_it({
+            'database': 'dbname',
+            'user': 'someuser',
+            'host': 'somehost',
+            'port': '444',
+        })
         self.assertEqual(
-            self._run_it({
-                'database': 'dbname',
-                'user': 'someuser',
-                'host': 'somehost',
-                'port': '444',
-            }), (
-                ['psql', '-U', 'someuser', '-h', 'somehost', '-p', '444', 'dbname'],
-                None,
-            )
+            args,
+            ['psql', '-U', 'someuser', '-h', 'somehost', '-p', '444', 'dbname'],
         )
+        self.assertEqual(env.get('PGPASSWORD'), baseline_env.get('PGPASSWORD'))
+        for key in ('PGSSLMODE', 'PGSSLROOTCERT', 'PGSSLCERT', 'PGSSLKEY'):
+            self.assertEqual(env.get(key), baseline_env.get(key))
 
     def test_column(self):
+        baseline_env = os.environ.copy()
+        args, env = self._run_it({
+            'database': 'dbname',
+            'user': 'some:user',
+            'password': 'some:password',
+            'host': '::1',
+            'port': '444',
+        })
         self.assertEqual(
-            self._run_it({
-                'database': 'dbname',
-                'user': 'some:user',
-                'password': 'some:password',
-                'host': '::1',
-                'port': '444',
-            }), (
-                ['psql', '-U', 'some:user', '-h', '::1', '-p', '444', 'dbname'],
-                'some:password',
-            )
+            args,
+            ['psql', '-U', 'some:user', '-h', '::1', '-p', '444', 'dbname'],
         )
+        self.assertEqual(env.get('PGPASSWORD'), 'some:password')
+        for key in ('PGSSLMODE', 'PGSSLROOTCERT', 'PGSSLCERT', 'PGSSLKEY'):
+            self.assertEqual(env.get(key), baseline_env.get(key))
 
     def test_accent(self):
         username = 'rôle'
         password = 'sésame'
+        baseline_env = os.environ.copy()
+        args, env = self._run_it({
+            'database': 'dbname',
+            'user': username,
+            'password': password,
+            'host': 'somehost',
+            'port': '444',
+        })
         self.assertEqual(
-            self._run_it({
-                'database': 'dbname',
-                'user': username,
-                'password': password,
-                'host': 'somehost',
-                'port': '444',
-            }), (
-                ['psql', '-U', username, '-h', 'somehost', '-p', '444', 'dbname'],
-                password,
-            )
+            args,
+            ['psql', '-U', username, '-h', 'somehost', '-p', '444', 'dbname'],
         )
+        self.assertEqual(env.get('PGPASSWORD'), password)
+        for key in ('PGSSLMODE', 'PGSSLROOTCERT', 'PGSSLCERT', 'PGSSLKEY'):
+            self.assertEqual(env.get(key), baseline_env.get(key))
+
+    def test_ssl_options(self):
+        args, env = self._run_it({
+            'database': 'dbname',
+            'user': 'someuser',
+            'password': 'somepassword',
+            'host': 'somehost',
+            'port': '444',
+            'sslmode': 'verify-full',
+            'sslrootcert': '/path/to/root.pem',
+            'sslcert': '/path/to/client.crt',
+            'sslkey': '/path/to/client.key',
+        })
+        self.assertEqual(
+            args,
+            ['psql', '-U', 'someuser', '-h', 'somehost', '-p', '444', 'dbname'],
+        )
+        self.assertEqual(env.get('PGPASSWORD'), 'somepassword')
+        self.assertEqual(env.get('PGSSLMODE'), 'verify-full')
+        self.assertEqual(env.get('PGSSLROOTCERT'), '/path/to/root.pem')
+        self.assertEqual(env.get('PGSSLCERT'), '/path/to/client.crt')
+        self.assertEqual(env.get('PGSSLKEY'), '/path/to/client.key')
+
+    def test_partial_ssl_options(self):
+        baseline_env = os.environ.copy()
+        args, env = self._run_it({
+            'database': 'dbname',
+            'user': 'someuser',
+            'host': 'somehost',
+            'port': '444',
+            'sslmode': 'require',
+            'sslkey': '/path/to/client.key',
+        })
+        self.assertEqual(
+            args,
+            ['psql', '-U', 'someuser', '-h', 'somehost', '-p', '444', 'dbname'],
+        )
+        self.assertEqual(env.get('PGPASSWORD'), baseline_env.get('PGPASSWORD'))
+        self.assertEqual(env.get('PGSSLMODE'), 'require')
+        self.assertEqual(env.get('PGSSLKEY'), '/path/to/client.key')
+        self.assertEqual(env.get('PGSSLROOTCERT'), baseline_env.get('PGSSLROOTCERT'))
+        self.assertEqual(env.get('PGSSLCERT'), baseline_env.get('PGSSLCERT'))
+
+    def test_without_ssl_options(self):
+        baseline_env = os.environ.copy()
+        args, env = self._run_it({
+            'database': 'dbname',
+            'user': 'someuser',
+            'password': 'somepassword',
+            'host': 'somehost',
+            'port': '444',
+            'sslrootcert': '',
+            'sslcert': None,
+        })
+        self.assertEqual(
+            args,
+            ['psql', '-U', 'someuser', '-h', 'somehost', '-p', '444', 'dbname'],
+        )
+        self.assertEqual(env.get('PGPASSWORD'), 'somepassword')
+        for key in ('PGSSLMODE', 'PGSSLROOTCERT', 'PGSSLCERT', 'PGSSLKEY'):
+            self.assertEqual(env.get(key), baseline_env.get(key))
 
     def test_sigint_handler(self):
         """SIGINT is ignored in Python and passed to psql to abort quries."""
