@@ -192,10 +192,25 @@ class LoaderTests(TestCase):
     def test_load_empty_dir(self):
         with override_settings(MIGRATION_MODULES={"migrations": "migrations.faulty_migrations.namespace"}):
             loader = MigrationLoader(connection)
-            self.assertIn(
+            self.assertNotIn(
                 "migrations", loader.unmigrated_apps,
-                "App missing __init__.py in migrations module not in unmigrated apps."
+                "Namespace migrations module incorrectly marked as unmigrated."
             )
+            self.assertEqual(
+                {
+                    key for key in loader.disk_migrations
+                    if key[0] == "migrations"
+                },
+                set(),
+                "Namespace migrations module should have no disk migrations entries.",
+            )
+
+    @override_settings(MIGRATION_MODULES={"migrations": "migrations.test_migrations_ns"})
+    def test_load_namespace_package_with_migration(self):
+        loader = MigrationLoader(connection)
+        self.assertIn(("migrations", "0001_initial"), loader.disk_migrations)
+        self.assertIn("migrations", loader.migrated_apps)
+        self.assertNotIn("migrations", loader.unmigrated_apps)
 
     @override_settings(
         INSTALLED_APPS=['migrations.migrations_test_apps.migrated_app'],
