@@ -25,6 +25,7 @@ urlpatterns = [
     re_path(r'^people/(?:name/(\w+)/)?$', empty_view, name='people2a'),
     re_path(r'^people/(?P<name>\w+)-(?P=name)/$', empty_view, name='people_backref'),
     re_path(r'^optional/(?P<name>.*)/(?:.+/)?', empty_view, name='optional'),
+    re_path(r'^opt(?:/(?P<slug>[\w-]+))?/$', empty_view, name='opt'),
     re_path(r'^optional/(?P<arg1>\d+)/(?:(?P<arg2>\d+)/)?', absolute_kwargs_view, name='named_optional'),
     re_path(r'^optional/(?P<arg1>\d+)/(?:(?P<arg2>\d+)/)?$', absolute_kwargs_view, name='named_optional_terminated'),
     re_path(r'^nested/noncapture/(?:(?P<p>\w+))$', empty_view, name='nested-noncapture'),

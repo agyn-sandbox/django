@@ -227,6 +227,19 @@ class SetLanguageTests(TestCase):
         )
         self.assertRedirects(response, '/en/translated/')
 
+    @modify_settings(MIDDLEWARE={
+        'append': 'django.middleware.locale.LocaleMiddleware',
+    })
+    def test_lang_from_optional_i18n_pattern_next(self):
+        response = self.client.post(
+            '/i18n/setlang/', data={'language': 'nl', 'next': '/en/optional/'},
+            follow=True,
+        )
+        self.assertEqual(self.client.cookies[settings.LANGUAGE_COOKIE_NAME].value, 'nl')
+        with ignore_warnings(category=RemovedInDjango40Warning):
+            self.assertEqual(self.client.session[LANGUAGE_SESSION_KEY], 'nl')
+        self.assertRedirects(response, '/nl/optioneel/')
+
 
 @override_settings(ROOT_URLCONF='view_tests.urls')
 class I18NViewTests(SimpleTestCase):

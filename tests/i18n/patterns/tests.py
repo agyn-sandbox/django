@@ -157,6 +157,8 @@ class URLTranslationTests(URLTestCaseBase):
             self.assertEqual(translate_url('/en/account/register/', 'nl'), '/nl/profiel/registreren/')
             # path() URL pattern
             self.assertEqual(translate_url('/en/account/register-as-path/', 'nl'), '/nl/profiel/registreren-als-pad/')
+            self.assertEqual(translate_url('/en/optional/', 'nl'), '/nl/optioneel/')
+            self.assertEqual(translate_url('/en/optional/abc/', 'nl'), '/nl/optioneel/abc/')
             self.assertEqual(translation.get_language(), 'en')
 
         with translation.override('nl'):

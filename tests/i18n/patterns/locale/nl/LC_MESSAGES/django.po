@@ -29,7 +29,11 @@ msgstr "^vertaald/(?P<slug>[\\w-]+)/$"
 msgid "^users/$"
 msgstr "^gebruikers/$"
 
-#: urls/default.py:18 urls/wrong.py:7
+#: urls/default.py:18
+msgid "^optional(?:/(?P<slug>[\\w-]+))?/$"
+msgstr "^optioneel(?:/(?P<slug>[\\w-]+))?/$"
+
+#: urls/default.py:19 urls/wrong.py:7
 msgid "^account/"
 msgstr "^profiel/"
 

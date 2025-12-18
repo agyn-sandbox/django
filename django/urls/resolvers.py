@@ -611,17 +611,36 @@ class URLResolver:
         possibilities = self.reverse_dict.getlist(lookup_view)
 
         for possibility, pattern, defaults, converters in possibilities:
+            pattern_params = {
+                param for _, possibility_params in possibility for param in possibility_params
+            }
+            recognized_none_keys = pattern_params | set(defaults)
+            if any(
+                value is None and key not in recognized_none_keys
+                for key, value in kwargs.items()
+            ):
+                continue
             for result, params in possibility:
                 if args:
                     if len(args) != len(params):
                         continue
                     candidate_subs = dict(zip(params, args))
                 else:
-                    if set(kwargs).symmetric_difference(params).difference(defaults):
+                    sanitized_kwargs = {
+                        key: value
+                        for key, value in kwargs.items()
+                        if not (value is None and key in recognized_none_keys)
+                    }
+                    param_set = set(params)
+                    if set(sanitized_kwargs).symmetric_difference(param_set).difference(defaults):
                         continue
-                    if any(kwargs.get(k, v) != v for k, v in defaults.items()):
+                    if any(sanitized_kwargs.get(k, v) != v for k, v in defaults.items()):
                         continue
-                    candidate_subs = kwargs
+                    candidate_subs = {
+                        key: sanitized_kwargs[key]
+                        for key in param_set
+                        if key in sanitized_kwargs
+                    }
                 # Convert the candidate subs to text using Converter.to_url().
                 text_candidate_subs = {}
                 for k, v in candidate_subs.items():

@@ -19,6 +19,10 @@ def client2(request, tag):
     pass
 
 
+def optional_slug(request, slug=None):
+    pass
+
+
 def template_response_view(request):
     return TemplateResponse(request, 'response.html', {})
 
