@@ -284,6 +284,18 @@ Django 3.0, we're removing these APIs at this time.
 
 * ``django.utils.safestring.SafeBytes`` - Unused since Django 2.0.
 
+File uploads
+------------
+
+* :setting:`FILE_UPLOAD_PERMISSIONS` now defaults to ``0o644`` instead of
+  ``None``. This change ensures that uploads handled in memory and those
+  streamed to temporary files end up with consistent permissions, and that
+  collected static files inherit the same default. Deployments that relied on
+  the previous operating system-dependent behavior can restore it by setting
+  :setting:`FILE_UPLOAD_PERMISSIONS` to ``None``. Directory permissions are
+  unchanged; :setting:`FILE_UPLOAD_DIRECTORY_PERMISSIONS` remains ``None`` by
+  default.
+
 Miscellaneous
 -------------
 

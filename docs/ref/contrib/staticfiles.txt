@@ -66,8 +66,9 @@ by the :class:`~django.contrib.staticfiles.storage.ManifestStaticFilesStorage`
 by default.
 
 By default, collected files receive permissions from
-:setting:`FILE_UPLOAD_PERMISSIONS` and collected directories receive permissions
-from :setting:`FILE_UPLOAD_DIRECTORY_PERMISSIONS`. If you would like different
+:setting:`FILE_UPLOAD_PERMISSIONS` (``0o644`` by default) and collected
+directories receive permissions from :setting:`FILE_UPLOAD_DIRECTORY_PERMISSIONS`.
+If you would like different
 permissions for these files and/or directories, you can subclass either of the
 :ref:`static files storage classes <staticfiles-storages>` and specify the
 ``file_permissions_mode`` and/or ``directory_permissions_mode`` parameters,
