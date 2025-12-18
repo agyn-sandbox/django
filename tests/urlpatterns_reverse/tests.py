@@ -3,6 +3,7 @@ Unit tests for reverse URL lookups.
 """
 import sys
 import threading
+from unittest.mock import patch
 
 from admin_scripts.tests import AdminScriptTestCase
 
@@ -17,8 +18,8 @@ from django.test import SimpleTestCase, TestCase, override_settings
 from django.test.utils import override_script_prefix
 from django.urls import (
     NoReverseMatch, Resolver404, ResolverMatch, URLPattern, URLResolver,
-    get_callable, get_resolver, get_urlconf, include, path, re_path, resolve,
-    reverse, reverse_lazy,
+    clear_url_caches, get_callable, get_resolver, get_urlconf, include, path,
+    re_path, resolve, reverse, reverse_lazy, set_urlconf,
 )
 from django.urls.resolvers import RegexPattern
 
@@ -1302,3 +1303,52 @@ class LookaheadTests(SimpleTestCase):
             with self.subTest(name=name, kwargs=kwargs):
                 with self.assertRaises(NoReverseMatch):
                     reverse(name, kwargs=kwargs)
+
+
+@override_settings(ROOT_URLCONF='urlpatterns_reverse.urls')
+class ResolverCacheTests(TestCase):
+    def setUp(self):
+        super().setUp()
+        clear_url_caches()
+        self.addCleanup(clear_url_caches)
+        set_urlconf(None)
+        self.addCleanup(set_urlconf, None)
+
+    def test_default_resolver_reused_after_reset(self):
+        with patch(
+            'django.urls.resolvers.URLResolver.__init__',
+            autospec=True,
+            wraps=URLResolver.__init__,
+        ) as init:
+            with patch(
+                'django.urls.resolvers.URLResolver._populate',
+                autospec=True,
+                wraps=URLResolver._populate,
+            ) as populate:
+                reverse('hardcoded')
+                root_resolver = get_resolver()
+                set_urlconf(settings.ROOT_URLCONF)
+                reverse('hardcoded')
+                set_urlconf(None)
+        root_init_calls = [call for call in init.call_args_list if call.args[2] == settings.ROOT_URLCONF]
+        self.assertEqual(len(root_init_calls), 1)
+        root_populate_calls = [call for call in populate.call_args_list if call.args[0] is root_resolver]
+        self.assertEqual(len(root_populate_calls), 1)
+
+    def test_thread_local_override_uses_distinct_resolver(self):
+        default_resolver = get_resolver()
+        set_urlconf('urlpatterns_reverse.namespace_urls')
+        override_resolver = get_resolver(get_urlconf())
+        set_urlconf(None)
+        reused_resolver = get_resolver()
+        self.assertIsNot(default_resolver, override_resolver)
+        self.assertIs(default_resolver, reused_resolver)
+
+    def test_explicit_arguments_cache_independently(self):
+        default_resolver = get_resolver('urlpatterns_reverse.urls')
+        default_again = get_resolver('urlpatterns_reverse.urls')
+        namespaced_resolver = get_resolver('urlpatterns_reverse.namespace_urls')
+        namespaced_again = get_resolver('urlpatterns_reverse.namespace_urls')
+        self.assertIs(default_resolver, default_again)
+        self.assertIs(namespaced_resolver, namespaced_again)
+        self.assertIsNot(default_resolver, namespaced_resolver)
