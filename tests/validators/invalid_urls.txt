@@ -32,6 +32,11 @@ h://test
 http:// shouldfail.com
 :// should fail
 http://foo.bar/foo(bar)baz quux
+http://user name@example.com
+http://user/name@example.com
+http://user?name@example.com
+http://user#name@example.com
+http://user%zz@example.com
 http://-error-.invalid/
 http://dashinpunytld.trailingdot.xn--.
 http://dashinpunytld.xn---

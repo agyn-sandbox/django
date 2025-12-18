@@ -31,6 +31,7 @@ http://userid@example.com:8080
 http://userid@example.com:8080/
 http://userid:password@example.com
 http://userid:password@example.com/
+http://user%20name:%23p%24@example.com/
 http://142.42.1.1/
 http://142.42.1.1:8080/
 http://➡.ws/䨹
