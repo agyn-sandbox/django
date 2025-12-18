@@ -268,3 +268,31 @@ class Profile(models.Model):
     collection = models.ForeignKey(ProfileCollection, models.SET_NULL, blank=True, null=True)
     first_name = models.CharField(max_length=100)
     last_name = models.CharField(max_length=100)
+
+
+# Models for inline M2M permission tests
+
+
+class Photo(models.Model):
+    name = models.CharField(max_length=100)
+
+
+class Report(models.Model):
+    name = models.CharField(max_length=100)
+    photos = models.ManyToManyField(Photo, blank=True)
+
+
+class ReportStacked(Report):
+
+    class Meta:
+        proxy = True
+        verbose_name = 'Stacked report'
+        verbose_name_plural = 'Stacked reports'
+
+
+class ReportNoInline(Report):
+
+    class Meta:
+        proxy = True
+        verbose_name = 'Report without inline'
+        verbose_name_plural = 'Reports without inline'

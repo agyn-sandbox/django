@@ -610,10 +610,10 @@ class TestInlinePermissions(TestCase):
 
     def test_inline_add_m2m_noperm(self):
         response = self.client.get(reverse('admin:admin_inlines_author_add'))
-        # No change permission on books, so no inline
-        self.assertNotContains(response, '<h2>Author-book relationships</h2>')
-        self.assertNotContains(response, 'Add another Author-Book Relationship')
-        self.assertNotContains(response, 'id="id_Author_books-TOTAL_FORMS"')
+        # Inline availability now depends on the parent add permission.
+        self.assertContains(response, '<h2>Author-book relationships</h2>')
+        self.assertContains(response, 'Add another Author-book relationship')
+        self.assertContains(response, 'id="id_Author_books-TOTAL_FORMS"')
 
     def test_inline_add_fk_noperm(self):
         response = self.client.get(reverse('admin:admin_inlines_holder2_add'))
@@ -624,10 +624,11 @@ class TestInlinePermissions(TestCase):
 
     def test_inline_change_m2m_noperm(self):
         response = self.client.get(self.author_change_url)
-        # No change permission on books, so no inline
-        self.assertNotContains(response, '<h2>Author-book relationships</h2>')
-        self.assertNotContains(response, 'Add another Author-Book Relationship')
-        self.assertNotContains(response, 'id="id_Author_books-TOTAL_FORMS"')
+        # Parent change permission allows managing the auto-created inline.
+        self.assertContains(response, '<h2>Author-book relationships</h2>')
+        self.assertContains(response, 'Add another Author-book relationship')
+        self.assertContains(response, 'id="id_Author_books-TOTAL_FORMS"')
+        self.assertContains(response, 'id="id_Author_books-0-DELETE"')
 
     def test_inline_change_fk_noperm(self):
         response = self.client.get(self.holder_change_url)
@@ -640,10 +641,9 @@ class TestInlinePermissions(TestCase):
         permission = Permission.objects.get(codename='add_book', content_type=self.book_ct)
         self.user.user_permissions.add(permission)
         response = self.client.get(reverse('admin:admin_inlines_author_add'))
-        # No change permission on Books, so no inline
-        self.assertNotContains(response, '<h2>Author-book relationships</h2>')
-        self.assertNotContains(response, 'Add another Author-Book Relationship')
-        self.assertNotContains(response, 'id="id_Author_books-TOTAL_FORMS"')
+        self.assertContains(response, '<h2>Author-book relationships</h2>')
+        self.assertContains(response, 'Add another Author-book relationship')
+        self.assertContains(response, 'id="id_Author_books-TOTAL_FORMS"')
 
     def test_inline_add_fk_add_perm(self):
         permission = Permission.objects.get(codename='add_inner2', content_type=self.inner_ct)
@@ -659,11 +659,11 @@ class TestInlinePermissions(TestCase):
         permission = Permission.objects.get(codename='add_book', content_type=self.book_ct)
         self.user.user_permissions.add(permission)
         response = self.client.get(self.author_change_url)
-        # No change permission on books, so no inline
-        self.assertNotContains(response, '<h2>Author-book relationships</h2>')
-        self.assertNotContains(response, 'Add another Author-Book Relationship')
-        self.assertNotContains(response, 'id="id_Author_books-TOTAL_FORMS"')
-        self.assertNotContains(response, 'id="id_Author_books-0-DELETE"')
+        self.assertContains(response, '<h2>Author-book relationships</h2>')
+        self.assertContains(response, 'Add another Author-book relationship')
+        self.assertContains(response, '<input type="hidden" id="id_Author_books-TOTAL_FORMS" '
+                            'value="4" name="Author_books-TOTAL_FORMS">', html=True)
+        self.assertContains(response, 'id="id_Author_books-0-DELETE"')
 
     def test_inline_change_m2m_change_perm(self):
         permission = Permission.objects.get(codename='change_book', content_type=self.book_ct)
