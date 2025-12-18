@@ -199,15 +199,16 @@ class GenericForeignKey(FieldCacheMixin):
             ct_id = getattr(obj, ct_attname)
             if ct_id is None:
                 return None
-            else:
-                model = self.get_content_type(id=ct_id,
-                                              using=obj._state.db).model_class()
-                return (model._meta.pk.get_prep_value(getattr(obj, self.fk_field)),
-                        model)
+            model = self.get_content_type(id=ct_id, using=obj._state.db).model_class()
+            fk_value = getattr(obj, self.fk_field)
+            return (model._meta.pk.to_python(fk_value), model)
+
+        def rel_key(obj):
+            return (obj._meta.pk.get_prep_value(obj.pk), obj.__class__)
 
         return (
             ret_val,
-            lambda obj: (obj.pk, obj.__class__),
+            rel_key,
             gfk_key,
             True,
             self.name,
@@ -565,18 +566,28 @@ def create_generic_related_manager(superclass, rel):
             queryset._add_hints(instance=instances[0])
             queryset = queryset.using(queryset._db or self._db)
 
+            pk_field = instances[0]._meta.pk
+
+            def rel_key(obj):
+                return obj._meta.pk.get_prep_value(obj.pk)
+
             query = {
                 '%s__pk' % self.content_type_field_name: self.content_type.id,
-                '%s__in' % self.object_id_field_name: {obj.pk for obj in instances}
+                '%s__in' % self.object_id_field_name: {rel_key(obj) for obj in instances}
             }
 
             # We (possibly) need to convert object IDs to the type of the
             # instances' PK in order to match up instances:
             object_id_converter = instances[0]._meta.pk.to_python
+
+            def relobj_key(relobj):
+                return pk_field.get_prep_value(
+                    object_id_converter(getattr(relobj, self.object_id_field_name))
+                )
             return (
                 queryset.filter(**query),
-                lambda relobj: object_id_converter(getattr(relobj, self.object_id_field_name)),
-                lambda obj: obj.pk,
+                relobj_key,
+                rel_key,
                 False,
                 self.prefetch_cache_name,
                 False,
