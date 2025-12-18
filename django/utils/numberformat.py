@@ -27,6 +27,18 @@ def format(number, decimal_sep, decimal_pos=None, grouping=0, thousand_sep='',
     # sign
     sign = ''
     if isinstance(number, Decimal):
+        # If a fixed number of decimal positions is requested, and the
+        # absolute value is smaller than the smallest representable number
+        # with that precision, force formatting as zero rather than using
+        # scientific notation.
+        if decimal_pos is not None and number != 0:
+            try:
+                if abs(number) < Decimal('1e-{}'.format(decimal_pos)):
+                    number = Decimal(0)
+            except Exception:
+                # Be conservative if comparisons fail for some exotic Decimal
+                # subclass; fall through to the existing formatting logic.
+                pass
         # Format values with more than 200 digits (an arbitrary cutoff) using
         # scientific notation to avoid high memory usage in {:f}'.format().
         _, digits, exponent = number.as_tuple()
