@@ -12,7 +12,7 @@ from django.contrib.auth.models import User
 from django.core.exceptions import ImproperlyConfigured
 from django.test import RequestFactory, TestCase, override_settings
 
-from .models import Book, Bookmark, Department, Employee, TaggedItem
+from .models import Book, Bookmark, Department, Employee, Item, OrderedCategory, TaggedItem
 
 
 def select_by(dictlist, key, value):
@@ -589,6 +589,50 @@ class ListFiltersTests(TestCase):
         changelist = modeladmin.get_changelist_instance(request)
         filterspec = changelist.get_filters(request)[0][0]
         expected = [(self.john.pk, 'John Blue'), (self.jack.pk, 'Jack Red')]
+        self.assertEqual(filterspec.lookup_choices, expected)
+
+    def test_relatedfieldlistfilter_uses_related_model_ordering_when_admin_empty(self):
+        class OrderedCategoryAdmin(ModelAdmin):
+            ordering = []
+
+        class ItemAdmin(ModelAdmin):
+            list_filter = ('category',)
+
+        site.register(OrderedCategory, OrderedCategoryAdmin)
+        self.addCleanup(lambda: site.unregister(OrderedCategory))
+        bravo = OrderedCategory.objects.create(name='Bravo')
+        alpha = OrderedCategory.objects.create(name='Alpha')
+        Item.objects.create(name='Bravo Item', category=bravo)
+        Item.objects.create(name='Alpha Item', category=alpha)
+
+        modeladmin = ItemAdmin(Item, site)
+        request = self.request_factory.get('/')
+        request.user = self.alfred
+        changelist = modeladmin.get_changelist_instance(request)
+        filterspec = changelist.get_filters(request)[0][0]
+        expected = [(alpha.pk, 'Alpha'), (bravo.pk, 'Bravo')]
+        self.assertEqual(filterspec.lookup_choices, expected)
+
+    def test_relatedonlyfieldlistfilter_uses_related_model_ordering_when_admin_empty(self):
+        class OrderedCategoryAdmin(ModelAdmin):
+            ordering = []
+
+        class ItemAdmin(ModelAdmin):
+            list_filter = (('category', RelatedOnlyFieldListFilter),)
+
+        site.register(OrderedCategory, OrderedCategoryAdmin)
+        self.addCleanup(lambda: site.unregister(OrderedCategory))
+        bravo = OrderedCategory.objects.create(name='Bravo')
+        alpha = OrderedCategory.objects.create(name='Alpha')
+        Item.objects.create(name='Bravo Item', category=bravo)
+        Item.objects.create(name='Alpha Item', category=alpha)
+
+        modeladmin = ItemAdmin(Item, site)
+        request = self.request_factory.get('/')
+        request.user = self.alfred
+        changelist = modeladmin.get_changelist_instance(request)
+        filterspec = changelist.get_filters(request)[0][0]
+        expected = [(alpha.pk, 'Alpha'), (bravo.pk, 'Bravo')]
         self.assertEqual(filterspec.lookup_choices, expected)
 
     def test_relatedfieldlistfilter_manytomany(self):
