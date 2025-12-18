@@ -17,6 +17,12 @@ def _get_duration_components(duration):
 
 def duration_string(duration):
     """Version of str(timedelta) which is not English specific."""
+    if duration < datetime.timedelta(0):
+        sign = '-'
+        duration = -duration
+    else:
+        sign = ''
+
     days, hours, minutes, seconds, microseconds = _get_duration_components(duration)
 
     string = '{:02d}:{:02d}:{:02d}'.format(hours, minutes, seconds)
@@ -25,7 +31,7 @@ def duration_string(duration):
     if microseconds:
         string += '.{:06d}'.format(microseconds)
 
-    return string
+    return sign + string
 
 
 def duration_iso_string(duration):

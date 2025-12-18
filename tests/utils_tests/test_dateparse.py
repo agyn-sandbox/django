@@ -63,7 +63,10 @@ class DurationParseTests(unittest.TestCase):
         ]
         for delta in timedeltas:
             with self.subTest(delta=delta):
-                self.assertEqual(parse_duration(format(delta)), delta)
+                formatted = format(delta)
+                if delta < timedelta(0):
+                    formatted = '-' + format(-delta)
+                self.assertEqual(parse_duration(formatted), delta)
 
     def test_parse_postgresql_format(self):
         test_values = (
@@ -111,15 +114,22 @@ class DurationParseTests(unittest.TestCase):
 
     def test_negative(self):
         test_values = (
-            ('-4 15:30', timedelta(days=-4, minutes=15, seconds=30)),
+            ('-4 15:30', -timedelta(days=4, minutes=15, seconds=30)),
             ('-172800', timedelta(days=-2)),
-            ('-15:30', timedelta(minutes=-15, seconds=30)),
-            ('-1:15:30', timedelta(hours=-1, minutes=15, seconds=30)),
-            ('-30.1', timedelta(seconds=-30, milliseconds=-100)),
+            ('-15:30', -timedelta(minutes=15, seconds=30)),
+            ('-1:15:30', -timedelta(hours=1, minutes=15, seconds=30)),
+            ('-30.1', -timedelta(seconds=30, milliseconds=100)),
+            ('-00:01:01', -timedelta(minutes=1, seconds=1)),
+            ('-01:01', -timedelta(minutes=1, seconds=1)),
         )
         for source, expected in test_values:
             with self.subTest(source=source):
                 self.assertEqual(parse_duration(source), expected)
+
+    def test_invalid_component_negatives(self):
+        for source in ('00:-01:-01', '-01:-01'):
+            with self.subTest(source=source):
+                self.assertIsNone(parse_duration(source))
 
     def test_iso_8601(self):
         test_values = (
@@ -132,6 +142,7 @@ class DurationParseTests(unittest.TestCase):
             ('PT5M', timedelta(minutes=5)),
             ('PT5S', timedelta(seconds=5)),
             ('PT0.000005S', timedelta(microseconds=5)),
+            ('-P1D', -timedelta(days=1)),
         )
         for source, expected in test_values:
             with self.subTest(source=source):
