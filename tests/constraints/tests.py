@@ -3,7 +3,7 @@ from django.db import IntegrityError, connection, models
 from django.db.models.constraints import BaseConstraint
 from django.test import SimpleTestCase, TestCase, skipUnlessDBFeature
 
-from .models import Product
+from .models import MixedCheck, Product
 
 
 def get_constraints(table):
@@ -187,3 +187,31 @@ class UniqueConstraintTests(TestCase):
     def test_condition_must_be_q(self):
         with self.assertRaisesMessage(ValueError, 'UniqueConstraint.condition must be a Q instance.'):
             models.UniqueConstraint(name='uniq', fields=['name'], condition='invalid')
+
+
+class ConstraintSQLGenerationTests(TestCase):
+    @skipUnlessDBFeature('supports_table_check_constraints')
+    def test_check_constraint_sql_uses_unqualified_columns_on_sqlite(self):
+        if connection.vendor != 'sqlite':
+            self.skipTest('Test only applies to SQLite.')
+        constraint = MixedCheck._meta.constraints[0]
+        editor = connection.schema_editor(collect_sql=True)
+        sql = constraint._get_check_sql(MixedCheck, editor)
+        table = MixedCheck._meta.db_table
+        self.assertNotIn('"%s"."' % table, sql)
+        self.assertNotIn('new__', sql)
+        for column in ['first_value', 'second_value', 'third_value', 'fourth_value', 'flag']:
+            self.assertIn('"%s"' % column, sql)
+
+    @skipUnlessDBFeature('supports_table_check_constraints')
+    def test_unique_constraint_condition_sql_uses_unqualified_columns_on_sqlite(self):
+        if connection.vendor != 'sqlite':
+            self.skipTest('Test only applies to SQLite.')
+        constraint = MixedCheck._meta.constraints[1]
+        editor = connection.schema_editor(collect_sql=True)
+        sql = constraint._get_condition_sql(MixedCheck, editor)
+        table = MixedCheck._meta.db_table
+        self.assertNotIn('"%s"."' % table, sql)
+        self.assertNotIn('new__', sql)
+        for column in ['second_value', 'third_value', 'fourth_value']:
+            self.assertIn('"%s"' % column, sql)
