@@ -95,7 +95,7 @@ class DjangoHelpFormatter(HelpFormatter):
     """
     show_last = {
         '--version', '--verbosity', '--traceback', '--settings', '--pythonpath',
-        '--no-color', '--force-color',
+        '--no-color', '--force-color', '--skip-checks',
     }
 
     def _reordered_actions(self, actions):
@@ -286,6 +286,7 @@ class BaseCommand:
             '--force-color', action='store_true',
             help='Force colorization of the command output.',
         )
+        parser.add_argument('--skip-checks', action='store_true', help='Skip system checks.')
         self.add_arguments(parser)
         return parser
 

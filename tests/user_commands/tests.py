@@ -1,4 +1,5 @@
 import os
+from contextlib import redirect_stderr, redirect_stdout
 from io import StringIO
 from unittest import mock
 
@@ -65,6 +66,20 @@ class CommandTests(SimpleTestCase):
         finally:
             dance.Command.requires_system_checks = True
         self.assertIn("CommandError", stderr.getvalue())
+
+    def test_management_utility_skip_checks_option(self):
+        argv = ['manage.py', 'dance', '--verbosity=0']
+        with mock.patch.object(BaseCommand, 'check', autospec=True) as mocked_check:
+            mocked_check.return_value = None
+            with redirect_stdout(StringIO()), redirect_stderr(StringIO()):
+                management.ManagementUtility(argv + ['--skip-checks']).execute()
+            mocked_check.assert_not_called()
+
+        with mock.patch.object(BaseCommand, 'check', autospec=True) as mocked_check:
+            mocked_check.return_value = None
+            with redirect_stdout(StringIO()), redirect_stderr(StringIO()):
+                management.ManagementUtility(argv).execute()
+            mocked_check.assert_called_once()
 
     def test_no_translations_deactivate_translations(self):
         """
@@ -219,7 +234,7 @@ class CommandTests(SimpleTestCase):
         self.assertIn('bar', out.getvalue())
 
     def test_subparser_invalid_option(self):
-        msg = "Error: invalid choice: 'test' (choose from 'foo')"
+        msg = "Error: argument {foo}: invalid choice: 'test' (choose from foo)"
         with self.assertRaisesMessage(CommandError, msg):
             management.call_command('subparser', 'test', 12)
 

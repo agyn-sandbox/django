@@ -14,6 +14,10 @@ triggered implicitly before most commands, including :djadmin:`runserver` and
 WSGI stack that is used in deployment. If you need to run system checks on your
 deployment server, trigger them explicitly using :djadmin:`check`.
 
+If you need to bypass checks for a single command invocation, pass the
+``--skip-checks`` option. Use this sparingly and only when you're sure the
+project is in a healthy state.
+
 Serious errors will prevent Django commands (such as :djadmin:`runserver`) from
 running at all. Minor problems are reported to the console. If you have inspected
 the cause of a warning and are happy to ignore it, you can hide specific warnings
