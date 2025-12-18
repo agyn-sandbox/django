@@ -242,6 +242,24 @@ class ModelBackendTest(BaseModelBackendTest, TestCase):
             password='test',
         )
 
+    @override_settings(PASSWORD_HASHERS=['auth_tests.test_auth_backends.CountingMD5PasswordHasher'])
+    def test_authenticate_missing_credentials_short_circuits(self):
+        backend = ModelBackend()
+        scenarios = (
+            {},
+            {'username': self.user_credentials['username']},
+            {'password': self.user_credentials['password']},
+        )
+        for credentials in scenarios:
+            with self.subTest(credentials=credentials):
+                CountingMD5PasswordHasher.calls = 0
+                with self.assertNumQueries(0):
+                    self.assertIsNone(backend.authenticate(None, **credentials))
+                self.assertEqual(CountingMD5PasswordHasher.calls, 0)
+
+    def test_authenticate_success_with_complete_credentials(self):
+        self.assertEqual(authenticate(**self.user_credentials), self.user)
+
     def test_authenticate_inactive(self):
         """
         An inactive user can't authenticate.
