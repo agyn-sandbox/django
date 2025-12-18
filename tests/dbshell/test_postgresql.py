@@ -143,6 +143,20 @@ class PostgreSqlDbshellCommandTestCase(SimpleTestCase):
         self.assertEqual(original, 'from-env')
         self.assertEqual(current, 'from-env')
 
+    def test_password_prefer_pgpassword_without_pgpassfile(self):
+        pgpassfile_path = '/tmp/.pgpass-test'
+        with mock.patch.dict(os.environ, {'PGPASSFILE': pgpassfile_path}, clear=True):
+            args, env, original, current = self._run_it({
+                'database': 'dbname',
+                'password': 'pw-value',
+            })
+
+            self.assertEqual(args, ['psql', 'dbname'])
+            self.assertEqual(env['PGPASSWORD'], 'pw-value')
+            self.assertNotIn('PGPASSFILE', env)
+            self.assertEqual(os.environ['PGPASSFILE'], pgpassfile_path)
+            self.assertIs(original, current)
+
     def test_sigint_handler(self):
         """SIGINT is ignored in Python and passed to psql to abort queries."""
 

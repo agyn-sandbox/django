@@ -30,6 +30,7 @@ class DatabaseClient(BaseDatabaseClient):
         try:
             custom_env = os.environ.copy()
             if passwd is not None:
+                custom_env.pop('PGPASSFILE', None)
                 custom_env['PGPASSWORD'] = passwd
             # Allow SIGINT to pass to psql to abort queries.
             signal.signal(signal.SIGINT, signal.SIG_IGN)
