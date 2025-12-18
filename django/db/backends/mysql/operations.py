@@ -69,9 +69,12 @@ class DatabaseOperations(BaseDatabaseOperations):
             return "DATE(%s)" % (field_name)
 
     def _convert_field_to_tz(self, field_name, tzname):
-        if settings.USE_TZ:
-            field_name = "CONVERT_TZ(%s, 'UTC', '%s')" % (field_name, tzname)
-        return field_name
+        if not settings.USE_TZ:
+            return field_name
+        db_tz = self.connection.timezone_name
+        if db_tz == tzname:
+            return field_name
+        return "CONVERT_TZ(%s, '%s', '%s')" % (field_name, db_tz, tzname)
 
     def datetime_cast_date_sql(self, field_name, tzname):
         field_name = self._convert_field_to_tz(field_name, tzname)
