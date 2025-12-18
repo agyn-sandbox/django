@@ -1,7 +1,7 @@
 import ipaddress
 import re
 from pathlib import Path
-from urllib.parse import unquote, urlsplit, urlunsplit
+from urllib.parse import urlsplit, urlunsplit
 
 from django.core.exceptions import ValidationError
 from django.utils.deconstruct import deconstructible
@@ -78,12 +78,11 @@ class URLValidator(RegexValidator):
     ipv4_re = r'(?:25[0-5]|2[0-4]\d|[0-1]?\d?\d)(?:\.(?:25[0-5]|2[0-4]\d|[0-1]?\d?\d)){3}'
     ipv6_re = r'\[[0-9a-f:\.]+\]'  # (simple regex, validated later)
 
-    userinfo_allowed_chars = frozenset("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~!$&'()*+,;=")
-
+    userinfo_char_re = r"[A-Za-z0-9\-._~!$&'()*+,;=]"
     userinfo_re = (
         r'(?:'
-        r'(?:[^\s:/@%?#]|%[0-9A-Fa-f]{2})+'
-        r'(?::(?:[^\s:/@%?#]|%[0-9A-Fa-f]{2})*)?'
+        r'(?:' + userinfo_char_re + r'|%[0-9A-Fa-f]{2})+'
+        r'(?::(?:' + userinfo_char_re + r'|%[0-9A-Fa-f]{2})*)?'
         r'@)'
     )
 
@@ -123,7 +122,6 @@ class URLValidator(RegexValidator):
             raise ValidationError(self.message, code=self.code)
 
         # Then check full URL
-        final_url = value
         try:
             super().__call__(value)
         except ValidationError as e:
@@ -140,88 +138,26 @@ class URLValidator(RegexValidator):
                 if netloc == ascii_netloc:
                     raise e
                 netloc = ascii_netloc
-                final_url = urlunsplit((scheme, netloc, path, query, fragment))
-                super().__call__(final_url)
+                url = urlunsplit((scheme, netloc, path, query, fragment))
+                super().__call__(url)
             else:
                 raise
-        split_result = urlsplit(final_url)
-        self._validate_userinfo(split_result)
-
-        # Now verify IPv6 in the netloc part
-        host_match = re.search(r'^\[(.+)\](?::\d{2,5})?$', split_result.netloc)
-        if host_match:
-            potential_ip = host_match.groups()[0]
-            try:
-                validate_ipv6_address(potential_ip)
-            except ValidationError:
-                raise ValidationError(self.message, code=self.code)
+        else:
+            # Now verify IPv6 in the netloc part
+            host_match = re.search(r'^\[(.+)\](?::\d{2,5})?$', urlsplit(value).netloc)
+            if host_match:
+                potential_ip = host_match.groups()[0]
+                try:
+                    validate_ipv6_address(potential_ip)
+                except ValidationError:
+                    raise ValidationError(self.message, code=self.code)
 
         # The maximum length of a full host name is 253 characters per RFC 1034
         # section 3.1. It's defined to be 255 bytes or less, but this includes
         # one byte for the length of the name and one byte for the trailing dot
         # that's used to indicate absolute names in DNS.
-        if len(split_result.netloc) > 253:
+        if len(urlsplit(value).netloc) > 253:
             raise ValidationError(self.message, code=self.code)
-
-    def _validate_userinfo(self, split_result):
-        raw_userinfo, raw_username, raw_password = self._extract_userinfo(split_result)
-        if raw_userinfo is None:
-            return
-
-        if raw_username == '' or '@' in raw_username or '/' in raw_username:
-            raise ValidationError(self.message, code=self.code)
-        self._validate_userinfo_component(raw_username)
-        decoded_username = self._decode_userinfo_segment(raw_username)
-
-        if raw_password is None:
-            if ':' in raw_userinfo:
-                raise ValidationError(self.message, code=self.code)
-            return
-
-        if raw_password == '' or '@' in raw_password or '/' in raw_password or ':' in raw_password:
-            raise ValidationError(self.message, code=self.code)
-        self._validate_userinfo_component(raw_password)
-        decoded_password = self._decode_userinfo_segment(raw_password)
-
-        if decoded_password == '':
-            raise ValidationError(self.message, code=self.code)
-
-        if len(decoded_username) <= 2 and len(decoded_password) <= 2:
-            raise ValidationError(self.message, code=self.code)
-
-    def _extract_userinfo(self, split_result):
-        netloc = split_result.netloc
-        if '@' not in netloc:
-            return None, None, None
-        raw_userinfo, _, _ = netloc.rpartition('@')
-        if ':' in raw_userinfo:
-            raw_username, raw_password = raw_userinfo.split(':', 1)
-        else:
-            raw_username, raw_password = raw_userinfo, None
-        return raw_userinfo, raw_username, raw_password
-
-    def _validate_userinfo_component(self, raw_value):
-        i = 0
-        length = len(raw_value)
-        while i < length:
-            char = raw_value[i]
-            if char == '%':
-                if i + 2 >= length or not self._is_hex_digit(raw_value[i + 1]) or not self._is_hex_digit(raw_value[i + 2]):
-                    raise ValidationError(self.message, code=self.code)
-                i += 3
-                continue
-            if char not in self.userinfo_allowed_chars:
-                raise ValidationError(self.message, code=self.code)
-            i += 1
-
-    def _decode_userinfo_segment(self, raw_value):
-        try:
-            return unquote(raw_value, encoding='utf-8', errors='strict')
-        except UnicodeDecodeError:
-            raise ValidationError(self.message, code=self.code)
-
-    def _is_hex_digit(self, char):
-        return char.isdigit() or char.lower() in 'abcdef'
 
 
 integer_validator = RegexValidator(

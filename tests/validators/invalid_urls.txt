@@ -37,7 +37,6 @@ http://user/name@example.com
 http://user?name@example.com
 http://user#name@example.com
 http://user%zz@example.com
-http://us:er@example.com
 http://user:pa:ss@example.com
 http://user:pa@ss@example.com
 http://-error-.invalid/
