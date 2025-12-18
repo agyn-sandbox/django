@@ -42,6 +42,7 @@ standard_duration_re = re.compile(
 iso8601_duration_re = re.compile(
     r'^(?P<sign>[-+]?)'
     r'P'
+    r'(?:(?P<weeks>\d+(.\d+)?)W)?'
     r'(?:(?P<days>\d+(.\d+)?)D)?'
     r'(?:T'
     r'(?:(?P<hours>\d+(.\d+)?)H)?'
@@ -152,11 +153,18 @@ def parse_duration(value):
     if match:
         kw = match.groupdict()
         sign = -1 if kw.pop('sign', '+') == '-' else 1
+        weeks = kw.pop('weeks')
+
+        def _parse_iso_component(component):
+            if component is None:
+                return 0
+            return float(component.replace(',', '.'))
+
         total = datetime.timedelta(
-            days=float(kw.get('days') or 0),
-            hours=float(kw.get('hours') or 0),
-            minutes=float(kw.get('minutes') or 0),
-            seconds=float(kw.get('seconds') or 0),
+            days=_parse_iso_component(kw.get('days')) + _parse_iso_component(weeks) * 7,
+            hours=_parse_iso_component(kw.get('hours')),
+            minutes=_parse_iso_component(kw.get('minutes')),
+            seconds=_parse_iso_component(kw.get('seconds')),
         )
         return total if sign > 0 else -total
 
