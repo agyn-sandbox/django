@@ -2900,6 +2900,47 @@ class StrictAssignmentTests(SimpleTestCase):
 
 
 class ModelToDictTests(TestCase):
+    def test_empty_fields_returns_empty_dict(self):
+        person = Person.objects.create(name='Alice')
+        self.assertEqual(model_to_dict(person, fields=[]), {})
+
+    def test_fields_empty_with_exclude_still_empty(self):
+        person = Person.objects.create(name='Bob')
+        self.assertEqual(model_to_dict(person, fields=[], exclude=['name']), {})
+
+    def test_fields_subset_and_exclude_interaction(self):
+        writer = Writer.objects.create(name='Douglas Adams')
+        book = Book.objects.create(title="Hitchhiker's Guide", author=writer, special_id=42)
+        self.assertEqual(
+            model_to_dict(book, fields=['title', 'author', 'special_id'], exclude=['author']),
+            {'title': "Hitchhiker's Guide", 'special_id': 42},
+        )
+
+    def test_many_to_many_respects_fields_empty_and_subset(self):
+        blue = Colour.objects.create(name='blue')
+        red = Colour.objects.create(name='red')
+        item = ColourfulItem.objects.create(name='box')
+        item.colours.set([blue, red])
+        self.assertEqual(model_to_dict(item, fields=[]), {})
+        self.assertEqual(
+            model_to_dict(item, fields=['colours'])['colours'],
+            [blue, red],
+        )
+
+    def test_foreignkey_respects_fields_empty_and_subset(self):
+        writer = Writer.objects.create(name='Terry Pratchett')
+        book = Book.objects.create(title='Guards! Guards!', author=writer)
+        self.assertEqual(model_to_dict(book, fields=[]), {})
+        self.assertEqual(model_to_dict(book, fields=['author']), {'author': writer.pk})
+
+    def test_fields_none_matches_default_behaviour(self):
+        person = Person.objects.create(name='Charlie')
+        self.assertEqual(model_to_dict(person, fields=None), model_to_dict(person))
+
+    def test_exclude_empty_is_noop(self):
+        person = Person.objects.create(name='Daisy')
+        self.assertEqual(model_to_dict(person, exclude=[]), model_to_dict(person))
+
     def test_many_to_many(self):
         """Data for a ManyToManyField is a list rather than a lazy QuerySet."""
         blue = Colour.objects.create(name='blue')
