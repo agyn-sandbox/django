@@ -113,8 +113,9 @@ class PostgreSqlDbshellCommandTestCase(SimpleTestCase):
             'sslcert': '/tmp/client.crt',
             'sslkey': '/tmp/client.key',
         }
-        with mock.patch('subprocess.run', new=_mock_subprocess_run):
-            DatabaseClient.runshell_db(dbinfo)
+        with mock.patch.dict(os.environ, {}, clear=True):
+            with mock.patch('subprocess.run', new=_mock_subprocess_run):
+                DatabaseClient.runshell_db(dbinfo)
 
         self.assertEqual(captured_env.get('PGSSLMODE'), 'verify-full')
         self.assertEqual(captured_env.get('PGSSLROOTCERT'), '/tmp/root.crt')
@@ -135,8 +136,9 @@ class PostgreSqlDbshellCommandTestCase(SimpleTestCase):
             'host': 'somehost',
             'port': '444',
         }
-        with mock.patch('subprocess.run', new=_mock_subprocess_run):
-            DatabaseClient.runshell_db(dbinfo)
+        with mock.patch.dict(os.environ, {}, clear=True):
+            with mock.patch('subprocess.run', new=_mock_subprocess_run):
+                DatabaseClient.runshell_db(dbinfo)
 
         self.assertIsNone(captured_env.get('PGSSLMODE'))
         self.assertIsNone(captured_env.get('PGSSLROOTCERT'))
