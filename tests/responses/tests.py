@@ -2,7 +2,7 @@ import io
 
 from django.conf import settings
 from django.core.cache import cache
-from django.http import HttpResponse
+from django.http import HttpResponse, StreamingHttpResponse
 from django.http.response import HttpResponseBase
 from django.test import SimpleTestCase
 
@@ -143,6 +143,19 @@ class HttpResponseTests(SimpleTestCase):
         with io.TextIOWrapper(r, UTF8) as buf:
             buf.write(content)
         self.assertEqual(r.content, content.encode(UTF8))
+
+    def test_memoryview_content(self):
+        response = HttpResponse(memoryview(b'My Content'))
+        self.assertEqual(response.content, b'My Content')
+
+    def test_write_memoryview(self):
+        response = HttpResponse()
+        response.write(memoryview(b'abc'))
+        self.assertEqual(response.content, b'abc')
+
+    def test_streaming_memoryview_content(self):
+        response = StreamingHttpResponse(iter([memoryview(b'a'), memoryview(b'b')]))
+        self.assertEqual(response.getvalue(), b'ab')
 
     def test_generator_cache(self):
         generator = ("{}".format(i) for i in range(10))
