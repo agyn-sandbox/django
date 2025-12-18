@@ -6,7 +6,8 @@ from django.test import TestCase, skipIfDBFeature, skipUnlessDBFeature
 
 from .models import (
     MR, A, Avatar, Base, Child, HiddenUser, HiddenUserProfile, M, M2MFrom,
-    M2MTo, MRNull, Parent, R, RChild, S, T, User, create_a, get_default_r,
+    M2MTo, MRNull, Parent, R, RChild, S, Simple, T, User, create_a,
+    get_default_r,
 )
 
 
@@ -522,3 +523,13 @@ class FastDeleteTests(TestCase):
                 User.objects.filter(avatar__desc='missing').delete(),
                 (0, {'delete.User': 0})
             )
+
+
+class FastDeletePkClearTests(TestCase):
+
+    def test_pk_cleared_on_delete_no_deps(self):
+        s = Simple.objects.create()
+        pk = s.pk
+        s.delete()
+        self.assertIsNone(s.pk)
+        self.assertFalse(Simple.objects.filter(pk=pk).exists())
