@@ -7,6 +7,14 @@ from django.db import migrations, models
 from django.test import TransactionTestCase, override_settings
 
 
+class WriteToDefaultRouter:
+    def db_for_read(self, model, **hints):
+        return 'other'
+
+    def db_for_write(self, model, **hints):
+        return 'default'
+
+
 @override_settings(
     MIGRATION_MODULES=dict(
         settings.MIGRATION_MODULES,
@@ -64,3 +72,45 @@ class ContentTypeOperationsTests(TransactionTestCase):
         call_command('migrate', 'contenttypes_tests', 'zero', database='default', interactive=False, verbosity=0)
         self.assertTrue(ContentType.objects.filter(app_label='contenttypes_tests', model='foo').exists())
         self.assertTrue(ContentType.objects.filter(app_label='contenttypes_tests', model='renamedfoo').exists())
+
+
+@override_settings(
+    MIGRATION_MODULES=dict(
+        settings.MIGRATION_MODULES,
+        contenttypes_tests='contenttypes_tests.operations_migrations',
+    ),
+    DATABASE_ROUTERS=[WriteToDefaultRouter()],
+)
+class ContentTypeOperationsMultidbTests(TransactionTestCase):
+    available_apps = [
+        'contenttypes_tests',
+        'django.contrib.contenttypes',
+    ]
+    databases = {'default', 'other'}
+
+    def test_rename_uses_schema_editor_database(self):
+        other_manager = ContentType.objects.db_manager('other')
+        other_manager.create(app_label='contenttypes_tests', model='foo')
+
+        call_command('migrate', 'contenttypes_tests', database='other', interactive=False, verbosity=0)
+
+        self.assertFalse(
+            other_manager.filter(app_label='contenttypes_tests', model='foo').exists()
+        )
+        self.assertTrue(
+            other_manager.filter(app_label='contenttypes_tests', model='renamedfoo').exists()
+        )
+        self.assertFalse(
+            ContentType.objects.db_manager('default')
+            .filter(app_label='contenttypes_tests', model='renamedfoo')
+            .exists()
+        )
+
+        call_command('migrate', 'contenttypes_tests', 'zero', database='other', interactive=False, verbosity=0)
+
+        self.assertTrue(
+            other_manager.filter(app_label='contenttypes_tests', model='foo').exists()
+        )
+        self.assertFalse(
+            other_manager.filter(app_label='contenttypes_tests', model='renamedfoo').exists()
+        )
