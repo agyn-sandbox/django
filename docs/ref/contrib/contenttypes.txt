@@ -314,6 +314,15 @@ model:
    should evaluate the models you expect to be pointing to and determine
    which solution will be most effective for your use case.
 
+.. note::
+
+   When relating to models whose primary keys are
+   :class:`~django.db.models.UUIDField` instances, ensure the values stored in
+   your ``object_id`` field can be coerced to the UUID field's Python type.
+   Django accepts :class:`uuid.UUID` objects as well as hyphenated or
+   hexadecimal string representations and normalizes them automatically when
+   resolving generic relations and prefetching.
+
 .. admonition:: Serializing references to ``ContentType`` objects
 
    If you're serializing data (for example, when generating

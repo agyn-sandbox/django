@@ -1,4 +1,10 @@
+import uuid
+
+from django.contrib.contenttypes.fields import GenericForeignKey
+from django.contrib.contenttypes.models import ContentType
+from django.db import models
 from django.test import TestCase
+from django.test.utils import isolate_apps
 
 from .models import Flea, House, Person, Pet, Room
 
@@ -102,3 +108,61 @@ class UUIDPrefetchRelatedLookups(TestCase):
             redwood = House.objects.prefetch_related('rooms__fleas__pets_visited').get(name='Redwood')
         with self.assertNumQueries(0):
             self.assertEqual('Spooky', redwood.rooms.all()[0].fleas.all()[0].pets_visited.all()[0].name)
+
+
+@isolate_apps('prefetch_related')
+class GenericForeignKeyUUIDPrefetchTests(TestCase):
+
+    class Foo(models.Model):
+        id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+
+        class Meta:
+            app_label = 'prefetch_related'
+
+    class Bar(models.Model):
+        foo_content_type = models.ForeignKey(ContentType, on_delete=models.CASCADE)
+        foo_object_id = models.CharField(max_length=255, db_index=True)
+        foo = GenericForeignKey('foo_content_type', 'foo_object_id')
+
+        class Meta:
+            app_label = 'prefetch_related'
+
+    def test_prefetch_related_generic_foreign_key_hyphenated_uuid(self):
+        foo_id = uuid.uuid4()
+        foo = self.Foo.objects.create(id=foo_id)
+        self.Bar.objects.create(
+            foo_content_type=ContentType.objects.get_for_model(self.Foo),
+            foo_object_id=str(foo_id),
+        )
+
+        bar = self.Bar.objects.get()
+        self.assertEqual(foo.pk, bar.foo.pk)
+
+        foo_field = next(field for field in self.Bar._meta.private_fields if field.name == 'foo')
+        rel_qs, rel_key, instance_key, *_ = foo_field.get_prefetch_queryset([bar])
+        self.assertIn(instance_key(bar), {rel_key(obj) for obj in rel_qs})
+
+        bars = list(self.Bar.objects.all().prefetch_related('foo'))
+
+        self.assertIsNotNone(bars[0].foo)
+        self.assertEqual(foo.pk, bars[0].foo.pk)
+
+    def test_prefetch_related_generic_foreign_key_hex_uuid(self):
+        foo_id = uuid.uuid4()
+        foo = self.Foo.objects.create(id=foo_id)
+        self.Bar.objects.create(
+            foo_content_type=ContentType.objects.get_for_model(self.Foo),
+            foo_object_id=foo_id.hex,
+        )
+
+        bar = self.Bar.objects.get()
+        self.assertEqual(foo.pk, bar.foo.pk)
+
+        foo_field = next(field for field in self.Bar._meta.private_fields if field.name == 'foo')
+        rel_qs, rel_key, instance_key, *_ = foo_field.get_prefetch_queryset([bar])
+        self.assertIn(instance_key(bar), {rel_key(obj) for obj in rel_qs})
+
+        bars = list(self.Bar.objects.all().prefetch_related('foo'))
+
+        self.assertIsNotNone(bars[0].foo)
+        self.assertEqual(foo.pk, bars[0].foo.pk)
