@@ -1056,7 +1056,7 @@ class ModelAdmin(BaseModelAdmin):
                 level = getattr(messages.constants, level.upper())
             except AttributeError:
                 levels = messages.constants.DEFAULT_TAGS.values()
-                levels_repr = ', '.join('`%s`' % l for l in levels)
+                levels_repr = ', '.join('`%s`' % level_tag for level_tag in levels)
                 raise ValueError(
                     'Bad message level string: `%s`. Possible values are: %s'
                     % (level, levels_repr)
@@ -1990,6 +1990,9 @@ class InlineModelAdmin(BaseModelAdmin):
         if self.verbose_name_plural is None:
             self.verbose_name_plural = self.model._meta.verbose_name_plural
 
+    def _get_parent_admin(self):
+        return self.admin_site._registry.get(self.parent_model)
+
     @property
     def media(self):
         extra = '' if settings.DEBUG else '.min'
@@ -2113,36 +2116,44 @@ class InlineModelAdmin(BaseModelAdmin):
 
     def has_add_permission(self, request, obj):
         if self.opts.auto_created:
-            # We're checking the rights to an auto-created intermediate model,
-            # which doesn't have its own individual permissions. The user needs
-            # to have the view permission for the related model in order to
-            # be able to do anything with the intermediate model.
-            return self.has_view_permission(request, obj)
+            parent_admin = self._get_parent_admin()
+            if not parent_admin:
+                return False
+            if obj is None:
+                return parent_admin.has_add_permission(request)
+            return parent_admin.has_change_permission(request, obj)
         return super().has_add_permission(request)
 
     def has_change_permission(self, request, obj=None):
         if self.opts.auto_created:
-            # We're checking the rights to an auto-created intermediate model,
-            # which doesn't have its own individual permissions. The user needs
-            # to have the view permission for the related model in order to
-            # be able to do anything with the intermediate model.
-            return self.has_view_permission(request, obj)
+            parent_admin = self._get_parent_admin()
+            if not parent_admin:
+                return False
+            if obj is None:
+                return parent_admin.has_add_permission(request)
+            return parent_admin.has_change_permission(request, obj)
         return super().has_change_permission(request)
 
     def has_delete_permission(self, request, obj=None):
         if self.opts.auto_created:
-            # We're checking the rights to an auto-created intermediate model,
-            # which doesn't have its own individual permissions. The user needs
-            # to have the view permission for the related model in order to
-            # be able to do anything with the intermediate model.
-            return self.has_view_permission(request, obj)
+            parent_admin = self._get_parent_admin()
+            if not parent_admin:
+                return False
+            return parent_admin.has_change_permission(request, obj)
         return super().has_delete_permission(request, obj)
 
     def has_view_permission(self, request, obj=None):
         if self.opts.auto_created:
+            parent_admin = self._get_parent_admin()
+            if parent_admin:
+                if (
+                    parent_admin.has_view_permission(request, obj) or
+                    parent_admin.has_change_permission(request, obj)
+                ):
+                    return True
             opts = self.opts
             # The model was auto-created as intermediary for a many-to-many
-            # Many-relationship; find the target model.
+            # relationship; find the target model.
             for field in opts.fields:
                 if field.remote_field and field.remote_field.model != self.parent_model:
                     opts = field.remote_field.model._meta

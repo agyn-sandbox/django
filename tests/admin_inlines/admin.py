@@ -7,9 +7,10 @@ from .models import (
     Consigliere, EditablePKBook, ExtraTerrestrial, Fashionista, Holder,
     Holder2, Holder3, Holder4, Inner, Inner2, Inner3, Inner4Stacked,
     Inner4Tabular, NonAutoPKBook, NonAutoPKBookChild, Novel,
-    NovelReadonlyChapter, ParentModelWithCustomPk, Poll, Profile,
-    ProfileCollection, Question, ReadOnlyInline, ShoppingWeakness, Sighting,
-    SomeChildModel, SomeParentModel, SottoCapo, Title, TitleCollection,
+    NovelReadonlyChapter, ParentModelWithCustomPk, Photo, Poll, Profile,
+    ProfileCollection, Question, ReadOnlyInline, Report, ReportNoInline,
+    ReportStacked, ShoppingWeakness, Sighting, SomeChildModel,
+    SomeParentModel, SottoCapo, Title, TitleCollection,
 )
 
 site = admin.AdminSite(name="admin")
@@ -235,6 +236,30 @@ class SomeChildModelInline(admin.TabularInline):
     readonly_fields = ('readonly_field',)
 
 
+class ReportPhotoTabularInline(admin.TabularInline):
+    model = Report.photos.through
+    show_change_link = True
+
+
+class ReportPhotoStackedInline(admin.StackedInline):
+    model = Report.photos.through
+    show_change_link = True
+
+
+class ReportAdminWithInlineTab(admin.ModelAdmin):
+    exclude = ('photos',)
+    inlines = [ReportPhotoTabularInline]
+
+
+class ReportAdminWithInlineStacked(admin.ModelAdmin):
+    exclude = ('photos',)
+    inlines = [ReportPhotoStackedInline]
+
+
+class ReportAdminNoInline(admin.ModelAdmin):
+    fields = ('photos',)
+
+
 site.register(TitleCollection, inlines=[TitleInline])
 # Test bug #12561 and #12778
 # only ModelAdmin media
@@ -256,4 +281,7 @@ site.register(ParentModelWithCustomPk, inlines=[ChildModel1Inline, ChildModel2In
 site.register(BinaryTree, inlines=[BinaryTreeAdmin])
 site.register(ExtraTerrestrial, inlines=[SightingInline])
 site.register(SomeParentModel, inlines=[SomeChildModelInline])
+site.register(Report, ReportAdminWithInlineTab)
+site.register(ReportStacked, ReportAdminWithInlineStacked)
+site.register(ReportNoInline, ReportAdminNoInline)
 site.register([Question, Inner4Stacked, Inner4Tabular])
