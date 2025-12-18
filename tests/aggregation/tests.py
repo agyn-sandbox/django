@@ -149,6 +149,21 @@ class AggregateTestCase(TestCase):
         vals = Store.objects.filter(name="Amazon.com").aggregate(amazon_mean=Avg("books__rating"))
         self.assertEqual(vals, {'amazon_mean': Approximate(4.08, places=2)})
 
+    def test_count_distinct_case_spacing(self):
+        from django.db.models import Case, Count, IntegerField, When
+        from .models import Author
+
+        qs = Author.objects.annotate(
+            c=Count(
+                Case(
+                    When(age__gte=0, then=1),
+                    output_field=IntegerField(),
+                ),
+                distinct=True,
+            )
+        )
+        self.assertIn('DISTINCT CASE', str(qs.query))
+
     def test_annotate_basic(self):
         self.assertQuerysetEqual(
             Book.objects.annotate().order_by('pk'), [
