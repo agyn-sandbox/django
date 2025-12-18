@@ -205,7 +205,7 @@ class ModelFormBaseTest(TestCase):
         No fields should be set on a model instance if construct_instance receives fields=().
         """
         form = modelform_factory(Person, fields="__all__")({'name': 'John Doe'})
-        self.assertTrue(form.is_valid())
+        self.assertTrue(form.is_valid(), form.errors)
         instance = construct_instance(form, Person(), fields=())
         self.assertEqual(instance.name, '')
 
@@ -255,7 +255,7 @@ class ModelFormBaseTest(TestCase):
         award = Award.objects.create(name='Best sprinter', character=character)
         data = {'name': 'Best tester', 'character': ''}  # remove character
         form = AwardForm(data=data, instance=award)
-        self.assertTrue(form.is_valid())
+        self.assertTrue(form.is_valid(), form.errors)
         award = form.save()
         self.assertIsNone(award.character)
 
@@ -266,7 +266,7 @@ class ModelFormBaseTest(TestCase):
         """
         obj = Writer.objects.create(name='test')
         form = CustomWriterForm(data={'name': ''}, instance=obj)
-        self.assertTrue(form.is_valid())
+        self.assertTrue(form.is_valid(), form.errors)
         obj = form.save()
         self.assertEqual(obj.name, '')
 
@@ -275,13 +275,13 @@ class ModelFormBaseTest(TestCase):
         empty_value = '' if connection.features.interprets_empty_strings_as_nulls else None
 
         form = form_class(data={'codename': ''})
-        self.assertTrue(form.is_valid())
+        self.assertTrue(form.is_valid(), form.errors)
         form.save()
         self.assertEqual(form.instance.codename, empty_value)
 
         # Save a second form to verify there isn't a unique constraint violation.
         form = form_class(data={'codename': ''})
-        self.assertTrue(form.is_valid())
+        self.assertTrue(form.is_valid(), form.errors)
         form.save()
         self.assertEqual(form.instance.codename, empty_value)
 
@@ -1158,9 +1158,14 @@ class ModelFormBasicTests(TestCase):
         )
         self.assertHTMLEqual(
             str(f.as_ul()),
-            """<li><label for="id_name">Name:</label> <input id="id_name" type="text" name="name" maxlength="20" required></li>
-<li><label for="id_slug">Slug:</label> <input id="id_slug" type="text" name="slug" maxlength="20" required></li>
-<li><label for="id_url">The URL:</label> <input id="id_url" type="text" name="url" maxlength="40" required></li>"""
+            (
+                '<li><label for="id_name">Name:</label> '
+                '<input id="id_name" type="text" name="name" maxlength="20" required></li>\n'
+                '<li><label for="id_slug">Slug:</label> '
+                '<input id="id_slug" type="text" name="slug" maxlength="20" required></li>\n'
+                '<li><label for="id_url">The URL:</label> '
+                '<input id="id_url" type="text" name="url" maxlength="40" required></li>'
+            )
         )
         self.assertHTMLEqual(
             str(f["name"]),
@@ -1186,26 +1191,32 @@ class ModelFormBasicTests(TestCase):
             })
         self.assertHTMLEqual(
             f.as_ul(),
-            '''<li>Headline: <input type="text" name="headline" value="Your headline here" maxlength="50" required></li>
-<li>Slug: <input type="text" name="slug" maxlength="50" required></li>
-<li>Pub date: <input type="text" name="pub_date" required></li>
-<li>Writer: <select name="writer" required>
-<option value="" selected>---------</option>
-<option value="%s">Bob Woodward</option>
-<option value="%s">Mike Royko</option>
-</select></li>
-<li>Article: <textarea rows="10" cols="40" name="article" required></textarea></li>
-<li>Categories: <select multiple name="categories">
-<option value="%s" selected>Entertainment</option>
-<option value="%s" selected>It&#x27;s a test</option>
-<option value="%s">Third test</option>
-</select></li>
-<li>Status: <select name="status">
-<option value="" selected>---------</option>
-<option value="1">Draft</option>
-<option value="2">Pending</option>
-<option value="3">Live</option>
-</select></li>''' % (self.w_woodward.pk, self.w_royko.pk, self.c1.pk, self.c2.pk, self.c3.pk))
+            (
+                '<li>Headline: <input type="text" name="headline" '
+                'value="Your headline here" maxlength="50" required></li>\n'
+                '<li>Slug: <input type="text" name="slug" maxlength="50" '
+                'required></li>\n'
+                '<li>Pub date: <input type="text" name="pub_date" required></li>\n'
+                '<li>Writer: <select name="writer" required>\n'
+                '<option value="" selected>---------</option>\n'
+                '<option value="%s">Bob Woodward</option>\n'
+                '<option value="%s">Mike Royko</option>\n'
+                '</select></li>\n'
+                '<li>Article: <textarea rows="10" cols="40" name="article" '
+                'required></textarea></li>\n'
+                '<li>Categories: <select multiple name="categories">\n'
+                '<option value="%s" selected>Entertainment</option>\n'
+                '<option value="%s" selected>It&#x27;s a test</option>\n'
+                '<option value="%s">Third test</option>\n'
+                '</select></li>\n'
+                '<li>Status: <select name="status">\n'
+                '<option value="" selected>---------</option>\n'
+                '<option value="1">Draft</option>\n'
+                '<option value="2">Pending</option>\n'
+                '<option value="3">Live</option>\n'
+                '</select></li>'
+            ) % (self.w_woodward.pk, self.w_royko.pk, self.c1.pk, self.c2.pk, self.c3.pk)
+        )
 
         # When the ModelForm is passed an instance, that instance's current values are
         # inserted as 'initial' data in each Field.
@@ -2467,12 +2478,15 @@ class OtherModelFormTests(TestCase):
         self.maxDiff = 1024
         self.assertHTMLEqual(
             form.as_p(),
-            """<p><label for="id_name">Name:</label> <input id="id_name" type="text" name="name" maxlength="50" required></p>
-        <p><label for="id_colours">Colours:</label>
-        <select multiple name="colours" id="id_colours" required>
-        <option value="%(blue_pk)s">Blue</option>
-        </select></p>"""
-            % {'blue_pk': colour.pk})
+            (
+                '<p><label for="id_name">Name:</label> '
+                '<input id="id_name" type="text" name="name" maxlength="50" required></p>\n'
+                '<p><label for="id_colours">Colours:</label>\n'
+                '<select multiple name="colours" id="id_colours" required>\n'
+                '<option value="%(blue_pk)s">Blue</option>\n'
+                '</select></p>'
+            ) % {'blue_pk': colour.pk}
+        )
 
     def test_callable_field_default(self):
         class PublicationDefaultsForm(forms.ModelForm):
@@ -2513,6 +2527,71 @@ class OtherModelFormTests(TestCase):
         }
         bound_form = PublicationDefaultsForm(empty_data)
         self.assertFalse(bound_form.has_changed())
+
+    def test_omitted_field_overridden_in_clean(self):
+        class PublicationDefaultsForm(forms.ModelForm):
+            mode = forms.CharField(required=False)
+
+            class Meta:
+                model = PublicationDefaults
+                fields = ('mode',)
+
+            def clean(self):
+                cleaned_data = super().clean()
+                cleaned_data['mode'] = 'xx'
+                return cleaned_data
+
+            def _post_clean(self):
+                opts = self._meta
+                self.instance = construct_instance(self, self.instance, opts.fields, opts.exclude)
+
+        form = PublicationDefaultsForm({})
+        self.assertTrue(form.is_valid(), form.errors)
+        instance = form.save(commit=False)
+        self.assertEqual(instance.mode, 'xx')
+
+    def test_omitted_field_preserves_default_without_clean_override(self):
+        class PublicationDefaultsForm(forms.ModelForm):
+            mode = forms.CharField(required=False)
+
+            class Meta:
+                model = PublicationDefaults
+                fields = ('mode',)
+
+        form = PublicationDefaultsForm({})
+        self.assertTrue(form.is_valid(), form.errors)
+        instance = form.save(commit=False)
+        self.assertEqual(instance.mode, 'di')
+
+    def test_omitted_field_clean_sets_empty_preserves_default(self):
+        for empty_value in ('', None):
+            class PublicationDefaultsForm(forms.ModelForm):
+                mode = forms.CharField(required=False)
+
+                class Meta:
+                    model = PublicationDefaults
+                    fields = ('mode',)
+
+                def clean(self, empty_value=empty_value):
+                    cleaned_data = super().clean()
+                    cleaned_data['mode'] = empty_value
+                    return cleaned_data
+
+            form = PublicationDefaultsForm({})
+            self.assertTrue(form.is_valid(), form.errors)
+            instance = form.save(commit=False)
+            self.assertEqual(instance.mode, 'di')
+
+    def test_checkbox_omission_assigns_false(self):
+        class PublicationDefaultsForm(forms.ModelForm):
+            class Meta:
+                model = PublicationDefaults
+                fields = ('active',)
+
+        form = PublicationDefaultsForm({})
+        self.assertTrue(form.is_valid(), form.errors)
+        instance = form.save(commit=False)
+        self.assertIs(instance.active, False)
 
 
 class ModelFormCustomErrorTests(SimpleTestCase):

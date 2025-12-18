@@ -8,7 +8,7 @@ from itertools import chain
 from django.core.exceptions import (
     NON_FIELD_ERRORS, FieldError, ImproperlyConfigured, ValidationError,
 )
-from django.forms.fields import ChoiceField, Field
+from django.forms.fields import EMPTY_VALUES, ChoiceField, Field
 from django.forms.forms import BaseForm, DeclarativeFieldsMetaclass
 from django.forms.formsets import BaseFormSet, formset_factory
 from django.forms.utils import ErrorList
@@ -46,10 +46,14 @@ def construct_instance(form, instance, fields=None, exclude=None):
             continue
         if exclude and f.name in exclude:
             continue
-        # Leave defaults for fields that aren't in POST data, except for
-        # checkbox inputs because they don't appear in POST data if not checked.
-        if (f.has_default() and
-                form[f.name].field.widget.value_omitted_from_data(form.data, form.files, form.add_prefix(f.name))):
+        # Leave defaults when the field is omitted from POST data and the
+        # cleaned value is empty. Checkbox widgets never report omission, even
+        # when unchecked, so this guard never skips their cleaned False values.
+        omitted = form[f.name].field.widget.value_omitted_from_data(
+            form.data, form.files, form.add_prefix(f.name)
+        )
+        is_empty = cleaned_data[f.name] in EMPTY_VALUES
+        if f.has_default() and omitted and is_empty:
             continue
         # Defer saving file-type fields until after the other fields, so a
         # callable upload_to can use the values from other fields.
