@@ -580,9 +580,35 @@ class ModelAdmin(BaseModelAdmin):
     def __str__(self):
         return "%s.%s" % (self.model._meta.app_label, self.__class__.__name__)
 
+    def get_inlines(self, request, obj=None):
+        """Return the inline classes displayed on the add/change views."""
+        return self.inlines
+
     def get_inline_instances(self, request, obj=None):
         inline_instances = []
-        for inline_class in self.inlines:
+        inline_classes = self.get_inlines(request, obj)
+        if inline_classes is None:
+            raise TypeError(
+                "ModelAdmin.get_inlines() must return an iterable of InlineModelAdmin "
+                "classes, not None."
+            )
+
+        for inline_class in inline_classes:
+            if isinstance(inline_class, InlineModelAdmin):
+                raise TypeError(
+                    "ModelAdmin.get_inlines() must return InlineModelAdmin classes, "
+                    "not instances of %s." % inline_class.__class__.__name__
+                )
+            if not isinstance(inline_class, type):
+                raise TypeError(
+                    "ModelAdmin.get_inlines() must return InlineModelAdmin classes, got %r."
+                    % (inline_class,)
+                )
+            if not issubclass(inline_class, InlineModelAdmin):
+                raise TypeError(
+                    "ModelAdmin.get_inlines() must return subclasses of InlineModelAdmin. "
+                    "Got %s." % inline_class.__name__
+                )
             inline = inline_class(self.model, self.admin_site)
             if request:
                 if not (inline.has_view_or_change_permission(request, obj) or

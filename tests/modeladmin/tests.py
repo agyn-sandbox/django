@@ -1,4 +1,5 @@
 from datetime import date
+from types import SimpleNamespace
 
 from django import forms
 from django.contrib.admin.models import ADDITION, CHANGE, DELETION, LogEntry
@@ -42,6 +43,12 @@ class ModelAdminTests(TestCase):
             sign_date=date(1965, 1, 1),
         )
         self.site = AdminSite()
+
+    def _request_with_user(self, **attrs):
+        attrs.setdefault('has_perm', lambda perm: True)
+        request = MockRequest()
+        request.user = SimpleNamespace(**attrs)
+        return request
 
     def test_modeladmin_str(self):
         ma = ModelAdmin(Band, self.site)
@@ -718,6 +725,134 @@ class ModelAdminTests(TestCase):
         self.assertEqual(model_count, {'bands': 1})
         self.assertEqual(perms_needed, {'band'})
         self.assertEqual(protected, [])
+
+    def test_get_inlines_default_returns_inlines(self):
+        class ConcertInline(TabularInline):
+            model = Concert
+            fk_name = 'main_band'
+
+        class BandAdmin(ModelAdmin):
+            inlines = [ConcertInline]
+
+        ma = BandAdmin(Band, self.site)
+        request = self._request_with_user()
+        self.assertEqual(ma.get_inlines(request), [ConcertInline])
+        inline_instances = ma.get_inline_instances(request)
+        self.assertEqual([type(inline) for inline in inline_instances], [ConcertInline])
+
+    def test_get_inline_instances_dynamic_user(self):
+        class SuperuserInline(TabularInline):
+            model = Concert
+            fk_name = 'main_band'
+
+        class StaffInline(TabularInline):
+            model = Concert
+            fk_name = 'opening_band'
+
+        class BandAdmin(ModelAdmin):
+            def get_inlines(self, request, obj=None):
+                if getattr(request.user, 'is_superuser', False):
+                    return [SuperuserInline, StaffInline]
+                return [StaffInline]
+
+        ma = BandAdmin(Band, self.site)
+        superuser_request = self._request_with_user(is_superuser=True)
+        staff_request = self._request_with_user(is_superuser=False)
+        superuser_inlines = ma.get_inline_instances(superuser_request)
+        self.assertEqual([type(inline) for inline in superuser_inlines], [SuperuserInline, StaffInline])
+        staff_inlines = ma.get_inline_instances(staff_request)
+        self.assertEqual([type(inline) for inline in staff_inlines], [StaffInline])
+
+    def test_get_inline_instances_dynamic_obj(self):
+        class AddInline(TabularInline):
+            model = Concert
+            fk_name = 'main_band'
+
+        class ChangeInline(TabularInline):
+            model = Concert
+            fk_name = 'opening_band'
+
+        class BandAdmin(ModelAdmin):
+            def get_inlines(self, request, obj=None):
+                if obj is None or not getattr(obj, 'bio', ''):
+                    return [AddInline]
+                return [ChangeInline]
+
+        ma = BandAdmin(Band, self.site)
+        request = self._request_with_user()
+        add_inlines = ma.get_inline_instances(request)
+        self.assertEqual([type(inline) for inline in add_inlines], [AddInline])
+        self.band.bio = 'With support'
+        self.band.save(update_fields=['bio'])
+        change_inlines = ma.get_inline_instances(request, self.band)
+        self.assertEqual([type(inline) for inline in change_inlines], [ChangeInline])
+
+    def test_get_inline_instances_rejects_inline_instances(self):
+        class ConcertInline(TabularInline):
+            model = Concert
+            fk_name = 'main_band'
+
+        class BandAdmin(ModelAdmin):
+            def get_inlines(self, request, obj=None):
+                return [ConcertInline(self.model, self.admin_site)]
+
+        ma = BandAdmin(Band, self.site)
+        request = self._request_with_user()
+        message = (
+            "ModelAdmin.get_inlines() must return InlineModelAdmin classes, "
+            "not instances of ConcertInline."
+        )
+        with self.assertRaisesMessage(TypeError, message):
+            ma.get_inline_instances(request)
+
+    def test_get_inline_instances_rejects_non_inline_class(self):
+        class BandAdmin(ModelAdmin):
+            def get_inlines(self, request, obj=None):
+                return [ModelAdmin]
+
+        ma = BandAdmin(Band, self.site)
+        request = self._request_with_user()
+        message = (
+            "ModelAdmin.get_inlines() must return subclasses of InlineModelAdmin. "
+            "Got ModelAdmin."
+        )
+        with self.assertRaisesMessage(TypeError, message):
+            ma.get_inline_instances(request)
+
+    def test_get_inline_instances_rejects_none(self):
+        class BandAdmin(ModelAdmin):
+            def get_inlines(self, request, obj=None):
+                return None
+
+        ma = BandAdmin(Band, self.site)
+        request = self._request_with_user()
+        message = (
+            "ModelAdmin.get_inlines() must return an iterable of InlineModelAdmin classes, "
+            "not None."
+        )
+        with self.assertRaisesMessage(TypeError, message):
+            ma.get_inline_instances(request)
+
+    def test_get_inline_instances_preserves_order(self):
+        class FirstInline(TabularInline):
+            model = Concert
+            fk_name = 'main_band'
+
+        class SecondInline(TabularInline):
+            model = Concert
+            fk_name = 'opening_band'
+
+        class BandAdmin(ModelAdmin):
+            def get_inlines(self, request, obj=None):
+                return [SecondInline, FirstInline]
+
+        ma = BandAdmin(Band, self.site)
+        request = self._request_with_user()
+        inline_instances = ma.get_inline_instances(request)
+        self.assertEqual(
+            [type(inline) for inline in inline_instances],
+            [SecondInline, FirstInline],
+        )
 
 
 class ModelAdminPermissionTests(SimpleTestCase):
