@@ -134,10 +134,41 @@ class ModelInstanceCreationTests(TestCase):
         # ... but there will often be more efficient ways if that is all you need:
         self.assertTrue(Article.objects.filter(id=a.id).exists())
 
-    def test_save_primary_with_default(self):
-        # An UPDATE attempt is skipped when a primary key has default.
+    def test_save_primary_with_default_still_inserts_once(self):
+        obj = PrimaryKeyWithDefault(name='created with default')
         with self.assertNumQueries(1):
-            PrimaryKeyWithDefault().save()
+            obj.save()
+        self.assertTrue(
+            PrimaryKeyWithDefault.objects.filter(pk=obj.pk, name='created with default').exists()
+        )
+
+    def test_save_with_explicit_pk_updates(self):
+        existing = PrimaryKeyWithDefault.objects.create(name='initial name')
+        replacement = PrimaryKeyWithDefault(pk=existing.pk, name='updated name')
+
+        with self.assertNumQueries(1):
+            replacement.save()
+
+        existing.refresh_from_db()
+        self.assertEqual(existing.name, 'updated name')
+        self.assertEqual(PrimaryKeyWithDefault.objects.count(), 1)
+
+    def test_save_raw_does_not_force_insert_with_pk_default(self):
+        existing = PrimaryKeyWithDefault.objects.create(name='existing')
+        existing.name = 'raw update'
+
+        with self.assertNumQueries(1):
+            existing.save_base(raw=True)
+
+        existing.refresh_from_db()
+        self.assertEqual(existing.name, 'raw update')
+
+        new_instance = PrimaryKeyWithDefault(name='raw insert')
+
+        new_instance.save_base(raw=True)
+
+        new_instance.refresh_from_db()
+        self.assertEqual(new_instance.name, 'raw insert')
 
 
 class ModelTest(TestCase):
