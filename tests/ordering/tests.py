@@ -1,3 +1,4 @@
+import re
 from datetime import datetime
 from operator import attrgetter
 
@@ -505,36 +506,43 @@ class SelfReferentialFKOrderingTests(TestCase):
         sql = str(queryset.query)
         start = sql.upper().find('ORDER BY')
         self.assertNotEqual(start, -1, 'ORDER BY clause not found in generated SQL.')
-        return sql[start:]
+        fragment = sql[start:]
+        fragment = fragment.upper()
+        return re.sub(r'["`\[\]]', '', fragment)
+
+    def first_ordering_term(self, fragment):
+        return fragment[len('ORDER BY '):].split(',', 1)[0].strip()
 
     def test_order_by_record_root_id(self):
         qs = TwoModel.objects.order_by('record__root_id')
         records = list(qs)
-        fragment = self.order_by_fragment(qs).upper()
+        fragment = self.order_by_fragment(qs)
+        first_term = self.first_ordering_term(fragment)
         self.assertSequenceEqual(records, [self.low_record, self.high_record], msg=fragment)
-        self.assertIn('ROOT_ID', fragment)
-        self.assertIn(' ASC', fragment.split('ROOT_ID', 1)[-1])
+        self.assertIn('ROOT_ID', first_term)
+        self.assertTrue(first_term.endswith('ASC'), msg=fragment)
 
     def test_order_by_record_root_relation(self):
         qs = TwoModel.objects.order_by('record__root')
         records = list(qs)
-        fragment = self.order_by_fragment(qs).upper()
+        fragment = self.order_by_fragment(qs)
+        first_term = self.first_ordering_term(fragment)
         self.assertSequenceEqual(records, [self.high_record, self.low_record], msg=fragment)
-        self.assertIn('"ID" DESC', fragment)
+        self.assertTrue(first_term.endswith('ID DESC'), msg=fragment)
 
     def test_order_by_record_root_pk(self):
         qs = TwoModel.objects.order_by('record__root__id')
         self.assertSequenceEqual(list(qs), [self.low_record, self.high_record])
-        fragment = self.order_by_fragment(qs).upper()
-        self.assertIn('ROOT_ID', fragment)
-        tail = fragment.split('ROOT_ID', 1)[-1]
-        self.assertIn(' ASC', tail)
-        self.assertNotIn(' DESC', tail)
+        fragment = self.order_by_fragment(qs)
+        first_term = self.first_ordering_term(fragment)
+        self.assertTrue(first_term.endswith('ID ASC'), msg=fragment)
+        self.assertNotIn('ID DESC', first_term)
 
     def test_order_by_record_root_id_descending(self):
         qs = TwoModel.objects.order_by('-record__root_id')
         records = list(qs)
-        fragment = self.order_by_fragment(qs).upper()
+        fragment = self.order_by_fragment(qs)
+        first_term = self.first_ordering_term(fragment)
         self.assertSequenceEqual(records, [self.high_record, self.low_record], msg=fragment)
-        self.assertIn('ROOT_ID', fragment)
-        self.assertIn(' DESC', fragment.split('ROOT_ID', 1)[-1])
+        self.assertIn('ROOT_ID', first_term)
+        self.assertTrue(first_term.endswith('DESC'), msg=fragment)
