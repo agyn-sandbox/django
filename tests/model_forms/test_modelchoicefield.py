@@ -353,3 +353,30 @@ class ModelChoiceFieldTests(TestCase):
         )
         with self.assertNumQueries(2):
             template.render(Context({'form': CategoriesForm()}))
+
+    def test_modelform_radioselect_required_no_empty(self):
+        writer_1 = Writer.objects.create(name='Writer 1')
+        writer_2 = Writer.objects.create(name='Writer 2')
+
+        class ArticleForm(forms.ModelForm):
+            class Meta:
+                model = Article
+                fields = ['writer']
+                widgets = {'writer': forms.RadioSelect}
+
+        required_form = ArticleForm()
+        rendered_required = str(required_form['writer'])
+        self.assertIn(str(writer_1.pk), rendered_required)
+        self.assertIn(str(writer_2.pk), rendered_required)
+        self.assertNotIn('value=""', rendered_required)
+        self.assertNotIn('checked', rendered_required)
+
+        class OptionalArticleForm(forms.ModelForm):
+            writer = forms.ModelChoiceField(Writer.objects.all(), required=False, widget=forms.RadioSelect)
+
+            class Meta:
+                model = Article
+                fields = ['writer']
+
+        rendered_optional = str(OptionalArticleForm()['writer'])
+        self.assertIn('value=""', rendered_optional)
