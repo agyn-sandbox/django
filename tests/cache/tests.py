@@ -1040,6 +1040,27 @@ class DBCacheTests(BaseCacheTests, TransactionTestCase):
     def test_zero_cull(self):
         self._perform_cull_test('zero_cull', 50, 18)
 
+    def test_cull_frequency_one_culls_all_but_latest_entry(self):
+        cache_config = caches_setting_for_tests(
+            BACKEND='django.core.cache.backends.db.DatabaseCache',
+            LOCATION='test cache table',
+            OPTIONS={'MAX_ENTRIES': 2, 'CULL_FREQUENCY': 1},
+        )
+        with self.settings(CACHES=cache_config):
+            db_cache = caches['default']
+            db_cache.clear()
+            db_cache.set('first', 'first')
+            db_cache.set('second', 'second')
+            db_cache.set('third', 'third')
+            db_cache.set('latest', 'latest')
+            with connection.cursor() as cursor:
+                table_name = connection.ops.quote_name('test cache table')
+                cursor.execute('SELECT COUNT(*) FROM %s' % table_name)
+                remaining = cursor.fetchone()[0]
+            self.assertEqual(remaining, 1)
+            self.assertEqual(db_cache.get('latest'), 'latest')
+            db_cache.clear()
+
     def test_second_call_doesnt_crash(self):
         out = io.StringIO()
         management.call_command('createcachetable', stdout=out)
@@ -1527,7 +1548,7 @@ class DefaultNonExpiringCacheKeyTests(SimpleTestCase):
         self.DEFAULT_TIMEOUT = caches[DEFAULT_CACHE_ALIAS].default_timeout
 
     def tearDown(self):
-        del(self.DEFAULT_TIMEOUT)
+        del self.DEFAULT_TIMEOUT
 
     def test_default_expiration_time_for_keys_is_5_minutes(self):
         """The default expiration time of a cache key is 5 minutes.
