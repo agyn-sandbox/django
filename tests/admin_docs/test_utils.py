@@ -44,6 +44,29 @@ class TestUtils(AdminDocsSimpleTestCase):
         )
         self.assertEqual(trim_docstring_output, trimmed_docstring)
 
+    def test_trim_docstring_first_line_with_text(self):
+        def sample():
+            """Summary on first line.
+            Additional context appears here.
+            """
+
+        expected = 'Summary on first line.\nAdditional context appears here.'
+        self.assertEqual(trim_docstring(sample.__doc__), expected)
+
+    def test_trim_docstring_single_line(self):
+        def sample():
+            """Single-line docstring."""
+
+        self.assertEqual(trim_docstring(sample.__doc__), 'Single-line docstring.')
+
+    def test_trim_docstring_first_line_followed_by_blanks(self):
+        def sample():
+            """First line only
+
+            """
+
+        self.assertEqual(trim_docstring(sample.__doc__), 'First line only')
+
     def test_parse_docstring(self):
         title, description, metadata = parse_docstring(self.docstring)
         docstring_title = (

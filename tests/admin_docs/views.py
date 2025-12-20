@@ -18,3 +18,11 @@ class XViewClass(View):
 class XViewCallableObject(View):
     def __call__(self, request):
         return HttpResponse()
+
+
+def first_line_docstring_view(request):
+    """Docstring starts on first line.
+
+    Provides :model:`admin_docs.Person` reference.
+    """
+    return HttpResponse()

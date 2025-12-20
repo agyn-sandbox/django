@@ -15,4 +15,5 @@ urlpatterns = [
     path('xview/class/', views.xview_dec(views.XViewClass.as_view())),
     path('xview/callable_object/', views.xview_dec(views.XViewCallableObject())),
     path('xview/callable_object_without_xview/', views.XViewCallableObject()),
+    path('docstring/first-line/', views.first_line_docstring_view),
 ]

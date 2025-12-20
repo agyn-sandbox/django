@@ -1,5 +1,6 @@
 "Misc. utility functions/classes for admin documentation generator."
 
+import inspect
 import re
 from email.errors import HeaderParseError
 from email.parser import HeaderParser
@@ -25,18 +26,10 @@ def get_view_name(view_func):
 
 
 def trim_docstring(docstring):
-    """
-    Uniformly trim leading/trailing whitespace from docstrings.
-
-    Based on https://www.python.org/dev/peps/pep-0257/#handling-docstring-indentation
-    """
-    if not docstring or not docstring.strip():
+    """Uniformly trim leading and trailing whitespace from docstrings."""
+    if not docstring:
         return ''
-    # Convert tabs to spaces and split into lines
-    lines = docstring.expandtabs().splitlines()
-    indent = min(len(line) - len(line.lstrip()) for line in lines if line.lstrip())
-    trimmed = [lines[0].lstrip()] + [line[indent:].rstrip() for line in lines[1:]]
-    return "\n".join(trimmed).strip()
+    return inspect.cleandoc(docstring).strip()
 
 
 def parse_docstring(docstring):
