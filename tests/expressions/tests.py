@@ -29,6 +29,16 @@ from .models import (
 )
 
 
+class ExpressionWrapperGroupByTests(SimpleTestCase):
+    def test_group_by_cols_wrapper_over_value_is_empty(self):
+        expr = ExpressionWrapper(Value(42), output_field=IntegerField())
+        self.assertEqual(expr.get_group_by_cols(alias=None), [])
+
+    def test_group_by_cols_wrapper_over_field_propagates(self):
+        expr = ExpressionWrapper(F('num_employees'), output_field=IntegerField())
+        self.assertEqual(expr.get_group_by_cols(alias=None), [F('num_employees')])
+
+
 class BasicExpressionsTests(TestCase):
     @classmethod
     def setUpTestData(cls):
