@@ -14,6 +14,19 @@ from collections import namedtuple
 from django.db.models.constants import LOOKUP_SEP
 from django.utils import tree
 
+_STRING_LIKE_FIELD_TYPES = {"CharField", "TextField"}
+_INTEGER_LIKE_FIELD_TYPES = {
+    "IntegerField",
+    "SmallIntegerField",
+    "BigIntegerField",
+    "PositiveIntegerField",
+    "PositiveSmallIntegerField",
+    "PositiveBigIntegerField",
+    "AutoField",
+    "BigAutoField",
+    "SmallAutoField",
+}
+
 # PathInfo is used when converting lookups (fk__somecol). The contents
 # describe the relation in Model terms (model Options and Fields for both
 # sides of the relation. The join_field is the field backing the relation.
@@ -141,7 +154,13 @@ class DeferredAttribute:
 
     def __set__(self, instance, value):
         if isinstance(value, enum.Enum):
-            value = value.value
+            internal_type = self.field.get_internal_type()
+            if (
+                isinstance(value, str) and internal_type in _STRING_LIKE_FIELD_TYPES
+            ) or (
+                isinstance(value, int) and internal_type in _INTEGER_LIKE_FIELD_TYPES
+            ):
+                value = value.value
         instance.__dict__[self.field.attname] = value
 
     def _check_parent_chain(self, instance):

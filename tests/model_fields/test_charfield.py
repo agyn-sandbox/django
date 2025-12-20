@@ -50,18 +50,20 @@ class TestCharField(TestCase):
 
         post = Post(body='Festival!')
         post.title = Event.C
-        self.assertIsInstance(post.title, str)
+        self.assertIs(type(post.title), str)
+        self.assertEqual(post.title, 'Carnival!')
         post.save()
         post.refresh_from_db()
-        self.assertIsInstance(post.title, str)
+        self.assertIs(type(post.title), str)
         self.assertEqual(post.title, 'Carnival!')
 
     def test_assignment_type_from_str(self):
         post = Post(title='Carnival!', body='Festival!')
-        self.assertIsInstance(post.title, str)
+        self.assertIs(type(post.title), str)
+        self.assertEqual(post.title, 'Carnival!')
         post.save()
         post.refresh_from_db()
-        self.assertIsInstance(post.title, str)
+        self.assertIs(type(post.title), str)
         self.assertEqual(post.title, 'Carnival!')
 
 

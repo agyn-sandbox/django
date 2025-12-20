@@ -139,18 +139,20 @@ class IntegerFieldTests(TestCase):
 
         instance = self.model()
         instance.value = Rating.TWO
-        self.assertIsInstance(instance.value, int)
+        self.assertIs(type(instance.value), int)
+        self.assertEqual(instance.value, 2)
         instance.save()
         instance.refresh_from_db()
-        self.assertIsInstance(instance.value, int)
+        self.assertIs(type(instance.value), int)
         self.assertEqual(instance.value, 2)
 
     def test_assignment_type_from_int(self):
         instance = self.model(value=2)
-        self.assertIsInstance(instance.value, int)
+        self.assertIs(type(instance.value), int)
+        self.assertEqual(instance.value, 2)
         instance.save()
         instance.refresh_from_db()
-        self.assertIsInstance(instance.value, int)
+        self.assertIs(type(instance.value), int)
         self.assertEqual(instance.value, 2)
 
     def test_coercing(self):
