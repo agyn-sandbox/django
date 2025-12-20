@@ -716,26 +716,14 @@ class ModelAdminChecks(BaseModelAdminChecks):
             ))
 
     def _check_list_display_item(self, obj, item, label):
-        if callable(item):
+        if callable(item) or hasattr(obj, item):
             return []
-        elif hasattr(obj, item):
-            return []
-        elif hasattr(obj.model, item):
-            try:
-                field = obj.model._meta.get_field(item)
-            except FieldDoesNotExist:
+
+        try:
+            field = obj.model._meta.get_field(item)
+        except FieldDoesNotExist:
+            if hasattr(obj.model, item):
                 return []
-            else:
-                if isinstance(field, models.ManyToManyField):
-                    return [
-                        checks.Error(
-                            "The value of '%s' must not be a ManyToManyField." % label,
-                            obj=obj.__class__,
-                            id='admin.E109',
-                        )
-                    ]
-                return []
-        else:
             return [
                 checks.Error(
                     "The value of '%s' refers to '%s', which is not a callable, "
@@ -747,6 +735,16 @@ class ModelAdminChecks(BaseModelAdminChecks):
                     id='admin.E108',
                 )
             ]
+
+        if isinstance(field, models.ManyToManyField):
+            return [
+                checks.Error(
+                    "The value of '%s' must not be a ManyToManyField." % label,
+                    obj=obj.__class__,
+                    id='admin.E109',
+                )
+            ]
+        return []
 
     def _check_list_display_links(self, obj):
         """ Check that list_display_links is a unique subset of list_display.
