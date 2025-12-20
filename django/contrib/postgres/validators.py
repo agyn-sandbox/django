@@ -44,7 +44,7 @@ class KeysValidator:
             raise ValidationError(
                 self.messages['missing_keys'],
                 code='missing_keys',
-                params={'keys': ', '.join(missing_keys)},
+                params={'keys': ', '.join(missing_keys), 'value': value},
             )
         if self.strict:
             extra_keys = keys - self.keys
@@ -52,7 +52,7 @@ class KeysValidator:
                 raise ValidationError(
                     self.messages['extra_keys'],
                     code='extra_keys',
-                    params={'keys': ', '.join(extra_keys)},
+                    params={'keys': ', '.join(extra_keys), 'value': value},
                 )
 
     def __eq__(self, other):
