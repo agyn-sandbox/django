@@ -100,6 +100,11 @@ class User(models.Model):
     avatar = models.ForeignKey(Avatar, models.CASCADE, null=True)
 
 
+class Entry(models.Model):
+    author = models.ForeignKey(User, models.CASCADE, related_name='authored_entries')
+    editor = models.ForeignKey(User, models.CASCADE, related_name='edited_entries')
+
+
 class HiddenUser(models.Model):
     r = models.ForeignKey(R, models.CASCADE, related_name="+")
 
