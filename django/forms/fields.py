@@ -197,6 +197,7 @@ class Field:
 
     def __deepcopy__(self, memo):
         result = copy.copy(self)
+        result.error_messages = copy.deepcopy(self.error_messages, memo)
         memo[id(self)] = result
         result.widget = copy.deepcopy(self.widget, memo)
         result.validators = self.validators[:]

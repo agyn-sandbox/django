@@ -281,6 +281,24 @@ class FormsErrorMessagesTestCase(SimpleTestCase, AssertFormErrorsMixin):
         )
 
 
+class FormsIsolationErrorMessagesTestCase(SimpleTestCase):
+    def test_error_messages_do_not_leak_between_instances(self):
+        class LeakForm(Form):
+            name = CharField()
+
+        first_form = LeakForm()
+        second_form = LeakForm()
+
+        default_required = second_form.fields['name'].error_messages['required']
+
+        first_form.fields['name'].error_messages['required'] = 'CUSTOM REQUIRED MESSAGE'
+
+        self.assertEqual(
+            second_form.fields['name'].error_messages['required'],
+            default_required,
+        )
+
+
 class ModelChoiceFieldErrorMessagesTestCase(TestCase, AssertFormErrorsMixin):
     def test_modelchoicefield(self):
         # Create choices for the model choice field tests below.
