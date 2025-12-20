@@ -528,6 +528,16 @@ class Model(metaclass=ModelBase):
         super().__init__()
         post_init.send(sender=cls, instance=self)
 
+    def __setattr__(self, name, value):
+        if (
+            name == self._meta.pk.attname and
+            value is not None and
+            value is not DEFERRED and
+            '_state' in self.__dict__
+        ):
+            self._state.pk_set_explicitly = True
+        super().__setattr__(name, value)
+
     @classmethod
     def from_db(cls, db, field_names, values):
         if len(values) != len(cls._meta.concrete_fields):

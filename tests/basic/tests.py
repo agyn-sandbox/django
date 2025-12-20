@@ -170,6 +170,18 @@ class ModelInstanceCreationTests(TestCase):
         new_instance.refresh_from_db()
         self.assertEqual(new_instance.name, 'raw insert')
 
+    def test_explicit_pk_set_after_init_updates(self):
+        existing = PrimaryKeyWithDefault.objects.create(name='initial')
+        replacement = PrimaryKeyWithDefault(name='replacement')
+        replacement.pk = existing.pk
+
+        with self.assertNumQueries(1):
+            replacement.save()
+
+        existing.refresh_from_db()
+        self.assertEqual(existing.name, 'replacement')
+        self.assertEqual(PrimaryKeyWithDefault.objects.count(), 1)
+
 
 class ModelTest(TestCase):
     def test_objects_attribute_is_only_available_on_the_class_itself(self):
