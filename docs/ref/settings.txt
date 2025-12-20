@@ -216,7 +216,10 @@ name for a local memory cache. e.g.::
 ``OPTIONS``
 ~~~~~~~~~~~
 
-Default: ``None``
+Default: ``'same-origin'``
+
+.. versionchanged:: 3.1
+   Default changed from ``None`` to ``'same-origin'``. Set ``SECURE_REFERRER_POLICY=None`` to omit the header.
 
 Extra parameters to pass to the cache backend. Available parameters
 vary depending on your cache backend.
@@ -308,7 +311,10 @@ keep the cookies in-memory instead of on persistent storage.
 ``CSRF_COOKIE_DOMAIN``
 ----------------------
 
-Default: ``None``
+Default: ``'same-origin'``
+
+.. versionchanged:: 3.1
+   Default changed from ``None`` to ``'same-origin'``. Set ``SECURE_REFERRER_POLICY=None`` to omit the header.
 
 The domain to be used when setting the CSRF cookie.  This can be useful for
 easily allowing cross-subdomain requests to be excluded from the normal cross
@@ -639,7 +645,10 @@ default port. Not used with SQLite.
 ``TIME_ZONE``
 ~~~~~~~~~~~~~
 
-Default: ``None``
+Default: ``'same-origin'``
+
+.. versionchanged:: 3.1
+   Default changed from ``None`` to ``'same-origin'``. Set ``SECURE_REFERRER_POLICY=None`` to omit the header.
 
 A string representing the time zone for this database connection or ``None``.
 This inner option of the :setting:`DATABASES` setting accepts the same values
@@ -740,7 +749,10 @@ The following keys in the ``TEST`` dictionary are available:
 ``CHARSET``
 ^^^^^^^^^^^
 
-Default: ``None``
+Default: ``'same-origin'``
+
+.. versionchanged:: 3.1
+   Default changed from ``None`` to ``'same-origin'``. Set ``SECURE_REFERRER_POLICY=None`` to omit the header.
 
 The character set encoding used to create the test database. The value of this
 string is passed directly through to the database, so its format is
@@ -756,7 +768,10 @@ Supported by the PostgreSQL_ (``postgresql``) and MySQL_ (``mysql``) backends.
 ``COLLATION``
 ^^^^^^^^^^^^^
 
-Default: ``None``
+Default: ``'same-origin'``
+
+.. versionchanged:: 3.1
+   Default changed from ``None`` to ``'same-origin'``. Set ``SECURE_REFERRER_POLICY=None`` to omit the header.
 
 The collation order to use when creating the test database. This value is
 passed directly to the backend, so its format is backend-specific.
@@ -793,7 +808,10 @@ When set to ``False``, migrations won't run when creating the test database.
 ``MIRROR``
 ^^^^^^^^^^
 
-Default: ``None``
+Default: ``'same-origin'``
+
+.. versionchanged:: 3.1
+   Default changed from ``None`` to ``'same-origin'``. Set ``SECURE_REFERRER_POLICY=None`` to omit the header.
 
 The alias of the database that this database should mirror during
 testing.
@@ -809,7 +827,10 @@ configurations of multiple databases. See the documentation on
 ``NAME``
 ^^^^^^^^
 
-Default: ``None``
+Default: ``'same-origin'``
+
+.. versionchanged:: 3.1
+   Default changed from ``None`` to ``'same-origin'``. Set ``SECURE_REFERRER_POLICY=None`` to omit the header.
 
 The name of database to use when running the test suite.
 
@@ -871,7 +892,10 @@ beginning of the tests and dropped at the end.
 ``USER``
 ^^^^^^^^
 
-Default: ``None``
+Default: ``'same-origin'``
+
+.. versionchanged:: 3.1
+   Default changed from ``None`` to ``'same-origin'``. Set ``SECURE_REFERRER_POLICY=None`` to omit the header.
 
 This is an Oracle-specific setting.
 
@@ -883,7 +907,10 @@ when running tests. If not provided, Django will use ``'test_' + USER``.
 ``PASSWORD``
 ^^^^^^^^^^^^
 
-Default: ``None``
+Default: ``'same-origin'``
+
+.. versionchanged:: 3.1
+   Default changed from ``None`` to ``'same-origin'``. Set ``SECURE_REFERRER_POLICY=None`` to omit the header.
 
 This is an Oracle-specific setting.
 
@@ -907,7 +934,10 @@ If set to ``True``, Oracle Managed Files (OMF) tablespaces will be used.
 ``TBLSPACE``
 ^^^^^^^^^^^^
 
-Default: ``None``
+Default: ``'same-origin'``
+
+.. versionchanged:: 3.1
+   Default changed from ``None`` to ``'same-origin'``. Set ``SECURE_REFERRER_POLICY=None`` to omit the header.
 
 This is an Oracle-specific setting.
 
@@ -919,7 +949,10 @@ provided, Django will use ``'test_' + USER``.
 ``TBLSPACE_TMP``
 ^^^^^^^^^^^^^^^^
 
-Default: ``None``
+Default: ``'same-origin'``
+
+.. versionchanged:: 3.1
+   Default changed from ``None`` to ``'same-origin'``. Set ``SECURE_REFERRER_POLICY=None`` to omit the header.
 
 This is an Oracle-specific setting.
 
@@ -931,7 +964,10 @@ not provided, Django will use ``'test_' + USER + '_temp'``.
 ``DATAFILE``
 ^^^^^^^^^^^^
 
-Default: ``None``
+Default: ``'same-origin'``
+
+.. versionchanged:: 3.1
+   Default changed from ``None`` to ``'same-origin'``. Set ``SECURE_REFERRER_POLICY=None`` to omit the header.
 
 This is an Oracle-specific setting.
 
@@ -943,7 +979,10 @@ use ``TBLSPACE + '.dbf'``.
 ``DATAFILE_TMP``
 ^^^^^^^^^^^^^^^^
 
-Default: ``None``
+Default: ``'same-origin'``
+
+.. versionchanged:: 3.1
+   Default changed from ``None`` to ``'same-origin'``. Set ``SECURE_REFERRER_POLICY=None`` to omit the header.
 
 This is an Oracle-specific setting.
 
@@ -1450,7 +1489,10 @@ exclusive, so only set one of those settings to ``True``.
 ``EMAIL_SSL_CERTFILE``
 ----------------------
 
-Default: ``None``
+Default: ``'same-origin'``
+
+.. versionchanged:: 3.1
+   Default changed from ``None`` to ``'same-origin'``. Set ``SECURE_REFERRER_POLICY=None`` to omit the header.
 
 If :setting:`EMAIL_USE_SSL` or :setting:`EMAIL_USE_TLS` is ``True``, you can
 optionally specify the path to a PEM-formatted certificate chain file to use
@@ -1461,7 +1503,10 @@ for the SSL connection.
 ``EMAIL_SSL_KEYFILE``
 ---------------------
 
-Default: ``None``
+Default: ``'same-origin'``
+
+.. versionchanged:: 3.1
+   Default changed from ``None`` to ``'same-origin'``. Set ``SECURE_REFERRER_POLICY=None`` to omit the header.
 
 If :setting:`EMAIL_USE_SSL` or :setting:`EMAIL_USE_TLS` is ``True``, you can
 optionally specify the path to a PEM-formatted private key file to use for the
@@ -1478,7 +1523,10 @@ file and private key file are handled.
 ``EMAIL_TIMEOUT``
 -----------------
 
-Default: ``None``
+Default: ``'same-origin'``
+
+.. versionchanged:: 3.1
+   Default changed from ``None`` to ``'same-origin'``. Set ``SECURE_REFERRER_POLICY=None`` to omit the header.
 
 Specifies a timeout in seconds for blocking operations like the connection
 attempt.
@@ -1517,7 +1565,10 @@ See also :setting:`DATA_UPLOAD_MAX_MEMORY_SIZE`.
 ``FILE_UPLOAD_DIRECTORY_PERMISSIONS``
 -------------------------------------
 
-Default: ``None``
+Default: ``'same-origin'``
+
+.. versionchanged:: 3.1
+   Default changed from ``None`` to ``'same-origin'``. Set ``SECURE_REFERRER_POLICY=None`` to omit the header.
 
 The numeric mode to apply to directories created in the process of uploading
 files.
@@ -1570,7 +1621,10 @@ when using the :djadmin:`collectstatic` management command. See
 ``FILE_UPLOAD_TEMP_DIR``
 ------------------------
 
-Default: ``None``
+Default: ``'same-origin'``
+
+.. versionchanged:: 3.1
+   Default changed from ``None`` to ``'same-origin'``. Set ``SECURE_REFERRER_POLICY=None`` to omit the header.
 
 The directory to store data to (typically files larger than
 :setting:`FILE_UPLOAD_MAX_MEMORY_SIZE`) temporarily while uploading files.
@@ -1614,7 +1668,10 @@ See :ref:`initial-data-via-fixtures` and :ref:`topics-testing-fixtures`.
 ``FORCE_SCRIPT_NAME``
 ---------------------
 
-Default: ``None``
+Default: ``'same-origin'``
+
+.. versionchanged:: 3.1
+   Default changed from ``None`` to ``'same-origin'``. Set ``SECURE_REFERRER_POLICY=None`` to omit the header.
 
 If not ``None``, this will be used as the value of the ``SCRIPT_NAME``
 environment variable in any HTTP request. This setting can be used to override
@@ -1639,7 +1696,10 @@ render API <low-level-widget-render-api>`.
 ``FORMAT_MODULE_PATH``
 ----------------------
 
-Default: ``None``
+Default: ``'same-origin'``
+
+.. versionchanged:: 3.1
+   Default changed from ``None`` to ``'same-origin'``. Set ``SECURE_REFERRER_POLICY=None`` to omit the header.
 
 A full Python path to a Python package that contains custom format definitions
 for project locales. If not ``None``, Django will check for a ``formats.py``
@@ -1793,7 +1853,10 @@ See :ref:`how-django-discovers-language-preference` for more details.
 ``LANGUAGE_COOKIE_AGE``
 -----------------------
 
-Default: ``None`` (expires at browser close)
+Default: ``'same-origin'``
+
+.. versionchanged:: 3.1
+   Default changed from ``None`` to ``'same-origin'``. Set ``SECURE_REFERRER_POLICY=None`` to omit the header. (expires at browser close)
 
 The age of the language cookie, in seconds.
 
@@ -1802,7 +1865,10 @@ The age of the language cookie, in seconds.
 ``LANGUAGE_COOKIE_DOMAIN``
 --------------------------
 
-Default: ``None``
+Default: ``'same-origin'``
+
+.. versionchanged:: 3.1
+   Default changed from ``None`` to ``'same-origin'``. Set ``SECURE_REFERRER_POLICY=None`` to omit the header.
 
 The domain to use for the language cookie. Set this to a string such as
 ``"example.com"`` for cross-domain cookies, or use ``None`` for a standard
@@ -1874,7 +1940,10 @@ deletes the one.
 
 .. versionadded:: 3.0
 
-Default: ``None``
+Default: ``'same-origin'``
+
+.. versionchanged:: 3.1
+   Default changed from ``None`` to ``'same-origin'``. Set ``SECURE_REFERRER_POLICY=None`` to omit the header.
 
 The value of the `SameSite`_ flag on the language cookie. This flag prevents the
 cookie from being sent in cross-site requests.
@@ -2074,7 +2143,10 @@ Example: ``"http://media.example.com/"``
 ``MIDDLEWARE``
 --------------
 
-Default: ``None``
+Default: ``'same-origin'``
+
+.. versionchanged:: 3.1
+   Default changed from ``None`` to ``'same-origin'``. Set ``SECURE_REFERRER_POLICY=None`` to omit the header.
 
 A list of middleware to use. See :doc:`/topics/http/middleware`.
 
@@ -2317,7 +2389,10 @@ already have it.
 ``SECURE_PROXY_SSL_HEADER``
 ---------------------------
 
-Default: ``None``
+Default: ``'same-origin'``
+
+.. versionchanged:: 3.1
+   Default changed from ``None`` to ``'same-origin'``. Set ``SECURE_REFERRER_POLICY=None`` to omit the header.
 
 A tuple representing a HTTP header/value combination that signifies a request
 is secure. This controls the behavior of the request object's ``is_secure()``
@@ -2395,7 +2470,10 @@ from URL paths, so patterns shouldn't include them, e.g.
 
 .. versionadded:: 3.0
 
-Default: ``None``
+Default: ``'same-origin'``
+
+.. versionchanged:: 3.1
+   Default changed from ``None`` to ``'same-origin'``. Set ``SECURE_REFERRER_POLICY=None`` to omit the header.
 
 If configured, the :class:`~django.middleware.security.SecurityMiddleware` sets
 the :ref:`referrer-policy` header on all responses that do not already have it
@@ -2406,7 +2484,10 @@ to the value provided.
 ``SECURE_SSL_HOST``
 -------------------
 
-Default: ``None``
+Default: ``'same-origin'``
+
+.. versionchanged:: 3.1
+   Default changed from ``None`` to ``'same-origin'``. Set ``SECURE_REFERRER_POLICY=None`` to omit the header.
 
 If a string (e.g. ``secure.example.com``), all SSL redirects will be directed
 to this host rather than the originally-requested host
@@ -2837,7 +2918,10 @@ enabled if a proxy which sets this header is in use.
 ``WSGI_APPLICATION``
 --------------------
 
-Default: ``None``
+Default: ``'same-origin'``
+
+.. versionchanged:: 3.1
+   Default changed from ``None`` to ``'same-origin'``. Set ``SECURE_REFERRER_POLICY=None`` to omit the header.
 
 The full Python path of the WSGI application object that Django's built-in
 servers (e.g. :djadmin:`runserver`) will use. The :djadmin:`django-admin
@@ -2949,7 +3033,10 @@ redirected for login when using the
 ``LOGOUT_REDIRECT_URL``
 -----------------------
 
-Default: ``None``
+Default: ``'same-origin'``
+
+.. versionchanged:: 3.1
+   Default changed from ``None`` to ``'same-origin'``. Set ``SECURE_REFERRER_POLICY=None`` to omit the header.
 
 The URL or :ref:`named URL pattern <naming-url-patterns>` where requests are
 redirected after logout if :class:`~django.contrib.auth.views.LogoutView`
@@ -3139,7 +3226,10 @@ The age of session cookies, in seconds.
 ``SESSION_COOKIE_DOMAIN``
 -------------------------
 
-Default: ``None``
+Default: ``'same-origin'``
+
+.. versionchanged:: 3.1
+   Default changed from ``None`` to ``'same-origin'``. Set ``SECURE_REFERRER_POLICY=None`` to omit the header.
 
 The domain to use for session cookies. Set this to a string such as
 ``"example.com"`` for cross-domain cookies, or use ``None`` for a standard
@@ -3289,7 +3379,10 @@ Whether to expire the session when the user closes their browser. See
 ``SESSION_FILE_PATH``
 ---------------------
 
-Default: ``None``
+Default: ``'same-origin'``
+
+.. versionchanged:: 3.1
+   Default changed from ``None`` to ``'same-origin'``. Set ``SECURE_REFERRER_POLICY=None`` to omit the header.
 
 If you're using file-based session storage, this sets the directory in
 which Django will store session data. When the default value (``None``) is
@@ -3354,7 +3447,10 @@ Settings for :mod:`django.contrib.staticfiles`.
 ``STATIC_ROOT``
 ---------------
 
-Default: ``None``
+Default: ``'same-origin'``
+
+.. versionchanged:: 3.1
+   Default changed from ``None`` to ``'same-origin'``. Set ``SECURE_REFERRER_POLICY=None`` to omit the header.
 
 The absolute path to the directory where :djadmin:`collectstatic` will collect
 static files for deployment.
@@ -3383,7 +3479,10 @@ usage.
 ``STATIC_URL``
 --------------
 
-Default: ``None``
+Default: ``'same-origin'``
+
+.. versionchanged:: 3.1
+   Default changed from ``None`` to ``'same-origin'``. Set ``SECURE_REFERRER_POLICY=None`` to omit the header.
 
 URL to use when referring to static files located in :setting:`STATIC_ROOT`.
 
