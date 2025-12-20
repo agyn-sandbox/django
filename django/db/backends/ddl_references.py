@@ -92,9 +92,13 @@ class Columns(TableColumns):
         else:
             try:
                 raw = suffixes[idx]
-            except (IndexError, TypeError):
+            except IndexError:
                 raw = ''
-        return (raw or '').strip()
+        if raw is None or raw == '':
+            return ''
+        if not isinstance(raw, str):
+            raise TypeError('Column suffixes must be strings.')
+        return raw.strip()
 
     def __str__(self):
         def col_str(column, idx):
