@@ -1130,3 +1130,22 @@ class TestSplitFormWidget(PostgreSQLWidgetTestCase):
         self.assertIs(widget.value_omitted_from_data({'field_0': 'value'}, {}, 'field'), False)
         self.assertIs(widget.value_omitted_from_data({'field_1': 'value'}, {}, 'field'), False)
         self.assertIs(widget.value_omitted_from_data({'field_0': 'value', 'field_1': 'value'}, {}, 'field'), False)
+
+    def test_splitarraywidget_boolean_checked_flags_initial(self):
+        widget = SplitArrayWidget(forms.CheckboxInput(), size=2)
+        attrs = {'id': 'checkboxes'}
+        context = widget.get_context('checkboxes', [True, False], attrs)
+        subwidgets = context['widget']['subwidgets']
+        self.assertIs(subwidgets[0]['attrs'].get('checked'), True)
+        self.assertNotIn('checked', subwidgets[1]['attrs'])
+        self.assertEqual(attrs, {'id': 'checkboxes'})
+
+    def test_splitarraywidget_boolean_checked_flags_bound_data(self):
+        widget = SplitArrayWidget(forms.CheckboxInput(), size=2)
+        attrs = {'id': 'checkboxes'}
+        value = widget.value_from_datadict({'checkboxes_0': 'on'}, {}, 'checkboxes')
+        context = widget.get_context('checkboxes', value, attrs)
+        subwidgets = context['widget']['subwidgets']
+        self.assertIs(subwidgets[0]['attrs'].get('checked'), True)
+        self.assertNotIn('checked', subwidgets[1]['attrs'])
+        self.assertEqual(attrs, {'id': 'checkboxes'})

@@ -521,11 +521,10 @@ class CheckboxInput(Input):
         return str(value)
 
     def get_context(self, name, value, attrs):
+        local_attrs = {} if attrs is None else attrs.copy()
         if self.check_test(value):
-            if attrs is None:
-                attrs = {}
-            attrs['checked'] = True
-        return super().get_context(name, value, attrs)
+            local_attrs['checked'] = True
+        return super().get_context(name, value, local_attrs)
 
     def value_from_datadict(self, data, files, name):
         if name not in data:
