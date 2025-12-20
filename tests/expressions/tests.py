@@ -21,6 +21,7 @@ from django.db.models.sql import constants
 from django.db.models.sql.datastructures import Join
 from django.test import SimpleTestCase, TestCase, skipUnlessDBFeature
 from django.test.utils import Approximate, isolate_apps
+from django.utils.functional import SimpleLazyObject
 
 from .models import (
     UUID, UUIDPK, Company, Employee, Experiment, Number, RemoteEmployee,
@@ -72,6 +73,18 @@ class BasicExpressionsTests(TestCase):
     def test_annotate_values_count(self):
         companies = Company.objects.annotate(foo=RawSQL('%s', ['value']))
         self.assertEqual(companies.count(), 3)
+
+    def test_lazyobject_filter_with_nested_subquery_foreignkey(self):
+        nested_ceo_subquery = Company.objects.filter(pk=OuterRef('pk')).annotate(
+            nested_ceo=Subquery(
+                Company.objects.filter(pk=OuterRef('pk')).values('ceo')[:1]
+            )
+        ).values('nested_ceo')[:1]
+        lazy_ceo = SimpleLazyObject(lambda: Employee.objects.get(pk=self.example_inc.ceo.pk))
+        companies = Company.objects.annotate(
+            nested_ceo=Subquery(nested_ceo_subquery)
+        ).filter(nested_ceo=lazy_ceo).order_by('name')
+        self.assertQuerysetEqual(companies, ['<Company: Example Inc.>'])
 
     @skipUnlessDBFeature('supports_boolean_expr_in_select_clause')
     def test_filtering_on_annotate_that_uses_q(self):
