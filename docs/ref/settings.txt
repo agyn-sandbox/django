@@ -2395,7 +2395,10 @@ from URL paths, so patterns shouldn't include them, e.g.
 
 .. versionadded:: 3.0
 
-Default: ``None``
+Default: ``'same-origin'``
+
+.. versionchanged:: 3.1
+   Default changed from ``None`` to ``'same-origin'``. Set ``SECURE_REFERRER_POLICY=None`` to omit the header.
 
 If configured, the :class:`~django.middleware.security.SecurityMiddleware` sets
 the :ref:`referrer-policy` header on all responses that do not already have it
