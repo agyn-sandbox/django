@@ -1,3 +1,4 @@
+import math
 from collections import Counter
 from itertools import chain
 from operator import attrgetter
@@ -187,14 +188,31 @@ class Collector:
     def _iter_coalesced_fast_deletes(self):
         for related_model, batches in self.fast_delete_groups.items():
             manager = related_model._base_manager.using(self.using)
-            for group in batches.values():
+            for batch_key, group in batches.items():
                 conditions = group.get("conditions")
                 if not conditions:
                     continue
-                combined_condition = conditions[0]
-                for condition in conditions[1:]:
-                    combined_condition = combined_condition | condition
-                yield manager.filter(combined_condition)
+                batch_len = len(batch_key)
+                if not batch_len:
+                    continue
+                max_params = connections[self.using].features.max_query_params
+                if max_params is None:
+                    max_params = float('inf')
+                if math.isinf(max_params):
+                    raw_max_conds = len(conditions)
+                else:
+                    raw_max_conds = max_params // batch_len
+                if raw_max_conds == 0:
+                    for condition in conditions:
+                        yield manager.filter(condition)
+                    continue
+                max_conds_per_delete = max(1, raw_max_conds)
+                for start in range(0, len(conditions), max_conds_per_delete):
+                    chunk = conditions[start:start + max_conds_per_delete]
+                    combined_condition = chunk[0]
+                    for condition in chunk[1:]:
+                        combined_condition = combined_condition | condition
+                    yield manager.filter(combined_condition)
 
     def collect(self, objs, source=None, nullable=False, collect_related=True,
                 source_attr=None, reverse_dependency=False, keep_parents=False):

@@ -1,4 +1,4 @@
-from math import ceil
+from math import ceil, isinf
 
 from django.db import IntegrityError, connection, models
 from django.db.models.deletion import Collector
@@ -578,7 +578,36 @@ class FastDeleteTests(TestCase):
         num_users = 2000
         User.objects.bulk_create(User() for _ in range(0, num_users))
         entry_batch_size = connection.ops.bulk_batch_size(['author'], [None] * num_users)
-        expected_queries = 1 + ceil(num_users / entry_batch_size) + ceil(num_users / GET_ITERATOR_CHUNK_SIZE)
+        entry_batch_size = max(1, entry_batch_size)
+        num_entry_batches = ceil(num_users / entry_batch_size)
+        entry_batch_sizes = [
+            entry_batch_size if index < num_entry_batches - 1
+            else num_users - entry_batch_size * (num_entry_batches - 1)
+            for index in range(num_entry_batches)
+        ]
+        fk_fields = [
+            field for field in Entry._meta.fields
+            if field.is_relation and field.remote_field and field.remote_field.model is User
+        ]
+        conditions_per_batch = len(fk_fields)
+
+        def entry_queries_for_batch(batch_size):
+            if not conditions_per_batch or batch_size == 0:
+                return 0
+            max_params = connection.features.max_query_params
+            if max_params is None:
+                max_params = float('inf')
+            if isinf(max_params):
+                raw_max_conds = conditions_per_batch
+            else:
+                raw_max_conds = max_params // batch_size
+            if raw_max_conds == 0:
+                return conditions_per_batch
+            max_conds_per_delete = max(1, raw_max_conds)
+            return ceil(conditions_per_batch / max_conds_per_delete)
+
+        entry_queries = sum(entry_queries_for_batch(size) for size in entry_batch_sizes)
+        expected_queries = 1 + entry_queries + ceil(num_users / GET_ITERATOR_CHUNK_SIZE)
         self.assertNumQueries(expected_queries, User.objects.all().delete)
         a = Avatar.objects.create(desc='a')
         User.objects.bulk_create(User(avatar=a) for _ in range(0, num_users))
