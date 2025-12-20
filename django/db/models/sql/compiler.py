@@ -1407,7 +1407,9 @@ class SQLInsertCompiler(SQLCompiler):
 class SQLDeleteCompiler(SQLCompiler):
     @cached_property
     def single_alias(self):
-        return sum(self.query.alias_refcount[t] > 0 for t in self.query.alias_map) == 1
+        if not self.query.alias_map:
+            self.query.get_initial_alias()
+        return self.query.count_active_tables() == 1
 
     def _as_sql(self, query):
         result = [
