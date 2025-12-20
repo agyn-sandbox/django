@@ -124,6 +124,30 @@ class QuerySetSetOperationTests(TestCase):
         reserved_name = qs1.union(qs1).values_list('name', 'order', 'id').get()
         self.assertEqual(reserved_name[:2], ('a', 2))
 
+    def test_union_values_selection_after_evaluation(self):
+        ReservedName.objects.create(name='a', order=2)
+        base = ReservedName.objects.all()
+        combined = base.union(base)
+        initial = combined.values('name', 'order')
+        self.assertEqual(list(initial), [{'name': 'a', 'order': 2}])
+        self.assertEqual(list(combined.values('order')), [{'order': 2}])
+
+    def test_union_values_list_selection_after_evaluation(self):
+        ReservedName.objects.create(name='a', order=2)
+        base = ReservedName.objects.all()
+        combined = base.union(base)
+        initial = combined.values_list('name', 'order')
+        self.assertEqual(list(initial), [('a', 2)])
+        self.assertEqual(list(combined.values_list('order')), [(2,)])
+
+    def test_union_values_list_flat_selection_after_evaluation(self):
+        ReservedName.objects.create(name='a', order=2)
+        base = ReservedName.objects.all()
+        combined = base.union(base)
+        initial = combined.values_list('name', 'order')
+        self.assertEqual(list(initial), [('a', 2)])
+        self.assertEqual(list(combined.values_list('order', flat=True)), [2])
+
     def test_union_with_two_annotated_values_list(self):
         qs1 = Number.objects.filter(num=1).annotate(
             count=Value(0, IntegerField()),
@@ -149,6 +173,42 @@ class QuerySetSetOperationTests(TestCase):
         ).filter(has_reserved_name=True)
         qs2 = Number.objects.filter(num=9)
         self.assertCountEqual(qs1.union(qs2).values_list('num', flat=True), [1, 9])
+
+    @skipUnlessDBFeature('supports_select_intersection')
+    def test_intersection_values_selection_after_evaluation(self):
+        ReservedName.objects.create(name='a', order=2)
+        base = ReservedName.objects.all()
+        combined = base.intersection(base)
+        initial = combined.values('name', 'order')
+        self.assertEqual(list(initial), [{'name': 'a', 'order': 2}])
+        self.assertEqual(list(combined.values('order')), [{'order': 2}])
+
+    @skipUnlessDBFeature('supports_select_intersection')
+    def test_intersection_values_list_selection_after_evaluation(self):
+        ReservedName.objects.create(name='a', order=2)
+        base = ReservedName.objects.all()
+        combined = base.intersection(base)
+        initial = combined.values_list('name', 'order')
+        self.assertEqual(list(initial), [('a', 2)])
+        self.assertEqual(list(combined.values_list('order')), [(2,)])
+
+    @skipUnlessDBFeature('supports_select_difference')
+    def test_difference_values_selection_after_evaluation(self):
+        ReservedName.objects.create(name='a', order=2)
+        base = ReservedName.objects.all()
+        combined = base.difference(ReservedName.objects.none())
+        initial = combined.values('name', 'order')
+        self.assertEqual(list(initial), [{'name': 'a', 'order': 2}])
+        self.assertEqual(list(combined.values('order')), [{'order': 2}])
+
+    @skipUnlessDBFeature('supports_select_difference')
+    def test_difference_values_list_selection_after_evaluation(self):
+        ReservedName.objects.create(name='a', order=2)
+        base = ReservedName.objects.all()
+        combined = base.difference(ReservedName.objects.none())
+        initial = combined.values_list('name', 'order')
+        self.assertEqual(list(initial), [('a', 2)])
+        self.assertEqual(list(combined.values_list('order')), [(2,)])
 
     def test_count_union(self):
         qs1 = Number.objects.filter(num__lte=1).values('num')
