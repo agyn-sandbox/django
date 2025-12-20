@@ -18,6 +18,7 @@ from django.db import (
 from django.db.models import (
     NOT_PROVIDED, ExpressionWrapper, IntegerField, Max, Value,
 )
+from django.db.models.lookups import IsNull
 from django.db.models.constants import LOOKUP_SEP
 from django.db.models.constraints import CheckConstraint, UniqueConstraint
 from django.db.models.deletion import CASCADE, Collector
@@ -1735,7 +1736,9 @@ class Model(metaclass=ModelBase):
         for field in related_fields:
             _cls = cls
             fld = None
-            for part in field.split(LOOKUP_SEP):
+            parts = field.split(LOOKUP_SEP)
+            for index, part in enumerate(parts):
+                is_last_part = index == len(parts) - 1
                 try:
                     # pk is an alias that won't be found by opts.get_field.
                     if part == 'pk':
@@ -1747,15 +1750,27 @@ class Model(metaclass=ModelBase):
                     else:
                         _cls = None
                 except (FieldDoesNotExist, AttributeError):
-                    if fld is None or fld.get_transform(part) is None:
-                        errors.append(
-                            checks.Error(
-                                "'ordering' refers to the nonexistent field, "
-                                "related field, or lookup '%s'." % field,
-                                obj=cls,
-                                id='models.E015',
-                            )
+                    transform = None if fld is None else fld.get_transform(part)
+                    if transform is not None:
+                        continue
+
+                    if fld is not None and is_last_part:
+                        lookup = fld.get_lookup(part)
+                        if (
+                            lookup is not None and
+                            inspect.isclass(lookup) and
+                            issubclass(lookup, IsNull)
+                        ):
+                            continue
+
+                    errors.append(
+                        checks.Error(
+                            "'ordering' refers to the nonexistent field, "
+                            "related field, or lookup '%s'." % field,
+                            obj=cls,
+                            id='models.E015',
                         )
+                    )
 
         # Skip ordering on pk. This is always a valid order_by field
         # but is an alias and therefore won't be found by opts.get_field.

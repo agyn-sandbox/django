@@ -893,6 +893,74 @@ class OtherModelTests(SimpleTestCase):
         with register_lookup(models.CharField, Lower):
             self.assertEqual(Model.check(), [])
 
+    def test_ordering_allows_isnull_lookup(self):
+        class Parent(models.Model):
+            pass
+
+        class Product(models.Model):
+            parent = models.ForeignKey(Parent, models.SET_NULL, null=True)
+
+        class Supply(models.Model):
+            product = models.ForeignKey(Product, models.CASCADE)
+
+        class Stock(models.Model):
+            supply = models.ForeignKey(Supply, models.CASCADE)
+
+            class Meta:
+                ordering = ['supply__product__parent__isnull']
+
+        self.assertEqual(Stock.check(), [])
+
+    def test_ordering_invalid_lookup_part(self):
+        class Parent(models.Model):
+            pass
+
+        class Product(models.Model):
+            parent = models.ForeignKey(Parent, models.SET_NULL, null=True)
+
+        class Supply(models.Model):
+            product = models.ForeignKey(Product, models.CASCADE)
+
+        class Stock(models.Model):
+            supply = models.ForeignKey(Supply, models.CASCADE)
+
+            class Meta:
+                ordering = ['supply__product__parent__doesnotexist']
+
+        self.assertEqual(Stock.check(), [
+            Error(
+                "'ordering' refers to the nonexistent field, related field, "
+                "or lookup 'supply__product__parent__doesnotexist'.",
+                obj=Stock,
+                id='models.E015',
+            ),
+        ])
+
+    def test_ordering_invalid_lookup_type(self):
+        class Parent(models.Model):
+            pass
+
+        class Product(models.Model):
+            parent = models.ForeignKey(Parent, models.SET_NULL, null=True)
+
+        class Supply(models.Model):
+            product = models.ForeignKey(Product, models.CASCADE)
+
+        class Stock(models.Model):
+            supply = models.ForeignKey(Supply, models.CASCADE)
+
+            class Meta:
+                ordering = ['supply__product__parent__contains']
+
+        self.assertEqual(Stock.check(), [
+            Error(
+                "'ordering' refers to the nonexistent field, related field, "
+                "or lookup 'supply__product__parent__contains'.",
+                obj=Stock,
+                id='models.E015',
+            ),
+        ])
+
     def test_ordering_pointing_to_related_model_pk(self):
         class Parent(models.Model):
             pass
