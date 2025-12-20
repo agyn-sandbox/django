@@ -131,24 +131,23 @@ class SplitArrayWidget(forms.Widget):
         return id_
 
     def get_context(self, name, value, attrs=None):
-        attrs = {} if attrs is None else attrs
         context = super().get_context(name, value, attrs)
         if self.is_localized:
             self.widget.is_localized = self.is_localized
         value = value or []
         context['widget']['subwidgets'] = []
-        final_attrs = self.build_attrs(attrs)
-        id_ = final_attrs.get('id')
+        base_attrs = self.build_attrs(attrs or {})
+        id_ = base_attrs.get('id')
         for i in range(max(len(value), self.size)):
             try:
                 widget_value = value[i]
             except IndexError:
                 widget_value = None
+            item_attrs = base_attrs.copy()
             if id_:
-                final_attrs = {**final_attrs, 'id': '%s_%s' % (id_, i)}
-            context['widget']['subwidgets'].append(
-                self.widget.get_context(name + '_%s' % i, widget_value, final_attrs)['widget']
-            )
+                item_attrs['id'] = '%s_%s' % (id_, i)
+            sub_ctx = self.widget.get_context('%s_%s' % (name, i), widget_value, item_attrs)
+            context['widget']['subwidgets'].append(sub_ctx['widget'])
         return context
 
     @property

@@ -89,3 +89,16 @@ class CheckboxInputTest(WidgetTest):
     def test_value_omitted_from_data(self):
         self.assertIs(self.widget.value_omitted_from_data({'field': 'value'}, {}, 'field'), False)
         self.assertIs(self.widget.value_omitted_from_data({}, {}, 'field'), False)
+
+    def test_checkboxinput_get_context_does_not_mutate_attrs(self):
+        widget = CheckboxInput()
+        attrs = {'data-test': 'value'}
+        widget.get_context('is_cool', True, attrs)
+        self.assertEqual(attrs, {'data-test': 'value'})
+
+    def test_checkboxinput_checked_attr_set_when_true_only(self):
+        widget = CheckboxInput()
+        context_true = widget.get_context('is_cool', True, {})
+        self.assertIs(context_true['widget']['attrs'].get('checked'), True)
+        context_false = widget.get_context('is_cool', False, {})
+        self.assertNotIn('checked', context_false['widget']['attrs'])
