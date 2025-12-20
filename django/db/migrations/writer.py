@@ -162,6 +162,16 @@ class MigrationWriter:
                 imports.remove(line)
                 self.needs_manual_porting = True
 
+        normalized_imports = set()
+        for line in imports:
+            if line.startswith('from '):
+                match = re.match(r'^from\s+([\w.]+)\s+import\s+([^\s,]+)$', line)
+                if match and '.' in match.group(2):
+                    normalized_imports.add(f"import {match.group(1)}")
+                    continue
+            normalized_imports.add(line)
+        imports = normalized_imports
+
         # django.db.migrations is always used, but models import may not be.
         # If models import exists, merge it with migrations import.
         if "from django.db import models" in imports:
