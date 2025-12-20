@@ -3,6 +3,7 @@ from math import ceil
 from django.db import connection, models
 from django.db.models import ProtectedError, RestrictedError
 from django.db.models.deletion import Collector
+from django.db.models.sql.subqueries import DeleteQuery
 from django.db.models.sql.constants import GET_ITERATOR_CHUNK_SIZE
 from django.test import TestCase, skipIfDBFeature, skipUnlessDBFeature
 
@@ -703,3 +704,44 @@ class FastDeleteTests(TestCase):
         referer = Referrer.objects.create(origin=origin, unique_field=42)
         with self.assertNumQueries(2):
             referer.delete()
+
+
+class DeleteSQLCompilationTests(TestCase):
+
+    def compile_delete(self, queryset):
+        query = queryset.query.chain(DeleteQuery)
+        compiler = query.get_compiler(using=queryset.db)
+        return compiler.as_sql()
+
+    def test_queryset_all_delete_plain_sql(self):
+        sql, params = self.compile_delete(Avatar.objects.all())
+        upper_sql = sql.upper()
+        quoted_name = connection.ops.quote_name(Avatar._meta.db_table)
+        self.assertTrue(upper_sql.startswith('DELETE FROM'))
+        self.assertIn(quoted_name, sql)
+        self.assertNotIn('WHERE', upper_sql)
+        self.assertNotIn('SELECT', upper_sql)
+        self.assertEqual(params, ())
+
+    def test_queryset_filtered_base_table_delete_no_subquery(self):
+        sql, params = self.compile_delete(Avatar.objects.filter(desc__isnull=False))
+        upper_sql = sql.upper()
+        quoted_name = connection.ops.quote_name(Avatar._meta.db_table)
+        self.assertTrue(upper_sql.startswith('DELETE FROM'))
+        self.assertIn(quoted_name, sql)
+        self.assertIn('WHERE', upper_sql)
+        self.assertNotIn('IN (SELECT', upper_sql)
+        self.assertNotIn('SELECT', upper_sql)
+        self.assertEqual(params, ())
+
+    def test_queryset_join_delete_uses_subquery_sql(self):
+        sql, params = self.compile_delete(
+            User.objects.filter(avatar__desc__isnull=False)
+        )
+        upper_sql = sql.upper()
+        quoted_name = connection.ops.quote_name(User._meta.db_table)
+        self.assertTrue(upper_sql.startswith('DELETE FROM'))
+        self.assertIn(quoted_name, sql)
+        self.assertIn('WHERE', upper_sql)
+        self.assertIn('IN (SELECT', upper_sql)
+        self.assertEqual(params, ())
