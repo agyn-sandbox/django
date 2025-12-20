@@ -569,7 +569,28 @@ class Model(metaclass=ModelBase):
         return getattr(self, meta.pk.attname)
 
     def _set_pk_val(self, value):
-        return setattr(self, self._meta.pk.attname, value)
+        setattr(self, self._meta.pk.attname, value)
+        if value is not None:
+            return
+
+        visited = set()
+
+        def clear_parent_values(model):
+            for parent_model, parent_link_field in model._meta.parents.items():
+                if parent_model in visited:
+                    continue
+                visited.add(parent_model)
+
+                setattr(self, parent_model._meta.pk.attname, None)
+
+                if parent_link_field and parent_link_field.concrete:
+                    setattr(self, parent_link_field.attname, None)
+                    if parent_link_field.is_cached(self):
+                        parent_link_field.delete_cached_value(self)
+
+                clear_parent_values(parent_model)
+
+        clear_parent_values(self.__class__)
 
     pk = property(_get_pk_val, _set_pk_val)
 

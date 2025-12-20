@@ -7,8 +7,9 @@ from django.test.utils import CaptureQueriesContext, isolate_apps
 
 from .models import (
     Base, Chef, CommonInfo, GrandChild, GrandParent, ItalianRestaurant,
-    MixinModel, ParkingLot, Place, Post, Restaurant, Student, SubBase,
-    Supplier, Title, Worker,
+    MixinModel, MultiChild, MultiParentA, MultiParentB, ParkingLot, Place,
+    Post, Restaurant, SlugChild, SlugParent, Student, SubBase, Supplier,
+    Title, Worker,
 )
 
 
@@ -459,6 +460,114 @@ class ModelInheritanceDataTests(TestCase):
             ],
             attrgetter("name")
         )
+
+
+class ModelInheritancePrimaryKeyResetTests(TestCase):
+    def test_reset_pk_single_inheritance_creates_copy(self):
+        restaurant = Restaurant.objects.create(
+            name="Original",
+            address="123 Main St",
+            serves_hot_dogs=True,
+            serves_pizza=False,
+            rating=3,
+        )
+        clone = Restaurant.objects.get(pk=restaurant.pk)
+
+        clone.pk = None
+        clone.name = "Copied"
+        clone.address = "456 Elm St"
+        clone.serves_pizza = True
+        clone.rating = 4
+        clone.save()
+
+        self.assertEqual(Place.objects.count(), 2)
+        self.assertEqual(Restaurant.objects.count(), 2)
+
+        original = Restaurant.objects.get(pk=restaurant.pk)
+        self.assertEqual(original.name, "Original")
+        self.assertEqual(original.address, "123 Main St")
+        copied = Restaurant.objects.exclude(pk=restaurant.pk).get()
+        self.assertEqual(copied.name, "Copied")
+        self.assertEqual(copied.address, "456 Elm St")
+        self.assertTrue(copied.serves_pizza)
+        self.assertEqual(copied.rating, 4)
+
+    def test_reset_pk_multiple_inheritance_creates_copy(self):
+        child = MultiChild.objects.create(
+            a_field="first",
+            b_field="second",
+            note="original",
+        )
+        clone = MultiChild.objects.get(pk=child.pk)
+
+        clone.pk = None
+        clone.a_field = "first-copy"
+        clone.b_field = "second-copy"
+        clone.note = "copied"
+        clone.save()
+
+        self.assertEqual(MultiParentA.objects.count(), 2)
+        self.assertEqual(MultiParentB.objects.count(), 2)
+        self.assertEqual(MultiChild.objects.count(), 2)
+
+        original = MultiChild.objects.get(pk=child.pk)
+        self.assertEqual(original.note, "original")
+        copied = MultiChild.objects.exclude(pk=child.pk).get()
+        self.assertEqual(copied.note, "copied")
+        self.assertEqual(copied.a_field, "first-copy")
+        self.assertEqual(copied.b_field, "second-copy")
+
+    def test_reset_pk_to_field_parent_link(self):
+        parent = SlugParent.objects.create(slug="original", name="Original Parent")
+        child = SlugChild.objects.create(
+            parent=parent,
+            name="Original Parent",
+            tagline="original",
+        )
+        clone = SlugChild.objects.get(pk=child.pk)
+
+        clone.pk = None
+        clone.slug = "copy"
+        clone.name = "Copy Parent"
+        clone.tagline = "copied"
+        clone.save()
+
+        self.assertEqual(SlugParent.objects.count(), 2)
+        self.assertEqual(SlugChild.objects.count(), 2)
+        self.assertTrue(SlugParent.objects.filter(slug="original", name="Original Parent").exists())
+        self.assertTrue(SlugParent.objects.filter(slug="copy", name="Copy Parent").exists())
+        copied = SlugChild.objects.get(slug="copy")
+        self.assertEqual(copied.tagline, "copied")
+
+    def test_reset_pk_clears_parent_link_cache(self):
+        main_site = Place.objects.create(name="Main Site", address="1 Main")
+        parking_lot = ParkingLot.objects.create(
+            name="Lot",
+            address="3 Lot",
+            main_site=main_site,
+        )
+        parent_link_field = ParkingLot._meta.get_ancestor_link(Place)
+
+        parking_lot = ParkingLot.objects.get(pk=parking_lot.pk)
+        _ = parking_lot.parent
+        self.assertTrue(parent_link_field.is_cached(parking_lot))
+
+        original_pk = parking_lot.pk
+
+        parking_lot.pk = None
+
+        self.assertIsNone(getattr(parking_lot, Place._meta.pk.attname))
+        self.assertIsNone(getattr(parking_lot, parent_link_field.attname))
+        self.assertFalse(parent_link_field.is_cached(parking_lot))
+
+        parking_lot.name = "Lot Copy"
+        parking_lot.address = "5 Lot"
+        parking_lot.main_site = main_site
+        parking_lot.save()
+
+        self.assertEqual(ParkingLot.objects.count(), 2)
+        self.assertTrue(ParkingLot.objects.filter(pk=original_pk, name="Lot").exists())
+        self.assertTrue(ParkingLot.objects.filter(name="Lot Copy").exclude(pk=original_pk).exists())
 
 
 @isolate_apps('model_inheritance', 'model_inheritance.tests')
