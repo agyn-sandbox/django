@@ -1,5 +1,8 @@
+from unittest import skipUnless
+
+from django.db import connection
 from django.db.backends.ddl_references import (
-    Columns, ForeignKeyName, IndexName, Statement, Table,
+    Columns, ForeignKeyName, IndexColumns, IndexName, Statement, Table,
 )
 from django.test import SimpleTestCase
 
@@ -55,6 +58,42 @@ class ColumnsTests(TableTests):
 
     def test_str(self):
         self.assertEqual(str(self.reference), 'FIRST_COLUMN, SECOND_COLUMN')
+
+
+class ColumnClauseFormattingTests(SimpleTestCase):
+
+    @skipUnless(connection.features.supports_index_column_ordering, 'requires ordered index support')
+    def test_descending_clause_spacing(self):
+        columns = Columns('table', ['name'], connection.ops.quote_name, col_suffixes=['DESC'])
+        clause = f'({columns})'
+        self.assertEqual(clause, '("name" DESC)')
+        self.assertNotIn('"name"DESC', clause)
+
+    def test_default_ascending_clause_no_trailing_space(self):
+        columns = Columns('table', ['name'], connection.ops.quote_name, col_suffixes=[''])
+        clause = f'({columns})'
+        self.assertEqual(clause, '("name")')
+        self.assertNotIn('"name" )', clause)
+
+    @skipUnless(connection.vendor == 'postgresql', 'requires PostgreSQL opclasses')
+    def test_opclass_clause_spacing(self):
+        columns = IndexColumns(
+            'table', ['name'], connection.ops.quote_name,
+            col_suffixes=[''], opclasses=['text_pattern_ops'],
+        )
+        clause = f'({columns})'
+        self.assertEqual(clause, '("name" text_pattern_ops)')
+        self.assertNotIn('text_pattern_ops )', clause)
+
+    @skipUnless(connection.vendor == 'postgresql', 'requires PostgreSQL opclasses')
+    def test_opclass_desc_clause_spacing(self):
+        columns = IndexColumns(
+            'table', ['name'], connection.ops.quote_name,
+            col_suffixes=['DESC'], opclasses=['text_pattern_ops'],
+        )
+        clause = f'({columns})'
+        self.assertEqual(clause, '("name" text_pattern_ops DESC)')
+        self.assertNotIn('text_pattern_opsDESC', clause)
 
 
 class IndexNameTests(ColumnsTests):
