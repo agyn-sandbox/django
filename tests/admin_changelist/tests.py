@@ -9,12 +9,14 @@ from django.contrib.admin.views.main import ALL_VAR, SEARCH_VAR
 from django.contrib.auth.models import User
 from django.contrib.contenttypes.models import ContentType
 from django.contrib.messages.storage.cookie import CookieStorage
+from django.contrib.messages.storage.fallback import FallbackStorage
 from django.db import connection, models
 from django.db.models import F
 from django.db.models.fields import Field, IntegerField
 from django.db.models.functions import Upper
 from django.db.models.lookups import Contains, Exact
 from django.template import Context, Template, TemplateSyntaxError
+from django.http import QueryDict
 from django.test import TestCase, override_settings
 from django.test.client import RequestFactory
 from django.test.utils import (
@@ -818,6 +820,69 @@ class ChangeListTests(TestCase):
         request = self.factory.post(changelist_url, data=data)
         pks = m._get_edited_object_pks(request, prefix='form')
         self.assertEqual(sorted(pks), sorted([str(a.pk), str(b.pk), str(c.pk)]))
+
+    def test_list_editable_handles_regex_chars_in_prefix(self):
+        original_admin_cls = custom_site._registry[Swallow].__class__
+        for index, prefix in enumerate(('child+inline', 'child[0]')):
+            with self.subTest(prefix=prefix):
+                swallow = Swallow.objects.create(
+                    origin='Swallow %s' % index,
+                    load=1,
+                    speed=1,
+                )
+                superuser = self._create_superuser('superuser-%s' % index)
+                self.client.force_login(superuser)
+                changelist_url = reverse('admin:admin_changelist_swallow_changelist')
+                custom_site.unregister(Swallow)
+
+                class PrefixedSwallowAdmin(SwallowAdmin):
+                    def get_changelist_formset(self, request, **kwargs):
+                        FormSet = super().get_changelist_formset(request, **kwargs)
+
+                        class PrefixedFormSet(FormSet):
+                            @classmethod
+                            def get_default_prefix(cls):
+                                return prefix
+
+                        return PrefixedFormSet
+
+                custom_site.register(Swallow, PrefixedSwallowAdmin)
+                try:
+                    request = self.factory.get(changelist_url)
+                    request.user = superuser
+                    formset_class = custom_site._registry[Swallow].get_changelist_formset(request)
+                    self.assertEqual(formset_class.get_default_prefix(), prefix)
+                    new_load = '9.%s' % index
+                    new_speed = '8.%s' % index
+                    data = {
+                        '%s-TOTAL_FORMS' % prefix: '1',
+                        '%s-INITIAL_FORMS' % prefix: '1',
+                        '%s-MIN_NUM_FORMS' % prefix: '0',
+                        '%s-MAX_NUM_FORMS' % prefix: '1000',
+                        '%s-0-uuid' % prefix: str(swallow.pk),
+                        '%s-0-load' % prefix: new_load,
+                        '%s-0-speed' % prefix: new_speed,
+                        '_save': 'Save',
+                    }
+                    post_data = QueryDict('', mutable=True)
+                    for key, value in data.items():
+                        post_data.appendlist(key, value)
+                    request_post = self.factory.post(changelist_url, data=post_data)
+                    request_post.user = superuser
+                    modified_objects = custom_site._registry[Swallow]._get_list_editable_queryset(request_post, prefix)
+                    formset = formset_class(post_data, queryset=modified_objects)
+                    self.assertTrue(formset.is_valid())
+                    request_post.session = self.client.session
+                    request_post._dont_enforce_csrf_checks = True
+                    request_post._messages = FallbackStorage(request_post)
+                    response = custom_site._registry[Swallow].changelist_view(request_post)
+                    self.assertEqual(response.status_code, 302)
+                    swallow.refresh_from_db()
+                    self.assertEqual(swallow.load, float(new_load))
+                    self.assertEqual(swallow.speed, float(new_speed))
+                finally:
+                    custom_site.unregister(Swallow)
+                    custom_site.register(Swallow, original_admin_cls)
 
     def test_get_list_editable_queryset(self):
         a = Swallow.objects.create(origin='Swallow A', load=4, speed=1)
