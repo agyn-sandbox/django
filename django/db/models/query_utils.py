@@ -6,6 +6,7 @@ large and/or so that they can be used by other modules without getting into
 circular import difficulties.
 """
 import copy
+import enum
 import functools
 import inspect
 from collections import namedtuple
@@ -137,6 +138,11 @@ class DeferredAttribute:
                 val = getattr(instance, field_name)
             data[field_name] = val
         return data[field_name]
+
+    def __set__(self, instance, value):
+        if isinstance(value, enum.Enum):
+            value = value.value
+        instance.__dict__[self.field.attname] = value
 
     def _check_parent_chain(self, instance):
         """

@@ -132,6 +132,27 @@ class IntegerFieldTests(TestCase):
         instance = self.model.objects.get()
         self.assertIsInstance(instance.value, int)
 
+    def test_assignment_type_from_integerchoices(self):
+        class Rating(models.IntegerChoices):
+            ONE = 1
+            TWO = 2
+
+        instance = self.model()
+        instance.value = Rating.TWO
+        self.assertIsInstance(instance.value, int)
+        instance.save()
+        instance.refresh_from_db()
+        self.assertIsInstance(instance.value, int)
+        self.assertEqual(instance.value, 2)
+
+    def test_assignment_type_from_int(self):
+        instance = self.model(value=2)
+        self.assertIsInstance(instance.value, int)
+        instance.save()
+        instance.refresh_from_db()
+        self.assertIsInstance(instance.value, int)
+        self.assertEqual(instance.value, 2)
+
     def test_coercing(self):
         self.model.objects.create(value='10')
         instance = self.model.objects.get(value='10')

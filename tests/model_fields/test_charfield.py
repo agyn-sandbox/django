@@ -43,6 +43,27 @@ class TestCharField(TestCase):
         self.assertEqual(p1, p2)
         self.assertEqual(p2.title, Event.C)
 
+    def test_assignment_type_from_textchoices(self):
+        class Event(models.TextChoices):
+            C = 'Carnival!'
+            F = 'Festival!'
+
+        post = Post(body='Festival!')
+        post.title = Event.C
+        self.assertIsInstance(post.title, str)
+        post.save()
+        post.refresh_from_db()
+        self.assertIsInstance(post.title, str)
+        self.assertEqual(post.title, 'Carnival!')
+
+    def test_assignment_type_from_str(self):
+        post = Post(title='Carnival!', body='Festival!')
+        self.assertIsInstance(post.title, str)
+        post.save()
+        post.refresh_from_db()
+        self.assertIsInstance(post.title, str)
+        self.assertEqual(post.title, 'Carnival!')
+
 
 class ValidationTests(SimpleTestCase):
 
