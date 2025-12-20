@@ -250,15 +250,16 @@ class BaseModelAdmin(metaclass=forms.MediaDefiningClass):
         db = kwargs.get('using')
 
         autocomplete_fields = self.get_autocomplete_fields(request)
-        if db_field.name in autocomplete_fields:
-            kwargs['widget'] = AutocompleteSelectMultiple(db_field.remote_field, self.admin_site, using=db)
-        elif db_field.name in self.raw_id_fields:
-            kwargs['widget'] = widgets.ManyToManyRawIdWidget(db_field.remote_field, self.admin_site, using=db)
-        elif db_field.name in [*self.filter_vertical, *self.filter_horizontal]:
-            kwargs['widget'] = widgets.FilteredSelectMultiple(
-                db_field.verbose_name,
-                db_field.name in self.filter_vertical
-            )
+        if 'widget' not in kwargs:
+            if db_field.name in autocomplete_fields:
+                kwargs['widget'] = AutocompleteSelectMultiple(db_field.remote_field, self.admin_site, using=db)
+            elif db_field.name in self.raw_id_fields:
+                kwargs['widget'] = widgets.ManyToManyRawIdWidget(db_field.remote_field, self.admin_site, using=db)
+            elif db_field.name in [*self.filter_vertical, *self.filter_horizontal]:
+                kwargs['widget'] = widgets.FilteredSelectMultiple(
+                    db_field.verbose_name,
+                    db_field.name in self.filter_vertical
+                )
 
         if 'queryset' not in kwargs:
             queryset = self.get_field_queryset(db, db_field, request)
@@ -1058,7 +1059,7 @@ class ModelAdmin(BaseModelAdmin):
                 level = getattr(messages.constants, level.upper())
             except AttributeError:
                 levels = messages.constants.DEFAULT_TAGS.values()
-                levels_repr = ', '.join('`%s`' % l for l in levels)
+                levels_repr = ', '.join('`%s`' % tag for tag in levels)
                 raise ValueError(
                     'Bad message level string: `%s`. Possible values are: %s'
                     % (level, levels_repr)

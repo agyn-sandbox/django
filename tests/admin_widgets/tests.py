@@ -185,6 +185,77 @@ class AdminFormfieldForDBFieldTests(SimpleTestCase):
         )
 
 
+class AdminManyToManyWidgetOverrideTests(SimpleTestCase):
+
+    def _unwrap_widget(self, formfield):
+        if isinstance(formfield.widget, widgets.RelatedFieldWidgetWrapper):
+            return formfield.widget.widget
+        return formfield.widget
+
+    def test_many_to_many_widget_override_respected(self):
+        class BandAdmin(admin.ModelAdmin):
+            filter_vertical = ['members']
+
+            def formfield_for_manytomany(self, db_field, request, **kwargs):
+                if db_field.name == 'members':
+                    kwargs['widget'] = forms.CheckboxSelectMultiple()
+                return super().formfield_for_manytomany(db_field, request, **kwargs)
+
+        admin_instance = BandAdmin(Band, admin.site)
+        formfield = admin_instance.formfield_for_dbfield(Band._meta.get_field('members'), request=None)
+        widget = self._unwrap_widget(formfield)
+        self.assertIsInstance(widget, forms.CheckboxSelectMultiple)
+
+    def test_filtered_select_multiple_applied_without_override(self):
+        class BandAdmin(admin.ModelAdmin):
+            filter_vertical = ['members']
+
+        admin_instance = BandAdmin(Band, admin.site)
+        formfield = admin_instance.formfield_for_dbfield(Band._meta.get_field('members'), request=None)
+        widget = self._unwrap_widget(formfield)
+        self.assertIsInstance(widget, widgets.FilteredSelectMultiple)
+
+    def test_many_to_many_raw_id_widget_applied_without_override(self):
+        class BandAdmin(admin.ModelAdmin):
+            raw_id_fields = ['members']
+
+        admin_instance = BandAdmin(Band, admin.site)
+        formfield = admin_instance.formfield_for_dbfield(Band._meta.get_field('members'), request=None)
+        widget = self._unwrap_widget(formfield)
+        self.assertIsInstance(widget, widgets.ManyToManyRawIdWidget)
+
+    def test_many_to_many_autocomplete_widget_applied_without_override(self):
+        class BandAdmin(admin.ModelAdmin):
+            autocomplete_fields = ['members']
+
+        admin_instance = BandAdmin(Band, admin.site)
+        formfield = admin_instance.formfield_for_dbfield(Band._meta.get_field('members'), request=None)
+        widget = self._unwrap_widget(formfield)
+        self.assertIsInstance(widget, widgets.AutocompleteSelectMultiple)
+
+
+class AdminForeignKeyWidgetOverrideTests(SimpleTestCase):
+
+    def _unwrap_widget(self, formfield):
+        if isinstance(formfield.widget, widgets.RelatedFieldWidgetWrapper):
+            return formfield.widget.widget
+        return formfield.widget
+
+    def test_foreign_key_widget_override_respected(self):
+        class EventAdmin(admin.ModelAdmin):
+            raw_id_fields = ['main_band']
+
+            def formfield_for_foreignkey(self, db_field, request, **kwargs):
+                if db_field.name == 'main_band':
+                    kwargs['widget'] = forms.Select()
+                return super().formfield_for_foreignkey(db_field, request, **kwargs)
+
+        admin_instance = EventAdmin(Event, admin.site)
+        formfield = admin_instance.formfield_for_dbfield(Event._meta.get_field('main_band'), request=None)
+        widget = self._unwrap_widget(formfield)
+        self.assertIsInstance(widget, forms.Select)
+
+
 @override_settings(ROOT_URLCONF='admin_widgets.urls')
 class AdminFormfieldForDBFieldWithRequestTests(TestDataMixin, TestCase):
 
