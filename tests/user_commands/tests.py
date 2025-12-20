@@ -231,6 +231,21 @@ class CommandTests(SimpleTestCase):
         management.call_command('required_group_flags', shop_enabled=False, stdout=out)
         self.assertIn('shop_enabled=False', out.getvalue())
 
+    def test_call_command_required_append_group_kwargs(self):
+        out = StringIO()
+        management.call_command(
+            'required_group_append',
+            tags=[['alpha', 'beta'], ['gamma', 'delta']],
+            stdout=out,
+        )
+        value = out.getvalue()
+        self.assertIn('tags=alpha beta|gamma delta', value)
+        self.assertIn('label=None', value)
+
+        out = StringIO()
+        management.call_command('required_group_append', label='fallback', stdout=out)
+        self.assertIn('tags=None', out.getvalue())
+
     def test_call_command_multiple_required_mutually_exclusive_groups_kwargs(self):
         out = StringIO()
         management.call_command(

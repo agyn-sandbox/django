@@ -163,9 +163,9 @@ def call_command(command_name, *args, **options):
         if isinstance(action, _StoreConstAction):
             return value == action.const
         if isinstance(action, _AppendConstAction):
-            if not isinstance(value, (list, tuple)):
-                return False
-            return action.const in value
+            if isinstance(value, (list, tuple)):
+                return action.const in value
+            return value == action.const
         if isinstance(action, _AppendAction):
             return bool(value)
         if isinstance(action, _CountAction):
@@ -189,8 +189,18 @@ def call_command(command_name, *args, **options):
                 tokens.append(option_string)
                 tokens.extend(string_values)
 
-        if isinstance(action, (_StoreTrueAction, _StoreFalseAction, _StoreConstAction, _AppendConstAction)):
+        if isinstance(action, (_StoreTrueAction, _StoreFalseAction)):
             tokens.append(option_string)
+            return tokens
+        if isinstance(action, _StoreConstAction):
+            tokens.append(option_string)
+            return tokens
+        if isinstance(action, _AppendConstAction):
+            occurrences = 1
+            if isinstance(value, (list, tuple)):
+                occurrences = sum(1 for item in value if item == action.const)
+                occurrences = max(occurrences, 1)
+            tokens.extend([option_string] * occurrences)
             return tokens
         if isinstance(action, _CountAction):
             try:
@@ -200,9 +210,29 @@ def call_command(command_name, *args, **options):
             tokens.extend([option_string] * max(count, 0))
             return tokens
         if isinstance(action, _AppendAction):
-            values = value if isinstance(value, (list, tuple)) else [value]
-            for item in values:
-                append_with_values([item])
+            entries = value if isinstance(value, (list, tuple)) else [value]
+            for entry in entries:
+                if action.nargs == 0:
+                    tokens.append(option_string)
+                    continue
+                if action.nargs == '?':
+                    if entry is None:
+                        if action.const is not None:
+                            tokens.append(option_string)
+                        continue
+                    append_with_values([entry])
+                    continue
+                if action.nargs in (None, 1):
+                    append_with_values([entry])
+                    continue
+                if isinstance(action.nargs, int):
+                    values = entry if isinstance(entry, (list, tuple)) else [entry]
+                    append_with_values(values)
+                    continue
+                if action.nargs in ('*', '+'):
+                    values = entry if isinstance(entry, (list, tuple)) else [entry]
+                    append_with_values(values)
+                    continue
             return tokens
         if action.nargs == 0:
             tokens.append(option_string)
