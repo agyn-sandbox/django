@@ -999,3 +999,7 @@ class UserProxy(User):
     """Proxy a model with a different app_label."""
     class Meta:
         proxy = True
+
+
+class JSONRecord(models.Model):
+    data = models.JSONField()

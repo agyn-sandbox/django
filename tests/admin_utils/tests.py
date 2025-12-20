@@ -204,6 +204,19 @@ class UtilsTests(SimpleTestCase):
         display_value = display_for_value([1, 2, 'buckle', 'my', 'shoe'], self.empty_value)
         self.assertEqual(display_value, '1, 2, buckle, my, shoe')
 
+    def test_jsonfield_display_for_field(self):
+        field = models.JSONField()
+        cases = [
+            ({'foo': 'bar'}, '{"foo": "bar"}'),
+            ([1, 2], '[1, 2]'),
+            ('baz', '"baz"'),
+            ({}, '{}'),
+            ([], '[]'),
+        ]
+        for value, expected in cases:
+            with self.subTest(value=value):
+                self.assertEqual(display_for_field(value, field, self.empty_value), expected)
+
     @override_settings(USE_L10N=True, USE_THOUSAND_SEPARATOR=True)
     def test_list_display_for_value_boolean(self):
         self.assertEqual(

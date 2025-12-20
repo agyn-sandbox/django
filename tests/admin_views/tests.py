@@ -1,6 +1,7 @@
 import datetime
 import os
 import re
+from html import unescape
 import unittest
 from unittest import mock
 from urllib.parse import parse_qsl, urljoin, urlparse
@@ -53,7 +54,7 @@ from .models import (
     ShortMessage, Simple, Song, State, Story, SuperSecretHideout, SuperVillain,
     Telegram, TitleTranslation, Topping, UnchangeableObject, UndeletableObject,
     UnorderedObject, UserProxy, Villain, Vodcast, Whatsit, Widget, Worker,
-    WorkHour,
+    WorkHour, JSONRecord,
 )
 
 ERROR_MESSAGE = "Please enter the correct username and password \
@@ -4932,6 +4933,14 @@ class ReadonlyTest(AdminFieldExtractionMixin, TestCase):
         response = self.client.get(reverse('admin:admin_views_pizza_change', args=(pizza.pk,)))
         self.assertContains(response, '<label>Toppings:</label>', html=True)
         self.assertContains(response, '<div class="readonly">Salami</div>', html=True)
+
+    def test_readonly_jsonfield_display(self):
+        record = JSONRecord.objects.create(data={'foo': 'bar'})
+        url = reverse('admin:admin_views_jsonrecord_change', args=(record.pk,))
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, 200)
+        field = self.get_admin_readonly_field(response, 'data')
+        self.assertEqual(unescape(field.contents()), '{"foo": "bar"}')
 
     def test_readonly_onetoone_backwards_ref(self):
         """

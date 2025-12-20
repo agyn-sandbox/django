@@ -30,7 +30,7 @@ from .models import (
     EmptyModelHidden, EmptyModelMixin, EmptyModelVisible, ExplicitlyProvidedPK,
     ExternalSubscriber, Fabric, FancyDoodad, FieldOverridePost,
     FilteredManager, FooAccount, FoodDelivery, FunkyTag, Gadget, Gallery,
-    GenRelReference, Grommet, ImplicitlyGeneratedPK, Ingredient,
+    GenRelReference, Grommet, ImplicitlyGeneratedPK, Ingredient, JSONRecord,
     InlineReference, InlineReferer, Inquisition, Language, Link,
     MainPrepopulated, ModelWithStringPrimaryKey, NotReferenced, OldSubscriber,
     OtherStory, Paper, Parent, ParentWithDependentChildren, ParentWithUUIDPK,
@@ -537,6 +537,10 @@ class ToppingAdmin(admin.ModelAdmin):
 
 class PizzaAdmin(admin.ModelAdmin):
     readonly_fields = ('toppings',)
+
+
+class JSONRecordAdmin(admin.ModelAdmin):
+    readonly_fields = ('data',)
 
 
 class StudentAdmin(admin.ModelAdmin):
@@ -1106,6 +1110,7 @@ site.register(NotReferenced)
 site.register(ExplicitlyProvidedPK, GetFormsetsArgumentCheckingAdmin)
 site.register(ImplicitlyGeneratedPK, GetFormsetsArgumentCheckingAdmin)
 site.register(UserProxy)
+site.register(JSONRecord, JSONRecordAdmin)
 
 # Register core models we need in our tests
 site.register(User, UserAdmin)
