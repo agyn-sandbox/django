@@ -1,5 +1,6 @@
 import functools
 import re
+from collections import defaultdict
 from itertools import chain
 
 from django.conf import settings
@@ -525,6 +526,13 @@ class MigrationAutodetector:
             sorted(added_models, key=self.swappable_first_key, reverse=True),
             sorted(added_unmanaged_models, key=self.swappable_first_key, reverse=True)
         )
+        removed_fields_by_model = defaultdict(set)
+        for app_label, model_name, field_name in self.old_field_keys - self.new_field_keys:
+            removed_fields_by_model[(app_label, model_name.lower())].add(field_name)
+        renamed_models_reverse = {
+            (app_label, old_model_name.lower()): new_model_name
+            for (app_label, new_model_name), old_model_name in self.renamed_models.items()
+        }
         for app_label, model_name in all_added_models:
             model_state = self.to_state.models[app_label, model_name]
             model_opts = self.new_apps.get_model(app_label, model_name)._meta
@@ -563,6 +571,31 @@ class MigrationAutodetector:
                 if isinstance(base, str) and "." in base:
                     base_app_label, base_name = base.split(".", 1)
                     dependencies.append((base_app_label, base_name, None, True))
+            subclass_field_names = {
+                name for name, field in model_state.fields.items()
+                if not getattr(getattr(field, "remote_field", None), "parent_link", False)
+            }
+            remove_dependencies = set()
+            for base in model_state.bases:
+                if not (isinstance(base, str) and "." in base):
+                    continue
+                base_app_label, base_name = base.split(".", 1)
+                candidate_base_names = {base_name}
+                renamed_base = self.renamed_models.get((base_app_label, base_name))
+                if renamed_base:
+                    candidate_base_names.add(renamed_base)
+                renamed_new = renamed_models_reverse.get((base_app_label, base_name.lower()))
+                if renamed_new:
+                    candidate_base_names.add(renamed_new)
+                for candidate_base_name in candidate_base_names:
+                    candidate_lookup = (base_app_label, candidate_base_name.lower())
+                    removed_fields = removed_fields_by_model.get(candidate_lookup)
+                    if not removed_fields:
+                        continue
+                    for field_name in subclass_field_names & removed_fields:
+                        remove_dependencies.add((base_app_label, candidate_lookup[1], field_name, False))
+            if remove_dependencies:
+                dependencies.extend(sorted(remove_dependencies))
             # Depend on the other end of the primary key if it's a relation
             if primary_key_rel:
                 dependencies.append((
