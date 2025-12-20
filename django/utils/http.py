@@ -175,16 +175,33 @@ def parse_http_date(date):
         raise ValueError("%r is not in a valid HTTP date format" % date)
     try:
         year = int(m.group('year'))
-        if year < 100:
-            if year < 70:
-                year += 2000
-            else:
-                year += 1900
         month = MONTHS.index(m.group('mon').lower()) + 1
         day = int(m.group('day'))
         hour = int(m.group('hour'))
         min = int(m.group('min'))
         sec = int(m.group('sec'))
+        if regex is RFC850_DATE and year < 100:
+            now_utc = datetime.datetime.utcnow()
+            base_century = (now_utc.year // 100) * 100
+            candidate_year = base_century + year
+            candidate_fields = (candidate_year, month, day, hour, min, sec)
+            threshold_fields = (
+                now_utc.year + 50,
+                now_utc.month,
+                now_utc.day,
+                now_utc.hour,
+                now_utc.minute,
+                now_utc.second,
+            )
+            # RFC 7231 §7.1.1.1: roll back two-digit RFC 850 years >50 years ahead.
+            if candidate_fields > threshold_fields:
+                candidate_year -= 100
+            year = candidate_year
+        elif year < 100:
+            if year < 70:
+                year += 2000
+            else:
+                year += 1900
         result = datetime.datetime(year, month, day, hour, min, sec)
         return calendar.timegm(result.utctimetuple())
     except Exception as exc:

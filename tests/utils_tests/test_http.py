@@ -1,5 +1,7 @@
+import calendar
 import unittest
 from datetime import datetime
+from unittest.mock import patch
 
 from django.test import SimpleTestCase, ignore_warnings
 from django.utils.datastructures import MultiValueDict
@@ -308,6 +310,19 @@ class ETagProcessingTests(unittest.TestCase):
 
 
 class HttpDateProcessingTests(unittest.TestCase):
+    @staticmethod
+    def _freeze_http_datetime(value):
+        class FrozenDatetime(datetime):
+            @classmethod
+            def utcnow(cls):
+                return value
+
+        return patch('django.utils.http.datetime.datetime', FrozenDatetime)
+
+    def _parse_http_date_with_frozen_now(self, date_string, frozen_now):
+        with self._freeze_http_datetime(frozen_now):
+            return parse_http_date(date_string)
+
     def test_http_date(self):
         t = 1167616461.0
         self.assertEqual(http_date(t), 'Mon, 01 Jan 2007 01:54:21 GMT')
@@ -327,6 +342,61 @@ class HttpDateProcessingTests(unittest.TestCase):
     def test_parsing_year_less_than_70(self):
         parsed = parse_http_date('Sun Nov  6 08:49:37 0037')
         self.assertEqual(datetime.utcfromtimestamp(parsed), datetime(2037, 11, 6, 8, 49, 37))
+
+    def test_parsing_rfc850_two_digit_year_rolls_back_over_50_years(self):
+        frozen_now = datetime(2018, 1, 1, 0, 0)
+        expected_timestamp = calendar.timegm(
+            datetime(1969, 11, 6, 8, 49, 37).utctimetuple()
+        )
+        parsed = self._parse_http_date_with_frozen_now(
+            'Thursday, 06-Nov-69 08:49:37 GMT',
+            frozen_now,
+        )
+        self.assertEqual(parsed, expected_timestamp)
+
+    def test_parsing_rfc850_two_digit_year_matches_current_year(self):
+        frozen_now = datetime(2018, 1, 1, 0, 0)
+        expected_timestamp = calendar.timegm(
+            datetime(2018, 1, 1, 0, 0, 0).utctimetuple()
+        )
+        parsed = self._parse_http_date_with_frozen_now(
+            'Monday, 01-Jan-18 00:00:00 GMT',
+            frozen_now,
+        )
+        self.assertEqual(parsed, expected_timestamp)
+
+    def test_parsing_rfc850_two_digit_year_exactly_fifty_years_ahead(self):
+        frozen_now = datetime(2018, 1, 1, 0, 0)
+        expected_timestamp = calendar.timegm(
+            datetime(2068, 1, 1, 0, 0, 0).utctimetuple()
+        )
+        parsed = self._parse_http_date_with_frozen_now(
+            'Monday, 01-Jan-68 00:00:00 GMT',
+            frozen_now,
+        )
+        self.assertEqual(parsed, expected_timestamp)
+
+    def test_parsing_rfc850_two_digit_year_just_over_fifty_years_rolls_back(self):
+        frozen_now = datetime(2018, 1, 1, 0, 0)
+        expected_timestamp = calendar.timegm(
+            datetime(1968, 1, 1, 0, 0, 1).utctimetuple()
+        )
+        parsed = self._parse_http_date_with_frozen_now(
+            'Monday, 01-Jan-68 00:00:01 GMT',
+            frozen_now,
+        )
+        self.assertEqual(parsed, expected_timestamp)
+
+    def test_parsing_rfc850_two_digit_year_regression_for_existing_range(self):
+        frozen_now = datetime(2018, 1, 1, 0, 0)
+        expected_timestamp = calendar.timegm(
+            datetime(2004, 11, 6, 8, 49, 37).utctimetuple()
+        )
+        parsed = self._parse_http_date_with_frozen_now(
+            'Saturday, 06-Nov-04 08:49:37 GMT',
+            frozen_now,
+        )
+        self.assertEqual(parsed, expected_timestamp)
 
 
 class EscapeLeadingSlashesTests(unittest.TestCase):
