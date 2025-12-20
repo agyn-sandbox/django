@@ -8,6 +8,7 @@ import math
 import re
 import types
 import uuid
+from importlib import import_module
 
 from django.conf import SettingsReference
 from django.db import models
@@ -75,6 +76,23 @@ class DecimalSerializer(BaseSerializer):
 
 class DeconstructableSerializer(BaseSerializer):
     @staticmethod
+    def _split_module_and_qualname(path):
+        parts = path.split('.')
+        for index in range(len(parts) - 1, 0, -1):
+            module = '.'.join(parts[:index])
+            qualname = '.'.join(parts[index:])
+            if not qualname:
+                continue
+            try:
+                import_module(module)
+            except ImportError:
+                continue
+            else:
+                return module, qualname
+        module, qualname = path.rsplit('.', 1)
+        return module, qualname
+
+    @staticmethod
     def serialize_deconstructed(path, args, kwargs):
         name, imports = DeconstructableSerializer._serialize_path(path)
         strings = []
@@ -90,13 +108,13 @@ class DeconstructableSerializer(BaseSerializer):
 
     @staticmethod
     def _serialize_path(path):
-        module, name = path.rsplit(".", 1)
+        module, name = DeconstructableSerializer._split_module_and_qualname(path)
         if module == "django.db.models":
             imports = {"from django.db import models"}
             name = "models.%s" % name
         else:
             imports = {"import %s" % module}
-            name = path
+            name = "%s.%s" % (module, name)
         return name, imports
 
     def serialize(self):
@@ -120,8 +138,11 @@ class EnumSerializer(BaseSerializer):
     def serialize(self):
         enum_class = self.value.__class__
         module = enum_class.__module__
+        qualname = enum_class.__qualname__
+        if '<locals>' in qualname:
+            raise ValueError('Cannot serialize %r: defined in a local scope.' % enum_class)
         return (
-            '%s.%s[%r]' % (module, enum_class.__qualname__, self.value.name),
+            '%s.%s[%r]' % (module, qualname, self.value.name),
             {'import %s' % module},
         )
 
@@ -266,10 +287,13 @@ class TypeSerializer(BaseSerializer):
                 return string, set(imports)
         if hasattr(self.value, "__module__"):
             module = self.value.__module__
+            qualname = getattr(self.value, "__qualname__", self.value.__name__)
+            if '<locals>' in qualname:
+                raise ValueError('Cannot serialize %r: defined in a local scope.' % self.value)
             if module == builtins.__name__:
-                return self.value.__name__, set()
+                return qualname, set()
             else:
-                return "%s.%s" % (module, self.value.__name__), {"import %s" % module}
+                return "%s.%s" % (module, qualname), {"import %s" % module}
 
 
 class UUIDSerializer(BaseSerializer):

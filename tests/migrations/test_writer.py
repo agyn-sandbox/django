@@ -61,6 +61,51 @@ class IntEnum(enum.IntEnum):
     B = 2
 
 
+class ModelWithNestedField(models.Model):
+    class InnerField(models.CharField):
+        pass
+
+    class Meta:
+        app_label = 'migrations'
+
+
+class ModelWithNestedEnum(models.Model):
+    class Status(enum.Enum):
+        ACTIVE = 'active'
+        INACTIVE = 'inactive'
+
+    class Meta:
+        app_label = 'migrations'
+
+
+class ModelWithNestedChoices(models.Model):
+    class Level(models.IntegerChoices):
+        LOW = 1, 'Low'
+        HIGH = 2, 'High'
+
+    class Label(models.TextChoices):
+        RED = 'R', 'Red'
+        BLUE = 'B', 'Blue'
+
+    class Meta:
+        app_label = 'migrations'
+
+
+class ModelWithMultiLevel(models.Model):
+    class Container:
+        class Deep(enum.Enum):
+            READY = 'ready'
+            WAITING = 'waiting'
+
+    class Meta:
+        app_label = 'migrations'
+
+
+class DeconstructibleInstances:
+    def deconstruct(self):
+        return ('DeconstructibleInstances', [], {})
+
+
 class OperationWriterTests(SimpleTestCase):
 
     def test_empty_signature(self):
@@ -340,6 +385,57 @@ class WriterTests(SimpleTestCase):
             "(2, migrations.test_writer.IntEnum['B'])], "
             "default=migrations.test_writer.IntEnum['A'])"
         )
+
+    def test_serialize_nested_field_subclass(self):
+        field = ModelWithNestedField.InnerField(max_length=32)
+        string, imports = MigrationWriter.serialize(field)
+        self.assertEqual(
+            string,
+            'migrations.test_writer.ModelWithNestedField.InnerField(max_length=32)',
+        )
+        self.assertEqual(imports, {'import migrations.test_writer'})
+
+    def test_serialize_nested_enum_member(self):
+        self.assertSerializedResultEqual(
+            ModelWithNestedEnum.Status.ACTIVE,
+            (
+                "migrations.test_writer.ModelWithNestedEnum.Status['ACTIVE']",
+                {'import migrations.test_writer'},
+            ),
+        )
+
+    def test_serialize_nested_choices_classes(self):
+        string, imports = MigrationWriter.serialize(ModelWithNestedChoices.Level)
+        self.assertEqual(
+            string,
+            'migrations.test_writer.ModelWithNestedChoices.Level',
+        )
+        self.assertEqual(imports, {'import migrations.test_writer'})
+        string, imports = MigrationWriter.serialize(ModelWithNestedChoices.Label)
+        self.assertEqual(
+            string,
+            'migrations.test_writer.ModelWithNestedChoices.Label',
+        )
+        self.assertEqual(imports, {'import migrations.test_writer'})
+
+    def test_serialize_multi_level_nested_enum_member(self):
+        self.assertSerializedResultEqual(
+            ModelWithMultiLevel.Container.Deep.READY,
+            (
+                "migrations.test_writer.ModelWithMultiLevel.Container.Deep['READY']",
+                {'import migrations.test_writer'},
+            ),
+        )
+
+    def test_serialize_function_local_class_error(self):
+        def make_local_field_class():
+            class LocalField(models.CharField):
+                pass
+
+            return LocalField
+
+        with self.assertRaisesMessage(ValueError, 'defined in a local scope'):
+            MigrationWriter.serialize(make_local_field_class())
 
     def test_serialize_choices(self):
         class TextChoices(models.TextChoices):
@@ -726,10 +822,6 @@ class WriterTests(SimpleTestCase):
         # Yes, it doesn't make sense to use a class as a default for a
         # CharField. It does make sense for custom fields though, for example
         # an enumfield that takes the enum class as an argument.
-        class DeconstructibleInstances:
-            def deconstruct(self):
-                return ('DeconstructibleInstances', [], {})
-
         string = MigrationWriter.serialize(models.CharField(default=DeconstructibleInstances))[0]
         self.assertEqual(string, "models.CharField(default=migrations.test_writer.DeconstructibleInstances)")
 
