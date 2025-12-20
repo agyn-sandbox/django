@@ -2,8 +2,10 @@ import datetime
 import decimal
 import ipaddress
 import uuid
+from types import SimpleNamespace
 
 from django.db import models
+from django.template import Context, Template
 from django.test import SimpleTestCase
 from django.utils.functional import Promise
 from django.utils.translation import gettext_lazy as _
@@ -120,6 +122,26 @@ class ChoicesTests(SimpleTestCase):
         self.assertIn(YearInSchool.FRESHMAN, YearInSchool)
         self.assertIn('FR', YearInSchool)
         self.assertNotIn('XX', YearInSchool)
+
+    def test_textchoices_template_render(self):
+        template = Template("{{ YearInSchool.FRESHMAN }}")
+        context = Context({'YearInSchool': YearInSchool})
+        self.assertEqual(template.render(context), 'FR')
+
+    def test_textchoices_template_equality(self):
+        template = Template("{% if student.year_in_school == YearInSchool.FRESHMAN %}ok{% endif %}")
+        student = SimpleNamespace(year_in_school=YearInSchool.FRESHMAN)
+        context = Context({'student': student, 'YearInSchool': YearInSchool})
+        self.assertEqual(template.render(context), 'ok')
+
+    def test_integerchoices_template_usage(self):
+        template = Template(
+            "{{ Suit.DIAMOND }}\n"
+            "{% if player.suit == Suit.DIAMOND %}ok{% endif %}"
+        )
+        player = SimpleNamespace(suit=Suit.DIAMOND)
+        context = Context({'Suit': Suit, 'player': player})
+        self.assertEqual(template.render(context), '1\nok')
 
     def test_textchoices_blank_value(self):
         class BlankStr(models.TextChoices):

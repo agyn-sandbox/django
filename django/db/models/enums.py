@@ -69,6 +69,9 @@ class Choices(enum.Enum, metaclass=ChoicesMeta):
         return str(self.value)
 
 
+Choices.do_not_call_in_templates = True
+
+
 class IntegerChoices(int, Choices):
     """Class for creating enumerated integer choices."""
     pass
