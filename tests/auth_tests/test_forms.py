@@ -282,6 +282,26 @@ class UserCreationFormTest(TestDataMixin, TestCase):
 @override_settings(AUTHENTICATION_BACKENDS=['django.contrib.auth.backends.AllowAllUsersModelBackend'])
 class AuthenticationFormTest(TestDataMixin, TestCase):
 
+    def test_username_widget_maxlength_default_user(self):
+        username_html = str(AuthenticationForm()['username'])
+        self.assertIn('maxlength="150"', username_html)
+
+    @override_settings(AUTH_USER_MODEL='auth_tests.CustomEmailField')
+    def test_username_widget_maxlength_custom_user(self):
+        username_html = str(AuthenticationForm()['username'])
+        self.assertIn('maxlength="255"', username_html)
+
+    @override_settings(AUTH_USER_MODEL='auth_tests.IntegerUsernameUser')
+    def test_username_widget_maxlength_fallback(self):
+        username_html = str(AuthenticationForm()['username'])
+        self.assertIn('maxlength="254"', username_html)
+
+    def test_username_widget_attrs_preserved(self):
+        form = AuthenticationForm()
+        attrs = form.fields['username'].widget.attrs
+        self.assertTrue(attrs.get('autofocus'))
+        self.assertEqual(attrs['maxlength'], '150')
+
     def test_invalid_username(self):
         # The user submits an invalid username.
 
