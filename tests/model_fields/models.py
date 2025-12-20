@@ -1,4 +1,6 @@
+import base64
 import os
+import pickle
 import tempfile
 import uuid
 
@@ -8,6 +10,7 @@ from django.contrib.contenttypes.fields import (
 from django.contrib.contenttypes.models import ContentType
 from django.core.files.storage import FileSystemStorage
 from django.db import models
+from django.db.models.lookups import IExact
 from django.db.models.fields.files import ImageField, ImageFieldFile
 from django.db.models.fields.related import (
     ForeignKey, ForeignObject, ManyToManyField, OneToOneField,
@@ -405,3 +408,47 @@ class UUIDChild(PrimaryKeyUUIDModel):
 
 class UUIDGrandchild(UUIDChild):
     pass
+
+
+class TypePreservingPickledField(models.TextField):
+    description = "Pickled object that preserves the original Python type."
+
+    def to_python(self, value):
+        if value is None:
+            return None
+        if isinstance(value, (list, tuple, dict, set, int, float, bool)):
+            return value
+        if isinstance(value, (bytes, bytearray, memoryview)):
+            value = bytes(value).decode("ascii")
+        if isinstance(value, str):
+            data = base64.b64decode(value.encode("ascii"))
+            return pickle.loads(data)
+        return value
+
+    def from_db_value(self, value, expression, connection):
+        return self.to_python(value)
+
+    def get_prep_value(self, value):
+        if value is None:
+            return None
+        data = pickle.dumps(value, protocol=pickle.HIGHEST_PROTOCOL)
+        return base64.b64encode(data).decode("ascii")
+
+    def get_db_prep_save(self, value, connection):
+        return self.get_prep_value(value)
+
+    def get_db_prep_value(self, value, connection, prepared=False):
+        if value is None:
+            return None
+        if not prepared:
+            value = self.get_prep_value(value)
+        return value
+
+
+@TypePreservingPickledField.register_lookup
+class TypePreservingIExact(IExact):
+    prepare_rhs = True
+
+
+class PickledTypePreservingModel(models.Model):
+    payload = TypePreservingPickledField()
