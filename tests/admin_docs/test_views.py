@@ -75,6 +75,17 @@ class AdminDocViewTests(TestDataMixin, AdminDocsTestCase):
         # View docstring
         self.assertContains(response, 'Base view for admindocs views.')
 
+    def test_view_docstring_starting_on_first_line(self):
+        url = reverse(
+            'django-admindocs-views-detail',
+            args=['admin_docs.views.first_line_docstring_view'],
+        )
+        response = self.client.get(url)
+        self.assertNotContains(response, 'System Message: ERROR/3')
+        self.assertNotContains(response, 'Error in "default-role" directive:')
+        self.assertContains(response, 'Docstring starts on first line.')
+        self.assertContains(response, 'Provides', status_code=200)
+
     @override_settings(ROOT_URLCONF='admin_docs.namespace_urls')
     def test_namespaced_view_detail(self):
         url = reverse('django-admindocs-views-detail', args=['admin_docs.views.XViewClass'])
