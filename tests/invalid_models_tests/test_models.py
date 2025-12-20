@@ -836,6 +836,89 @@ class OtherModelTests(SimpleTestCase):
 
         self.assertFalse(Child.check())
 
+    def test_ordering_allows_related_pk(self):
+        class Option(models.Model):
+            pass
+
+        class Model(models.Model):
+            option = models.ForeignKey(Option, models.CASCADE)
+
+            class Meta:
+                ordering = ['option__pk']
+
+        self.assertEqual(Model.check(), [])
+
+    def test_ordering_allows_related_desc_pk(self):
+        class Option(models.Model):
+            pass
+
+        class Model(models.Model):
+            option = models.ForeignKey(Option, models.CASCADE)
+
+            class Meta:
+                ordering = ['-option__pk']
+
+        self.assertEqual(Model.check(), [])
+
+    def test_ordering_rejects_non_relation_pk(self):
+        class Model(models.Model):
+            name = models.CharField(max_length=32)
+
+            class Meta:
+                ordering = ['name__pk']
+
+        self.assertEqual(Model.check(), [
+            Error(
+                "'ordering' refers to the nonexistent field, related field, "
+                "or lookup 'name__pk'.",
+                obj=Model,
+                id='models.E015',
+            ),
+        ])
+
+    def test_ordering_related_id_matches_pk(self):
+        class Option(models.Model):
+            pass
+
+        class Model(models.Model):
+            option = models.ForeignKey(Option, models.CASCADE)
+
+            class Meta:
+                ordering = ['option__id']
+
+        self.assertEqual(Model.check(), [])
+
+    def test_ordering_related_id_without_matching_pk(self):
+        class Option(models.Model):
+            code = models.CharField(max_length=32, primary_key=True)
+
+        class Model(models.Model):
+            option = models.ForeignKey(Option, models.CASCADE)
+
+            class Meta:
+                ordering = ['option__id']
+
+        self.assertEqual(Model.check(), [
+            Error(
+                "'ordering' refers to the nonexistent field, related field, "
+                "or lookup 'option__id'.",
+                obj=Model,
+                id='models.E015',
+            ),
+        ])
+
+    def test_ordering_related_pk_with_custom_primary_key(self):
+        class Option(models.Model):
+            code = models.CharField(max_length=32, primary_key=True)
+
+        class Model(models.Model):
+            option = models.ForeignKey(Option, models.CASCADE)
+
+            class Meta:
+                ordering = ['option__pk']
+
+        self.assertEqual(Model.check(), [])
+
     def test_name_beginning_with_underscore(self):
         class _Model(models.Model):
             pass
