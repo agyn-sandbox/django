@@ -401,7 +401,16 @@ class BaseDatabaseOperations:
         raise NotImplementedError('subclasses of BaseDatabaseOperations must provide a sql_flush() method')
 
     def execute_sql_flush(self, sql_list):
-        """Execute a list of SQL statements to flush the database."""
+        """Execute SQL statements to flush the database using this connection.
+
+This method executes the provided SQL within:
+
+    transaction.atomic(using=self.connection.alias,
+                       savepoint=self.connection.features.can_rollback_ddl)
+
+so that flush semantics are consistent with the bound connection and backend
+DDL rollback capabilities.
+"""
         with transaction.atomic(using=self.connection.alias, savepoint=self.connection.features.can_rollback_ddl):
             with self.connection.cursor() as cursor:
                 for sql in sql_list:
