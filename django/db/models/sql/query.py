@@ -1050,7 +1050,7 @@ class Query(BaseExpression):
             sql = '(%s)' % sql
         return sql, params
 
-    def resolve_lookup_value(self, value, can_reuse, allow_joins, simple_col):
+    def resolve_lookup_value(self, value, can_reuse, allow_joins, simple_col, lookups):
         if hasattr(value, 'resolve_expression'):
             kwargs = {'reuse': can_reuse, 'allow_joins': allow_joins}
             if isinstance(value, F):
@@ -1073,7 +1073,11 @@ class Query(BaseExpression):
                         ))
                 else:
                     resolved_values.append(sub_value)
-            value = tuple(resolved_values)
+            lookup_name = lookups[-1] if lookups else 'exact'
+            if lookup_name in {'exact', 'iexact'} and isinstance(value, list):
+                value = resolved_values
+            else:
+                value = tuple(resolved_values)
         return value
 
     def solve_lookup_type(self, lookup):
@@ -1255,7 +1259,7 @@ class Query(BaseExpression):
             raise FieldError("Joined field references are not permitted in this query")
 
         pre_joins = self.alias_refcount.copy()
-        value = self.resolve_lookup_value(value, can_reuse, allow_joins, simple_col)
+        value = self.resolve_lookup_value(value, can_reuse, allow_joins, simple_col, lookups)
         used_joins = {k for k, v in self.alias_refcount.items() if v > pre_joins.get(k, 0)}
 
         self.check_filterable(value)
