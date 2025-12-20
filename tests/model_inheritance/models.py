@@ -135,6 +135,37 @@ class ParkingLot(Place):
         return "%s the parking lot" % self.name
 
 
+class MultiParentA(models.Model):
+    a_id = models.AutoField(primary_key=True)
+    a_field = models.CharField(max_length=50)
+
+
+class MultiParentB(models.Model):
+    b_id = models.AutoField(primary_key=True)
+    b_field = models.CharField(max_length=50)
+
+
+class MultiChild(MultiParentA, MultiParentB):
+    note = models.CharField(max_length=50)
+
+
+class SlugParent(models.Model):
+    slug = models.SlugField(primary_key=True)
+    name = models.CharField(max_length=50)
+
+
+class SlugChild(SlugParent):
+    parent = models.OneToOneField(
+        SlugParent,
+        models.CASCADE,
+        parent_link=True,
+        to_field='slug',
+        db_column='parent_slug',
+        primary_key=True,
+    )
+    tagline = models.CharField(max_length=50)
+
+
 #
 # Abstract base classes with related models where the sub-class has the
 # same name in a different app and inherits from the same abstract base
