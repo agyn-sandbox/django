@@ -15,7 +15,8 @@ from django.forms.models import (
     modelform_factory,
 )
 from django.template import Context, Template
-from django.test import SimpleTestCase, TestCase, skipUnlessDBFeature
+from django.test import SimpleTestCase, TestCase, TransactionTestCase, skipUnlessDBFeature
+from django.test.utils import isolate_apps
 
 from .models import (
     Article, ArticleStatus, Author, Author1, Award, BetterWriter, BigInt, Book,
@@ -168,6 +169,54 @@ class CustomErrorMessageForm(forms.ModelForm):
     class Meta:
         fields = '__all__'
         model = CustomErrorMessage
+
+
+class ForeignKeyValidateBaseManagerTests(TransactionTestCase):
+    available_apps = []
+
+    def _teardown_models(self, *models):
+        with connection.schema_editor(atomic=False) as editor:
+            for model in models:
+                editor.delete_model(model)
+
+    def _setup_models(self, apps):
+        from tests.model_forms.base_manager_app import models as base_manager_models
+
+        apps.register_model('model_forms_fk_validate', base_manager_models.Article)
+        apps.register_model('model_forms_fk_validate', base_manager_models.FavoriteArticles)
+        Article = apps.get_model('model_forms_fk_validate', 'Article')
+        FavoriteArticles = apps.get_model('model_forms_fk_validate', 'FavoriteArticles')
+
+        class FavoriteArticlesForm(forms.ModelForm):
+            class Meta:
+                model = FavoriteArticles
+                fields = ['article']
+
+            def __init__(self, *args, **kwargs):
+                super().__init__(*args, **kwargs)
+                self.fields['article'].queryset = Article._base_manager.all()
+
+        with connection.schema_editor(atomic=False) as editor:
+            editor.create_model(Article)
+            editor.create_model(FavoriteArticles)
+
+        self.addCleanup(self._teardown_models, FavoriteArticles, Article)
+
+        archived_article = Article._base_manager.create(is_archived=True)
+        return Article, FavoriteArticles, FavoriteArticlesForm, archived_article
+
+    @isolate_apps('tests.model_forms.base_manager_app', kwarg_name='apps')
+    def test_model_form_accepts_base_manager_queryset(self, apps):
+        Article, FavoriteArticles, FavoriteArticlesForm, archived_article = self._setup_models(apps)
+        form = FavoriteArticlesForm(data={'article': archived_article.pk})
+        self.assertTrue(form.is_valid())
+
+    @isolate_apps('tests.model_forms.base_manager_app', kwarg_name='apps')
+    def test_foreign_key_clean_uses_base_manager(self, apps):
+        Article, FavoriteArticles, FavoriteArticlesForm, archived_article = self._setup_models(apps)
+        field = FavoriteArticles._meta.get_field('article')
+        cleaned_value = field.clean(archived_article.pk, FavoriteArticles())
+        self.assertEqual(cleaned_value, archived_article.pk)
 
 
 class ModelFormBaseTest(TestCase):
