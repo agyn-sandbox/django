@@ -371,6 +371,25 @@ class ModelChoiceFieldTests(TestCase):
         self.assertNotIn('value=""', rendered_required)
         self.assertNotIn('checked', rendered_required)
 
+        bound_form = ArticleForm(data={'writer': ''})
+        self.assertIs(bound_form.is_valid(), False)
+        rendered_bound = str(bound_form['writer'])
+        self.assertNotIn('value=""', rendered_bound)
+        self.assertNotIn('checked', rendered_bound)
+
+        article = Article.objects.create(
+            headline='Headline',
+            slug='headline',
+            pub_date=datetime.date.today(),
+            writer=writer_2,
+            article='Body',
+        )
+        initial_form = ArticleForm(instance=article)
+        rendered_initial = str(initial_form['writer'])
+        self.assertNotIn('value=""', rendered_initial)
+        self.assertIn(f'value="{writer_2.pk}"', rendered_initial)
+        self.assertIn('checked', rendered_initial)
+
         class OptionalArticleForm(forms.ModelForm):
             writer = forms.ModelChoiceField(Writer.objects.all(), required=False, widget=forms.RadioSelect)
 
