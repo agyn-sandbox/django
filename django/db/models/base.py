@@ -1712,6 +1712,8 @@ class Model(metaclass=ModelBase):
                     if fld.is_relation:
                         _cls = fld.get_path_info()[-1].to_opts.model
                 except (FieldDoesNotExist, AttributeError):
+                    if part == 'pk' and fld is not None and fld.is_relation:
+                        continue
                     if fld is None or fld.get_transform(part) is None:
                         errors.append(
                             checks.Error(
