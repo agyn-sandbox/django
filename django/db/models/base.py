@@ -950,6 +950,7 @@ class Model(metaclass=ModelBase):
         # force_str() to coerce lazy strings.
         return force_str(choices_dict.get(make_hashable(value), value), strings_only=True)
 
+    # Break ties on equal field values by ordering on the primary key.
     def _get_next_or_previous_by_FIELD(self, field, is_next, **kwargs):
         if not self.pk:
             raise ValueError("get_next/get_previous cannot be used on unsaved objects.")
