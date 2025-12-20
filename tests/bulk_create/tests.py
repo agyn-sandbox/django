@@ -1,3 +1,4 @@
+import unittest
 from operator import attrgetter
 
 from django.db import IntegrityError, NotSupportedError, connection
@@ -305,3 +306,12 @@ class BulkCreateTests(TestCase):
         # Without ignore_conflicts=True, there's a problem.
         with self.assertRaises(IntegrityError):
             TwoFields.objects.bulk_create(conflicting_objects)
+
+
+@unittest.skipUnless(connection.vendor == 'sqlite', 'SQLite tests')
+class BulkCreateBatchSizeTests(TestCase):
+
+    def test_bulk_create_batch_size_capped_by_max_params_sqlite(self):
+        objs = [TwoFields(f1=i, f2=1000 + i) for i in range(600)]
+        TwoFields.objects.bulk_create(objs, batch_size=600)
+        self.assertEqual(TwoFields.objects.count(), 600)
