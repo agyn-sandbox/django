@@ -204,6 +204,49 @@ class AutodetectorTests(TestCase):
         ("name", models.CharField(blank=True)),
         ("biography", models.TextField(blank=True)),
     ])
+    mti_base_with_shared_field = ModelState("testapp", "MTIBase", [
+        ("id", models.AutoField(primary_key=True)),
+        ("shared", models.CharField(max_length=20)),
+    ])
+    mti_base_without_shared_field = ModelState("testapp", "MTIBase", [
+        ("id", models.AutoField(primary_key=True)),
+    ])
+    mti_child_with_shared_field = ModelState("testapp", "MTIChild", [
+        ("mtibase_ptr", models.OneToOneField(
+            "testapp.MTIBase",
+            models.CASCADE,
+            auto_created=True,
+            parent_link=True,
+            primary_key=True,
+            serialize=False,
+            to_field="id",
+        )),
+        ("shared", models.CharField(max_length=20)),
+    ], bases=("testapp.MTIBase",))
+    mti_second_child_with_shared_field = ModelState("testapp", "MTISecondChild", [
+        ("mtibase_ptr", models.OneToOneField(
+            "testapp.MTIBase",
+            models.CASCADE,
+            auto_created=True,
+            parent_link=True,
+            primary_key=True,
+            serialize=False,
+            to_field="id",
+        )),
+        ("shared", models.CharField(max_length=20)),
+    ], bases=("testapp.MTIBase",))
+    mti_cross_app_child_with_shared_field = ModelState("otherapp", "MTIOtherChild", [
+        ("mtibase_ptr", models.OneToOneField(
+            "testapp.MTIBase",
+            models.CASCADE,
+            auto_created=True,
+            parent_link=True,
+            primary_key=True,
+            serialize=False,
+            to_field="id",
+        )),
+        ("shared", models.CharField(max_length=20)),
+    ], bases=("testapp.MTIBase",))
     author_with_book = ModelState("testapp", "Author", [
         ("id", models.AutoField(primary_key=True)),
         ("name", models.CharField(max_length=200)),
@@ -1927,6 +1970,44 @@ class AutodetectorTests(TestCase):
         self.assertOperationTypes(changes, 'testapp', 0, ["RemoveField", "DeleteModel"])
         self.assertOperationAttributes(changes, 'testapp', 0, 0, name="publisher")
         self.assertOperationAttributes(changes, 'testapp', 0, 1, name="Publisher")
+
+    def test_create_subclass_depends_on_remove_field_from_base(self):
+        before = [self.mti_base_with_shared_field]
+        after = [self.mti_base_without_shared_field, self.mti_child_with_shared_field]
+        changes = self.get_changes(before, after)
+        self.assertNumberMigrations(changes, "testapp", 1)
+        self.assertOperationTypes(changes, "testapp", 0, ["RemoveField", "CreateModel"])
+        self.assertOperationAttributes(changes, "testapp", 0, 0, model_name="mtibase", name="shared")
+        create_op = changes["testapp"][0].operations[1]
+        self.assertEqual(create_op.name, "MTIChild")
+        self.assertIn(("testapp", "mtibase", "shared", False), create_op._auto_deps)
+
+    def test_multiple_subclasses_depend_on_single_base_remove(self):
+        before = [self.mti_base_with_shared_field]
+        after = [
+            self.mti_base_without_shared_field,
+            self.mti_child_with_shared_field,
+            self.mti_second_child_with_shared_field,
+        ]
+        changes = self.get_changes(before, after)
+        self.assertNumberMigrations(changes, "testapp", 1)
+        self.assertOperationTypes(changes, "testapp", 0, ["RemoveField", "CreateModel", "CreateModel"])
+        dependency = ("testapp", "mtibase", "shared", False)
+        create_ops = changes["testapp"][0].operations[1:]
+        self.assertTrue(all(dependency in op._auto_deps for op in create_ops))
+
+    def test_cross_app_subclass_depends_on_base_remove(self):
+        before = [self.mti_base_with_shared_field]
+        after = [self.mti_base_without_shared_field, self.mti_cross_app_child_with_shared_field]
+        changes = self.get_changes(before, after)
+        self.assertNumberMigrations(changes, "testapp", 1)
+        self.assertNumberMigrations(changes, "otherapp", 1)
+        self.assertOperationTypes(changes, "testapp", 0, ["RemoveField"])
+        self.assertOperationAttributes(changes, "testapp", 0, 0, model_name="mtibase", name="shared")
+        self.assertOperationTypes(changes, "otherapp", 0, ["CreateModel"])
+        create_op = changes["otherapp"][0].operations[0]
+        self.assertEqual(create_op.name, "MTIOtherChild")
+        self.assertIn(("testapp", "mtibase", "shared", False), create_op._auto_deps)
 
     @mock.patch('django.db.migrations.questioner.MigrationQuestioner.ask_not_null_addition',
                 side_effect=AssertionError("Should not have prompted for not null addition"))
