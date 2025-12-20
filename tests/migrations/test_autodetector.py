@@ -726,6 +726,29 @@ class AutodetectorTests(TestCase):
         self.assertOperationTypes(changes, 'testapp', 0, ["AlterField"])
         self.assertOperationAttributes(changes, "testapp", 0, 0, name="name", preserve_default=True)
 
+    def test_alter_non_relation_to_fk_adds_dependency(self):
+        before = [
+            ModelState('foo', 'Foo', [
+                ('id', models.AutoField(primary_key=True)),
+                ('identifier', models.UUIDField()),
+            ]),
+        ]
+        after = [
+            ModelState('bar', 'Bar', [
+                ('id', models.AutoField(primary_key=True)),
+            ]),
+            ModelState('foo', 'Foo', [
+                ('id', models.AutoField(primary_key=True)),
+                ('identifier', models.ForeignKey('bar.Bar', models.CASCADE)),
+            ]),
+        ]
+        changes = self.get_changes(before, after)
+        self.assertNumberMigrations(changes, 'bar', 1)
+        self.assertOperationTypes(changes, 'bar', 0, ['CreateModel'])
+        self.assertNumberMigrations(changes, 'foo', 1)
+        self.assertOperationTypes(changes, 'foo', 0, ['AlterField'])
+        self.assertMigrationDependencies(changes, 'foo', 0, [('bar', 'auto_1')])
+
     def test_supports_functools_partial(self):
         def _content_file_name(instance, filename, key, **kwargs):
             return '{}/{}'.format(instance, filename)
