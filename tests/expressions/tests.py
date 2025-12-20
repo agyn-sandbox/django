@@ -1584,8 +1584,12 @@ class ReprTests(SimpleTestCase):
         self.assertEqual(repr(Variance('a', sample=True)), "Variance(F(a), sample=True)")
 
     def test_distinct_aggregates(self):
+        self.assertEqual(repr(Avg('a', distinct=True)), "Avg(F(a), distinct=True)")
         self.assertEqual(repr(Count('a', distinct=True)), "Count(F(a), distinct=True)")
         self.assertEqual(repr(Count('*', distinct=True)), "Count('*', distinct=True)")
+        self.assertEqual(repr(Max('a', distinct=True)), "Max(F(a), distinct=True)")
+        self.assertEqual(repr(Min('a', distinct=True)), "Min(F(a), distinct=True)")
+        self.assertEqual(repr(Sum('a', distinct=True)), "Sum(F(a), distinct=True)")
 
     def test_filtered_aggregates(self):
         filter = Q(a=1)

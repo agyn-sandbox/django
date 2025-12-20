@@ -140,6 +140,25 @@ class AggregateTestCase(TestCase):
         vals = Publisher.objects.aggregate(Sum("book__price"))
         self.assertEqual(vals, {'book__price__sum': Decimal('270.27')})
 
+    def test_distinct_avg_sum(self):
+        result = Author.objects.aggregate(
+            avg_distinct=Avg('age', distinct=True),
+            sum_distinct=Sum('age', distinct=True),
+        )
+        self.assertEqual(result['sum_distinct'], 308)
+        self.assertEqual(result['avg_distinct'], Approximate(38.5, places=1))
+
+    def test_distinct_min_max(self):
+        distinct = Author.objects.aggregate(
+            min_age=Min('age', distinct=True),
+            max_age=Max('age', distinct=True),
+        )
+        non_distinct = Author.objects.aggregate(
+            min_age=Min('age'),
+            max_age=Max('age'),
+        )
+        self.assertEqual(distinct, non_distinct)
+
     def test_aggregate_multi_join(self):
         vals = Store.objects.aggregate(Max("books__authors__age"))
         self.assertEqual(vals, {'books__authors__age__max': 57})
