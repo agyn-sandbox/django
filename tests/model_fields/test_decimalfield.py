@@ -25,6 +25,46 @@ class DecimalFieldTests(TestCase):
         with self.assertRaisesMessage(ValidationError, msg):
             f.to_python('abc')
 
+    def test_to_python_invalid_types(self):
+        field = models.DecimalField(max_digits=4, decimal_places=2)
+        invalid_values = [
+            {},
+            [],
+            {'a'},
+            (1,),
+            object(),
+            complex(1, 0),
+            'abc',
+            b'abc',
+        ]
+        for value in invalid_values:
+            with self.subTest(value=value):
+                with self.assertRaises(ValidationError) as cm:
+                    field.to_python(value)
+                error = cm.exception
+                self.assertEqual(error.error_list[0].code, 'invalid')
+                self.assertIn('value must be a decimal number.', error.messages[0])
+
+    def test_clean_invalid_types(self):
+        field = models.DecimalField(max_digits=4, decimal_places=2)
+        invalid_values = [
+            {},
+            [],
+            {'a'},
+            (1,),
+            object(),
+            complex(1, 0),
+            'abc',
+            b'abc',
+        ]
+        for value in invalid_values:
+            with self.subTest(value=value):
+                with self.assertRaises(ValidationError) as cm:
+                    field.clean(value, None)
+                error = cm.exception
+                self.assertEqual(error.error_list[0].code, 'invalid')
+                self.assertIn('value must be a decimal number.', error.messages[0])
+
     def test_default(self):
         f = models.DecimalField(default=Decimal('0.00'))
         self.assertEqual(f.get_default(), Decimal('0.00'))
@@ -87,3 +127,10 @@ class DecimalFieldTests(TestCase):
         obj = Foo.objects.create(a='bar', d=Decimal('8.320'))
         obj.refresh_from_db()
         self.assertEqual(obj.d.compare_total(Decimal('8.320')), Decimal('0'))
+
+    def test_model_save_invalid_type(self):
+        with self.assertRaises(ValidationError) as cm:
+            Foo.objects.create(a='bar', d={})
+        error = cm.exception
+        self.assertEqual(error.error_list[0].code, 'invalid')
+        self.assertIn('value must be a decimal number.', error.messages[0])
