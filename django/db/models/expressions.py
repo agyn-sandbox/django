@@ -430,6 +430,17 @@ class CombinedExpression(SQLiteNumericMixin, Expression):
         self.lhs = lhs
         self.rhs = rhs
 
+    def _resolve_output_field(self):
+        if self.connector == self.SUB:
+            lhs_field, rhs_field = self.get_source_fields()
+            if lhs_field is not None and rhs_field is not None:
+                temporal_types = {'DateField', 'DateTimeField', 'TimeField'}
+                lhs_type = lhs_field.get_internal_type()
+                rhs_type = rhs_field.get_internal_type()
+                if lhs_type == rhs_type and lhs_type in temporal_types:
+                    return fields.DurationField()
+        return super()._resolve_output_field()
+
     def __repr__(self):
         return "<{}: {}>".format(self.__class__.__name__, self)
 

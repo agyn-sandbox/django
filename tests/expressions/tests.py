@@ -1491,6 +1491,21 @@ class FTimeDeltaTests(TestCase):
                 self.assertEqual(obj.duration, obj.estimated_time + delta)
 
     @skipUnlessDBFeature('supports_temporal_subtraction')
+    def test_datetime_subtraction_annotation_infers_duration(self):
+        queryset = Experiment.objects.annotate(delta=F('end') - F('start'))
+        for experiment in queryset:
+            self.assertEqual(experiment.delta, experiment.end - experiment.start)
+
+    @skipUnlessDBFeature('supports_temporal_subtraction')
+    def test_datetime_subtraction_plus_duration_value(self):
+        zero = datetime.timedelta()
+        queryset = Experiment.objects.annotate(
+            delta=F('end') - F('start') + Value(zero, output_field=DurationField())
+        )
+        for experiment in queryset:
+            self.assertEqual(experiment.delta, experiment.end - experiment.start + zero)
+
+    @skipUnlessDBFeature('supports_temporal_subtraction')
     def test_date_subtraction(self):
         queryset = Experiment.objects.annotate(
             completion_duration=ExpressionWrapper(
