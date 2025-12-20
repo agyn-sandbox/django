@@ -104,3 +104,35 @@ class ParentLinkSelectionTests(SimpleTestCase):
         parent_field = Child._meta.parents[Parent]
         self.assertTrue(parent_field.remote_field.parent_link)
         self.assertEqual(parent_field.name, 'parent_ptr')
+
+    @isolate_apps('model_inheritance')
+    def test_parent_link_overrides_non_parent_mixin_relation(self):
+        class Parent(models.Model):
+            class Meta:
+                app_label = 'model_inheritance'
+
+        class NonParentMixin(models.Model):
+            parent_relation = models.OneToOneField(
+                Parent,
+                models.CASCADE,
+                related_name='+',
+            )
+
+            class Meta:
+                app_label = 'model_inheritance'
+                abstract = True
+
+        class Child(NonParentMixin, Parent):
+            parent_ptr = models.OneToOneField(
+                Parent,
+                models.CASCADE,
+                parent_link=True,
+                related_name='+',
+            )
+
+            class Meta:
+                app_label = 'model_inheritance'
+
+        parent_field = Child._meta.parents[Parent]
+        self.assertTrue(parent_field.remote_field.parent_link)
+        self.assertEqual(parent_field.name, 'parent_ptr')
