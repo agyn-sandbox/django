@@ -7,6 +7,7 @@ from django.core import validators
 from django.core.exceptions import ValidationError
 from django.core.files.storage import FileSystemStorage
 from django.db import models
+from django.db.models import Q
 
 temp_storage_dir = tempfile.mkdtemp()
 temp_storage = FileSystemStorage(temp_storage_dir)
@@ -154,6 +155,30 @@ class CustomFF(models.Model):
 
 class FilePathModel(models.Model):
     path = models.FilePathField(path=os.path.dirname(__file__), match='models.py', blank=True)
+
+
+class Staff(models.Model):
+    name = models.CharField(max_length=50)
+    code = models.CharField(max_length=20, unique=True)
+
+    def __str__(self):
+        return self.name
+
+
+class Department(models.Model):
+    name = models.CharField(max_length=50)
+    staff = models.ForeignKey(Staff, models.CASCADE)
+
+    def __str__(self):
+        return self.name
+
+
+class Assignment(models.Model):
+    staff = models.ForeignKey(
+        Staff,
+        models.CASCADE,
+        limit_choices_to=Q(department__name='HR'),
+    )
 
 
 try:

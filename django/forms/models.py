@@ -7,6 +7,7 @@ from itertools import chain
 
 from django.core.exceptions import (
     NON_FIELD_ERRORS, FieldError, ImproperlyConfigured, ValidationError,
+    MultipleObjectsReturned,
 )
 from django.forms.fields import ChoiceField, Field
 from django.forms.forms import BaseForm, DeclarativeFieldsMetaclass
@@ -1158,7 +1159,12 @@ class ModelChoiceIterator:
         # Can't use iterator() when queryset uses prefetch_related()
         if not queryset._prefetch_related_lookups:
             queryset = queryset.iterator()
+        seen = set()
         for obj in queryset:
+            key = str(self.field.prepare_value(obj))
+            if key in seen:
+                continue
+            seen.add(key)
             yield self.choice(obj)
 
     def __len__(self):
@@ -1272,11 +1278,15 @@ class ModelChoiceField(ChoiceField):
     def to_python(self, value):
         if value in self.empty_values:
             return None
+        key = self.to_field_name or 'pk'
+        if isinstance(value, self.queryset.model):
+            value = getattr(value, key)
         try:
-            key = self.to_field_name or 'pk'
-            if isinstance(value, self.queryset.model):
-                value = getattr(value, key)
             value = self.queryset.get(**{key: value})
+        except MultipleObjectsReturned:
+            value = self.queryset.filter(**{key: value}).first()
+            if value is None:
+                raise ValidationError(self.error_messages['invalid_choice'], code='invalid_choice')
         except (ValueError, TypeError, self.queryset.model.DoesNotExist):
             raise ValidationError(self.error_messages['invalid_choice'], code='invalid_choice')
         return value
@@ -1370,6 +1380,18 @@ class ModelMultipleChoiceField(ModelChoiceField):
                     code='invalid_choice',
                     params={'value': val},
                 )
+        if qs._result_cache is not None:
+            unique = []
+            seen = set()
+            prepare_value = super().prepare_value
+            for obj in qs._result_cache:
+                identifier = str(prepare_value(obj))
+                if identifier in seen:
+                    continue
+                seen.add(identifier)
+                unique.append(obj)
+            if len(unique) != len(qs._result_cache):
+                qs._result_cache = unique
         return qs
 
     def prepare_value(self, value):
