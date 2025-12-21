@@ -227,14 +227,17 @@ class FileField(Field):
     def __init__(self, verbose_name=None, name=None, upload_to='', storage=None, **kwargs):
         self._primary_key_set_explicitly = 'primary_key' in kwargs
 
-        self.storage = storage or default_storage
-        if callable(self.storage):
-            self.storage = self.storage()
-            if not isinstance(self.storage, Storage):
+        self._storage_arg = storage if storage is not None else None
+
+        configured_storage = storage or default_storage
+        if callable(configured_storage):
+            configured_storage = configured_storage()
+            if not isinstance(configured_storage, Storage):
                 raise TypeError(
                     "%s.storage must be a subclass/instance of %s.%s"
                     % (self.__class__.__qualname__, Storage.__module__, Storage.__qualname__)
                 )
+        self.storage = configured_storage
         self.upload_to = upload_to
 
         kwargs.setdefault('max_length', 100)
@@ -278,8 +281,8 @@ class FileField(Field):
         if kwargs.get("max_length") == 100:
             del kwargs["max_length"]
         kwargs['upload_to'] = self.upload_to
-        if self.storage is not default_storage:
-            kwargs['storage'] = self.storage
+        if self._storage_arg is not None:
+            kwargs['storage'] = self._storage_arg
         return name, path, args, kwargs
 
     def get_internal_type(self):
@@ -441,7 +444,7 @@ class ImageField(FileField):
         if not file and not force:
             return
 
-        dimension_fields_filled = not(
+        dimension_fields_filled = not (
             (self.width_field and not getattr(instance, self.width_field)) or
             (self.height_field and not getattr(instance, self.height_field))
         )

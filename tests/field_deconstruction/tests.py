@@ -1,7 +1,20 @@
 from django.apps import apps
+from django.core.files.storage import Storage
 from django.db import models
 from django.test import SimpleTestCase, override_settings
 from django.test.utils import isolate_lru_cache
+
+
+class DummyStorage(Storage):
+    def _open(self, name, mode='rb'):
+        raise NotImplementedError
+
+    def _save(self, name, content):
+        return name
+
+
+def dummy_storage_callable():
+    return DummyStorage()
 
 
 class FieldDeconstructionTests(SimpleTestCase):
@@ -173,6 +186,22 @@ class FieldDeconstructionTests(SimpleTestCase):
         self.assertEqual(path, "django.db.models.FileField")
         self.assertEqual(args, [])
         self.assertEqual(kwargs, {"upload_to": "foo/bar", "max_length": 200})
+
+    def test_file_field_storage_callable_deconstruct(self):
+        field = models.FileField(storage=dummy_storage_callable)
+        name, path, args, kwargs = field.deconstruct()
+        self.assertEqual(path, "django.db.models.FileField")
+        self.assertEqual(args, [])
+        self.assertIs(kwargs["storage"], dummy_storage_callable)
+        self.assertIsInstance(field.storage, DummyStorage)
+
+    def test_file_field_storage_class_callable_deconstruct(self):
+        field = models.FileField(storage=DummyStorage)
+        name, path, args, kwargs = field.deconstruct()
+        self.assertEqual(path, "django.db.models.FileField")
+        self.assertEqual(args, [])
+        self.assertIs(kwargs["storage"], DummyStorage)
+        self.assertIsInstance(field.storage, DummyStorage)
 
     def test_file_path_field(self):
         field = models.FilePathField(match=r".*\.txt$")
