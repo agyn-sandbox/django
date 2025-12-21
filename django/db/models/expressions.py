@@ -9,6 +9,7 @@ from django.db.models import fields
 from django.db.models.constants import LOOKUP_SEP
 from django.db.models.query_utils import Q
 from django.utils.deconstruct import deconstructible
+from django.utils.duration import duration_microseconds
 from django.utils.functional import cached_property
 from django.utils.hashable import make_hashable
 
@@ -479,6 +480,25 @@ class CombinedExpression(SQLiteNumericMixin, Expression):
 
 
 class DurationExpression(CombinedExpression):
+    def _is_duration_operand(self, expr):
+        if isinstance(expr, DurationValue):
+            return True
+        try:
+            output = expr.output_field
+        except (AttributeError, FieldError):
+            return False
+        if output is None:
+            return False
+        try:
+            internal_type = output.get_internal_type()
+        except FieldError:
+            return False
+        if internal_type != 'DurationField':
+            return False
+        if isinstance(expr, Value) and getattr(expr, 'value', None) is None:
+            return False
+        return True
+
     def compile(self, side, compiler, connection):
         if not isinstance(side, DurationValue):
             try:
@@ -491,8 +511,40 @@ class DurationExpression(CombinedExpression):
                     return connection.ops.format_for_duration_arithmetic(sql), params
         return compiler.compile(side)
 
+    def _compile_duration_operand(self, expression, compiler, connection):
+        if isinstance(expression, DurationValue):
+            return str(duration_microseconds(expression.value)), []
+        if isinstance(expression, Value):
+            try:
+                output = expression.output_field
+            except (AttributeError, FieldError):
+                output = None
+            if output is not None:
+                try:
+                    internal_type = output.get_internal_type()
+                except FieldError:
+                    internal_type = None
+                else:
+                    if internal_type == 'DurationField':
+                        value = expression.value
+                        if value is not None:
+                            return str(duration_microseconds(value)), []
+        return compiler.compile(expression)
+
     def as_sql(self, compiler, connection):
         connection.ops.check_expression_support(self)
+        if (
+            self.connector in {'+', '-'} and
+            not connection.features.has_native_duration_field and
+            self._is_duration_operand(self.lhs) and
+            self._is_duration_operand(self.rhs)
+        ):
+            if connection.vendor in {'sqlite', 'mysql', 'mariadb'}:
+                lhs_sql, lhs_params = self._compile_duration_operand(self.lhs, compiler, connection)
+                rhs_sql, rhs_params = self._compile_duration_operand(self.rhs, compiler, connection)
+                sql = connection.ops.combine_expression(self.connector, [lhs_sql, rhs_sql])
+                params = (*lhs_params, *rhs_params)
+                return f'({sql})', params
         expressions = []
         expression_params = []
         sql, params = self.compile(self.lhs, compiler, connection)
