@@ -30,6 +30,12 @@ class JSONFieldTest(SimpleTestCase):
         self.assertEqual(field.prepare_value(None), 'null')
         self.assertEqual(field.prepare_value('foo'), '"foo"')
 
+    def test_prepare_value_unicode(self):
+        field = JSONField()
+        prepared = field.prepare_value(["中国", "España", "😀"])
+        self.assertEqual(prepared, '["中国", "España", "😀"]')
+        self.assertNotIn('\\u', prepared)
+
     def test_widget(self):
         field = JSONField()
         self.assertIsInstance(field.widget, Textarea)

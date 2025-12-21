@@ -156,6 +156,13 @@ class Thing(models.Model):
         return self.title
 
 
+class JSONHolder(models.Model):
+    data = models.JSONField()
+
+    def __str__(self):
+        return str(self.pk)
+
+
 class Actor(models.Model):
     name = models.CharField(max_length=50)
     age = models.IntegerField()

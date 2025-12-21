@@ -1,5 +1,6 @@
 import datetime
 import decimal
+import json
 from collections import defaultdict
 
 from django.core.exceptions import FieldDoesNotExist
@@ -400,7 +401,8 @@ def display_for_field(value, field, empty_value_display):
         return format_html('<a href="{}">{}</a>', value.url, value)
     elif isinstance(field, models.JSONField) and value:
         try:
-            return field.get_prep_value(value)
+            encoder = getattr(field, 'encoder', None)
+            return json.dumps(value, cls=encoder, ensure_ascii=False)
         except TypeError:
             return display_for_value(value, empty_value_display)
     else:
