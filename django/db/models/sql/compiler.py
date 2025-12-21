@@ -431,6 +431,8 @@ class SQLCompiler:
         return sql, params
 
     def get_combinator_sql(self, combinator, all):
+        if self.query.is_empty():
+            raise EmptyResultSet
         features = self.connection.features
         compilers = [
             query.get_compiler(self.using, self.connection)
