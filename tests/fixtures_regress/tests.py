@@ -17,12 +17,13 @@ from django.test import (
 
 from .models import (
     Absolute, Animal, Article, Book, Child, Circle1, Circle2, Circle3,
-    ExternalDependency, M2MCircular1ThroughAB, M2MCircular1ThroughBC,
-    M2MCircular1ThroughCA, M2MCircular2ThroughAB, M2MComplexA, M2MComplexB,
-    M2MComplexCircular1A, M2MComplexCircular1B, M2MComplexCircular1C,
-    M2MComplexCircular2A, M2MComplexCircular2B, M2MSimpleA, M2MSimpleB,
-    M2MSimpleCircularA, M2MSimpleCircularB, M2MThroughAB, NKChild, Parent,
-    Person, RefToNKChild, Store, Stuff, Thingy, Widget,
+    ExternalDependency, KeywordOrder, KeywordOrderItem, M2MCircular1ThroughAB,
+    M2MCircular1ThroughBC, M2MCircular1ThroughCA, M2MCircular2ThroughAB,
+    M2MComplexA, M2MComplexB, M2MComplexCircular1A, M2MComplexCircular1B,
+    M2MComplexCircular1C, M2MComplexCircular2A, M2MComplexCircular2B,
+    M2MSimpleA, M2MSimpleB, M2MSimpleCircularA, M2MSimpleCircularB,
+    M2MThroughAB, NKChild, Parent, Person, RefToNKChild, Store, Stuff,
+    Thingy, Widget,
 )
 
 _cur_dir = os.path.dirname(os.path.abspath(__file__))
@@ -151,6 +152,22 @@ class TestFixtures(TestCase):
             verbosity=0,
         )
         self.assertEqual(Absolute.objects.count(), 1)
+
+    @skipUnlessDBFeature('supports_pragma_foreign_key_check')
+    def test_loaddata_sqlite_keyword_table_name(self):
+        management.call_command(
+            'loaddata',
+            'order_keyword.json',
+            verbosity=0,
+        )
+        self.assertEqual(KeywordOrder.objects.count(), 1)
+        self.assertEqual(KeywordOrderItem.objects.count(), 1)
+        item = KeywordOrderItem.objects.select_related('order').get()
+        order = KeywordOrder.objects.get()
+        self.assertEqual(item.order_id, order.pk)
+        self.assertEqual(order.name, 'O1')
+        self.assertEqual(item.name, 'I1')
+        self.assertEqual(order.items.get(pk=item.pk), item)
 
     def test_relative_path(self, path=['fixtures', 'absolute.json']):
         relative_path = os.path.join(*path)
