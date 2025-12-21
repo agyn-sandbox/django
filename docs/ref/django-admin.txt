@@ -1001,6 +1001,14 @@ have already been loaded into memory.
 Disables use of threading in the development server. The server is
 multithreaded by default.
 
+.. django-admin-option:: --skip-checks
+
+Skips the system check framework when starting the server. This is intended
+for temporary local debugging when a known system check prevents the server
+from running. Combine with :option:`--noreload <django-admin runserver --noreload>`
+to avoid the autoreloader running the command twice. Always restore the checks
+before committing changes or deploying.
+
 .. django-admin-option:: --ipv6, -6
 
 Uses IPv6 for the development server. This changes the default IP address from
