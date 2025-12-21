@@ -18,7 +18,9 @@ from django.core.validators import (
     validate_ipv46_address,
     validate_ipv6_address,
 )
+from django.db.models import GenericIPAddressField
 from django.test import SimpleTestCase
+from django.utils.ipv6 import clean_ipv6_address
 
 
 class ValidatorValueParamsTests(SimpleTestCase):
@@ -141,6 +143,16 @@ class ValidatorValueParamsTests(SimpleTestCase):
         self.assertEqual(params['max'], 3)
         self.assertEqual(cm.exception.messages, ['Too many whole digits 1234.5'])
 
+    def test_decimal_validator_invalid_number_includes_value(self):
+        validator = DecimalValidator(max_digits=4, decimal_places=2)
+        validator.messages = {**validator.messages, 'invalid': 'Invalid decimal %(value)s'}
+        value = Decimal('NaN')
+        with self.assertRaises(ValidationError) as cm:
+            validator(value)
+        params = cm.exception.params
+        self.assertTrue(params['value'].is_nan())
+        self.assertEqual(cm.exception.messages, ['Invalid decimal NaN'])
+
     def test_file_extension_validator_includes_value(self):
         validator = FileExtensionValidator(
             allowed_extensions=['jpg'],
@@ -217,3 +229,15 @@ class ValidatorValueParamsTests(SimpleTestCase):
     def test_validate_ipv46_address_includes_value(self):
         value = 'not-an-ip'
         self._assert_function_validator(validate_ipv46_address, value, 'IP %(value)s is invalid')
+
+    def test_clean_ipv6_address_invalid_includes_value(self):
+        value = 'not::an::ip'
+        with self.assertRaises(ValidationError) as cm:
+            clean_ipv6_address(value)
+        self.assertEqual(cm.exception.params['value'], value)
+        self.assertEqual(cm.exception.messages, ['This is not a valid IPv6 address.'])
+
+        field = GenericIPAddressField(error_messages={'invalid': 'Invalid IP: %(value)s'})
+        with self.assertRaises(ValidationError) as cm:
+            field.clean(value, None)
+        self.assertEqual(cm.exception.messages, ['Invalid IP: not::an::ip'])

@@ -445,7 +445,7 @@ class DecimalValidator:
     def __call__(self, value):
         digit_tuple, exponent = value.as_tuple()[1:]
         if exponent in {'F', 'n', 'N'}:
-            raise ValidationError(self.messages['invalid'])
+            raise ValidationError(self.messages['invalid'], params={'value': value})
         if exponent >= 0:
             # A positive exponent adds that many trailing zeros.
             digits = len(digit_tuple) + exponent
