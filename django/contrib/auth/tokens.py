@@ -85,6 +85,8 @@ class PasswordResetTokenGenerator:
            same password is chosen, due to password salting).
         2. The last_login field will usually be updated very shortly after
            a password reset.
+        3. The user's current email address invalidates the token if it
+           changes.
         Failing those things, settings.PASSWORD_RESET_TIMEOUT eventually
         invalidates the token.
 
