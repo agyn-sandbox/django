@@ -2084,6 +2084,38 @@ class QuerysetOrderedTests(unittest.TestCase):
         self.assertIs(qs.ordered, False)
         self.assertIs(qs.order_by('num_notes').ordered, True)
 
+    def test_default_ordering_with_group_by_annotation(self):
+        qs = Tag.objects.annotate(num_children=Count('children'))
+        self.assertIsNotNone(qs.query.group_by)
+        self.assertIs(qs.ordered, False)
+        self.assertNotIn('ORDER BY', str(qs.query))
+
+    def test_annotation_with_explicit_ordering(self):
+        qs = Tag.objects.annotate(num_children=Count('children')).order_by('num_children')
+        self.assertIs(qs.ordered, True)
+        self.assertIn('ORDER BY', str(qs.query))
+
+    def test_values_annotation_default_and_explicit_ordering(self):
+        qs = Tag.objects.annotate(num_children=Count('children')).values('name', 'num_children')
+        self.assertIs(qs.ordered, False)
+        self.assertNotIn('ORDER BY', str(qs.query))
+        ordered_qs = qs.order_by('name')
+        self.assertIs(ordered_qs.ordered, True)
+        self.assertIn('ORDER BY', str(ordered_qs.query))
+
+    def test_values_list_annotation_default_and_explicit_ordering(self):
+        qs = Tag.objects.values_list('name').annotate(num_children=Count('children'))
+        self.assertIs(qs.ordered, False)
+        self.assertNotIn('ORDER BY', str(qs.query))
+        ordered_qs = qs.order_by('name')
+        self.assertIs(ordered_qs.ordered, True)
+        self.assertIn('ORDER BY', str(ordered_qs.query))
+
+    def test_annotation_with_cleared_ordering(self):
+        qs = Tag.objects.annotate(num_children=Count('children')).order_by()
+        self.assertIs(qs.ordered, False)
+        self.assertNotIn('ORDER BY', str(qs.query))
+
 
 @skipUnlessDBFeature('allow_sliced_subqueries_with_in')
 class SubqueryTests(TestCase):

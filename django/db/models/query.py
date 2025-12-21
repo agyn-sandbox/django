@@ -1224,10 +1224,12 @@ class QuerySet:
             return True
         if self.query.extra_order_by or self.query.order_by:
             return True
-        elif self.query.default_ordering and self.query.get_meta().ordering:
+        has_default_ordering = (
+            self.query.default_ordering and self.query.get_meta().ordering
+        )
+        if has_default_ordering and not self.query.group_by:
             return True
-        else:
-            return False
+        return False
 
     @property
     def db(self):
