@@ -186,10 +186,19 @@ class ManagementUtility:
     Encapsulate the logic of the django-admin and manage.py utilities.
     """
     def __init__(self, argv=None):
-        self.argv = argv or sys.argv[:]
-        self.prog_name = os.path.basename(self.argv[0])
-        if self.prog_name == '__main__.py':
-            self.prog_name = 'python -m django'
+        if argv is None:
+            self.argv = sys.argv[:]
+        else:
+            self.argv = list(argv)
+        argv0 = self.argv[0] if self.argv else None
+        prog = os.path.basename(argv0) if argv0 else ''
+        if prog in {'__main__.py', '__main__'}:
+            prog = 'python -m django'
+        elif prog == 'django-admin.py':
+            prog = 'django-admin'
+        if not prog:
+            prog = 'django-admin'
+        self.prog_name = prog
         self.settings_exception = None
 
     def main_help_text(self, commands_only=False):
@@ -344,7 +353,7 @@ class ManagementUtility:
         # Preprocess options to extract --settings and --pythonpath.
         # These options could affect the commands that are available, so they
         # must be processed early.
-        parser = CommandParser(usage='%(prog)s subcommand [options] [args]', add_help=False, allow_abbrev=False)
+        parser = CommandParser(usage='%(prog)s subcommand [options] [args]', add_help=False, allow_abbrev=False, prog=self.prog_name)
         parser.add_argument('--settings')
         parser.add_argument('--pythonpath')
         parser.add_argument('args', nargs='*')  # catch-all
