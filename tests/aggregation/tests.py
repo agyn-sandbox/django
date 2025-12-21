@@ -504,14 +504,14 @@ class AggregateTestCase(TestCase):
         qs = (
             Book.objects.values('publisher_id')
             .annotate(num_books=Count('id'))
-            .order_by(RawSQL("COALESCE(name, '')", []))
+            .order_by(RawSQL('MIN(0)', []))
         )
         results = list(qs)
         observed = sorted((row['publisher_id'], row['num_books']) for row in results)
         self.assertEqual(observed, expected)
         query_sql = str(qs.query).upper().replace('\n', ' ')
         group_by_sql = query_sql.split(' ORDER BY')[0]
-        self.assertNotIn('COALESCE', group_by_sql)
+        self.assertNotIn('MIN(', group_by_sql)
 
     def test_aggregate_annotation(self):
         vals = Book.objects.annotate(num_authors=Count("authors__id")).aggregate(Avg("num_authors"))
