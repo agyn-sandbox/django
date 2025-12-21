@@ -16,6 +16,7 @@ from django.contrib.admin.tests import AdminSeleniumTestCase
 from django.contrib.admin.utils import quote
 from django.contrib.admin.views.main import IS_POPUP_VAR
 from django.contrib.auth import REDIRECT_FIELD_NAME, get_permission_codename
+from django.contrib.auth.forms import UserChangeForm
 from django.contrib.auth.models import Group, Permission, User
 from django.contrib.contenttypes.models import ContentType
 from django.core import mail
@@ -5407,6 +5408,23 @@ class UserAdminTest(TestCase):
         self.assertRedirects(response, reverse('admin:auth_user_add'))
         self.assertEqual(User.objects.count(), user_count + 1)
         self.assertTrue(new_user.has_usable_password())
+
+    def test_userchangeform_password_not_editable_and_validations_unchanged(self):
+        user = User.objects.create_user(
+            username='readonly-password-user',
+            email='readonly@example.com',
+            password='secret',
+            is_staff=True,
+        )
+        form_for_data = UserChangeForm(instance=user)
+        post_data = form_for_data.initial
+        post_data['email'] = 'updated@example.com'
+        post_data['password'] = 'tampered'
+        form = UserChangeForm(data=post_data, instance=user)
+        self.assertTrue(form.fields['password'].disabled)
+        self.assertTrue(form.is_valid())
+        self.assertEqual(form.cleaned_data['password'], user.password)
+        self.assertEqual(form.cleaned_data['email'], 'updated@example.com')
 
     def test_user_permission_performance(self):
         u = User.objects.all()[0]

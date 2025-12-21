@@ -2,11 +2,13 @@ import datetime
 import re
 from unittest import mock
 
+from django import forms
 from django.contrib.auth.forms import (
     AdminPasswordChangeForm, AuthenticationForm, PasswordChangeForm,
     PasswordResetForm, ReadOnlyPasswordHashField, ReadOnlyPasswordHashWidget,
     SetPasswordForm, UserChangeForm, UserCreationForm,
 )
+from django.contrib.auth.hashers import UNUSABLE_PASSWORD_PREFIX
 from django.contrib.auth.models import User
 from django.contrib.auth.signals import user_login_failed
 from django.contrib.sites.models import Site
@@ -25,6 +27,29 @@ from .models.custom_user import (
 from .models.with_custom_email_field import CustomEmailField
 from .models.with_integer_username import IntegerUsernameUser
 from .settings import AUTH_TEMPLATES
+
+
+class DummyReadOnlyPasswordForm(forms.Form):
+    password = ReadOnlyPasswordHashField()
+
+
+class ReadOnlyPasswordHashFieldTests(SimpleTestCase):
+
+    def test_readonly_password_hash_field_renders_disabled_attribute(self):
+        form = DummyReadOnlyPasswordForm(
+            initial={"password": f"{UNUSABLE_PASSWORD_PREFIX}hash"}
+        )
+        self.assertTrue(form.fields["password"].disabled)
+        self.assertIn("disabled", str(form["password"]))
+
+    def test_readonly_password_hash_field_clean_uses_initial_when_disabled(self):
+        initial_value = f"{UNUSABLE_PASSWORD_PREFIX}hash"
+        form = DummyReadOnlyPasswordForm(
+            data={"password": "tampered"},
+            initial={"password": initial_value},
+        )
+        self.assertTrue(form.is_valid())
+        self.assertEqual(form.cleaned_data["password"], initial_value)
 
 
 class TestDataMixin:
