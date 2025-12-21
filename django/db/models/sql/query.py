@@ -1076,11 +1076,18 @@ class Query(BaseExpression):
             )
         elif isinstance(value, (list, tuple)):
             # The items of the iterable may be expressions and therefore need
-            # to be resolved independently.
-            return type(value)(
+            # to be resolved independently. Preserve the input type when
+            # reconstructing the sequence. For namedtuples, expand the
+            # resolved items as positional arguments to avoid passing a single
+            # iterable to the namedtuple constructor (which expects positional
+            # args).
+            iterable = (
                 self.resolve_lookup_value(sub_value, can_reuse, allow_joins)
                 for sub_value in value
             )
+            if isinstance(value, tuple) and hasattr(value, '_fields'):
+                return type(value)(*iterable)
+            return type(value)(iterable)
         return value
 
     def solve_lookup_type(self, lookup):
