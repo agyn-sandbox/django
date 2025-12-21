@@ -220,9 +220,17 @@ def get_child_arguments():
 
     main_module = sys.modules.get('__main__')
     main_spec = getattr(main_module, '__spec__', None)
-    module_parent = getattr(main_spec, 'parent', None)
-    if module_parent:
-        return [*args, '-m', module_parent, *sys.argv[1:]]
+    if main_spec is not None:
+        spec_parent = getattr(main_spec, 'parent', None)
+        if spec_parent != '':
+            spec_name = getattr(main_spec, 'name', None)
+            if spec_name:
+                module_target = spec_name
+                if spec_parent and spec_name == '%s.__main__' % spec_parent:
+                    module_target = spec_parent
+                return [*args, '-m', module_target, *sys.argv[1:]]
+            if spec_parent:
+                return [*args, '-m', spec_parent, *sys.argv[1:]]
 
     py_script = Path(sys.argv[0])
     if not py_script.exists():

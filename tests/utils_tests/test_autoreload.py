@@ -25,8 +25,11 @@ from django.utils.autoreload import WatchmanUnavailable
 from .utils import on_macos_with_hfs
 
 
-def patch_main_spec(parent):
-    spec = types.SimpleNamespace(parent=parent) if parent is not None else None
+def patch_main_spec(parent, name=None):
+    if parent is None:
+        spec = None
+    else:
+        spec = types.SimpleNamespace(parent=parent, name=name)
     return mock.patch.object(sys.modules['__main__'], '__spec__', spec, create=True)
 
 
@@ -164,7 +167,7 @@ class TestChildArguments(SimpleTestCase):
     @mock.patch('sys.argv', ['django/__main__.py', 'runserver'])
     @mock.patch('sys.warnoptions', [])
     def test_run_as_module(self):
-        with patch_main_spec('django'):
+        with patch_main_spec('django', 'django.__main__'):
             self.assertEqual(
                 autoreload.get_child_arguments(),
                 [sys.executable, '-m', 'django', 'runserver']
@@ -173,10 +176,19 @@ class TestChildArguments(SimpleTestCase):
     @mock.patch('sys.argv', ['otherpkg/__main__.py', 'serve'])
     @mock.patch('sys.warnoptions', [])
     def test_run_as_other_module(self):
-        with patch_main_spec('otherpkg'):
+        with patch_main_spec('otherpkg', 'otherpkg.__main__'):
             self.assertEqual(
                 autoreload.get_child_arguments(),
                 [sys.executable, '-m', 'otherpkg', 'serve']
+            )
+
+    @mock.patch('sys.argv', ['pkg/module.py', 'serve'])
+    @mock.patch('sys.warnoptions', [])
+    def test_run_as_submodule(self):
+        with patch_main_spec('pkg', 'pkg.module'):
+            self.assertEqual(
+                autoreload.get_child_arguments(),
+                [sys.executable, '-m', 'pkg.module', 'serve']
             )
 
     @mock.patch('sys.warnoptions', [])
@@ -186,7 +198,7 @@ class TestChildArguments(SimpleTestCase):
             script_path.touch()
             argv = [str(script_path), 'runserver']
             with mock.patch('sys.argv', argv):
-                with patch_main_spec(''):
+                with patch_main_spec('', '__main__'):
                     self.assertEqual(
                         autoreload.get_child_arguments(),
                         [sys.executable, *argv]
@@ -476,7 +488,7 @@ class RestartWithReloaderTests(SimpleTestCase):
         main = '/usr/lib/pythonX.Y/site-packages/django/__main__.py'
         argv = [main, 'runserver']
         mock_call = self.patch_autoreload(argv)
-        with patch_main_spec('django'):
+        with patch_main_spec('django', 'django.__main__'):
             autoreload.restart_with_reloader()
             self.assertEqual(mock_call.call_count, 1)
             self.assertEqual(mock_call.call_args[0][0], [self.executable, '-Wall', '-m', 'django'] + argv[1:])
