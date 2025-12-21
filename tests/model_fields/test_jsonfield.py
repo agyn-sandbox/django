@@ -637,6 +637,7 @@ class TestQuerying(TestCase):
             ('value__foo__in', ['bar', 'baz'], [self.objs[7]]),
             ('value__bar__in', [['foo', 'bar']], [self.objs[7]]),
             ('value__bar__in', [['foo', 'bar'], ['a']], [self.objs[7]]),
+            ('value__bax__in', [{'foo': 'bar'}], [self.objs[7]]),
             ('value__bax__in', [{'foo': 'bar'}, {'a': 'b'}], [self.objs[7]]),
         ]
         for lookup, value, expected in tests:
