@@ -397,9 +397,11 @@ class ExceptionReporter:
     def get_traceback_frames(self):
         def explicit_or_implicit_cause(exc_value):
             explicit = getattr(exc_value, '__cause__', None)
-            suppress_context = getattr(exc_value, '__suppress_context__', None)
-            implicit = getattr(exc_value, '__context__', None)
-            return explicit or (None if suppress_context else implicit)
+            if explicit is not None:
+                return explicit
+            if getattr(exc_value, '__suppress_context__', None):
+                return None
+            return getattr(exc_value, '__context__', None)
 
         # Get the exception and all its causes
         exceptions = []
@@ -446,7 +448,7 @@ class ExceptionReporter:
                 post_context = []
             frames.append({
                 'exc_cause': explicit_or_implicit_cause(exc_value),
-                'exc_cause_explicit': getattr(exc_value, '__cause__', True),
+                'exc_cause_explicit': bool(getattr(exc_value, '__cause__', None)),
                 'tb': tb,
                 'type': 'django' if module_name.startswith('django.') else 'user',
                 'filename': filename,
