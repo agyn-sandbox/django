@@ -1,3 +1,5 @@
+import importlib.machinery
+import importlib.util
 import pkgutil
 import sys
 from importlib import import_module, reload
@@ -88,9 +90,22 @@ class MigrationLoader:
                     continue
                 raise
             else:
-                # Empty directories are namespaces.
-                # getattr() needed on PY36 and older (replace w/attribute access).
-                if getattr(module, '__file__', None) is None:
+                spec = getattr(module, '__spec__', None)
+                if spec is None:
+                    try:
+                        spec = importlib.util.find_spec(module.__name__)
+                    except (ImportError, AttributeError, ValueError):
+                        spec = None
+                if (
+                    spec is not None and
+                    spec.submodule_search_locations is not None and
+                    spec.origin is None and
+                    (
+                        spec.loader is None or
+                        isinstance(spec.loader, importlib.machinery.NamespaceLoader)
+                    )
+                ):
+                    # PEP 420 namespace packages aren't valid migrations packages.
                     self.unmigrated_apps.add(app_config.label)
                     continue
                 # Module is not a package (e.g. migrations.py).
@@ -100,9 +115,14 @@ class MigrationLoader:
                 # Force a reload if it's already loaded (tests need this)
                 if was_loaded:
                     reload(module)
+                search_locations = (
+                    spec.submodule_search_locations
+                    if spec is not None and spec.submodule_search_locations is not None
+                    else module.__path__
+                )
             self.migrated_apps.add(app_config.label)
             migration_names = {
-                name for _, name, is_pkg in pkgutil.iter_modules(module.__path__)
+                name for _, name, is_pkg in pkgutil.iter_modules(search_locations)
                 if not is_pkg and name[0] not in '_~'
             }
             # Load migrations

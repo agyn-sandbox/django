@@ -1,5 +1,9 @@
 import compileall
+import importlib.abc
+import importlib.machinery
 import os
+import sys
+from contextlib import contextmanager
 
 from django.db import connection, connections
 from django.db.migrations.exceptions import (
@@ -10,6 +14,56 @@ from django.db.migrations.recorder import MigrationRecorder
 from django.test import TestCase, modify_settings, override_settings
 
 from .test_base import MigrationTestBase
+
+
+class _RemovingFileLoader(importlib.abc.Loader):
+    def __init__(self, wrapped_loader):
+        self.wrapped_loader = wrapped_loader
+
+    def create_module(self, spec):
+        create_module = getattr(self.wrapped_loader, 'create_module', None)
+        if create_module is None:
+            return None
+        return create_module(spec)
+
+    def exec_module(self, module):
+        self.wrapped_loader.exec_module(module)
+        module.__dict__.pop('__file__', None)
+
+    def __getattr__(self, attr):
+        return getattr(self.wrapped_loader, attr)
+
+
+class _RemovingFileFinder(importlib.abc.MetaPathFinder):
+    def __init__(self, targets):
+        self.targets = set(targets)
+
+    def find_spec(self, fullname, path=None, target=None):
+        if fullname not in self.targets:
+            return None
+        spec = importlib.machinery.PathFinder.find_spec(fullname, path)
+        if spec is None or spec.loader is None:
+            return spec
+        spec.loader = _RemovingFileLoader(spec.loader)
+        return spec
+
+
+def _clear_modules(module_prefix):
+    for name in list(sys.modules):
+        if name == module_prefix or name.startswith('%s.' % module_prefix):
+            sys.modules.pop(name, None)
+
+
+@contextmanager
+def removing_module_file(module_prefix, targets):
+    _clear_modules(module_prefix)
+    finder = _RemovingFileFinder(targets)
+    sys.meta_path.insert(0, finder)
+    try:
+        yield
+    finally:
+        sys.meta_path.remove(finder)
+        _clear_modules(module_prefix)
 
 
 class RecorderTests(TestCase):
@@ -183,12 +237,33 @@ class LoaderTests(TestCase):
                 "App with migrations module file not in unmigrated apps."
             )
 
-    def test_load_empty_dir(self):
+    @override_settings(MIGRATION_MODULES={
+        "migrated_app": "migrations.migrations_test_apps.migrated_app.migrations",
+    })
+    @modify_settings(INSTALLED_APPS={'append': 'migrations.migrations_test_apps.migrated_app'})
+    def test_load_standard_package_with_file(self):
+        loader = MigrationLoader(connection)
+        self.assertIn('migrated_app', loader.migrated_apps)
+        self.assertNotIn('migrated_app', loader.unmigrated_apps)
+
+    @override_settings(MIGRATION_MODULES={
+        "migrated_app": "migrations.migrations_test_apps.migrated_app.migrations",
+    })
+    @modify_settings(INSTALLED_APPS={'append': 'migrations.migrations_test_apps.migrated_app'})
+    def test_load_package_without_file_via_import_hook(self):
+        module_prefix = 'migrations.migrations_test_apps.migrated_app'
+        migrations_module = f'{module_prefix}.migrations'
+        with removing_module_file(module_prefix, {migrations_module}):
+            loader = MigrationLoader(connection)
+        self.assertIn('migrated_app', loader.migrated_apps)
+        self.assertNotIn('migrated_app', loader.unmigrated_apps)
+
+    def test_load_namespace_package_rejected(self):
         with override_settings(MIGRATION_MODULES={"migrations": "migrations.faulty_migrations.namespace"}):
             loader = MigrationLoader(connection)
             self.assertIn(
                 "migrations", loader.unmigrated_apps,
-                "App missing __init__.py in migrations module not in unmigrated apps."
+                "Namespace migrations package unexpectedly treated as migrated."
             )
 
     @override_settings(
