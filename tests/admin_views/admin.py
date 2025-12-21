@@ -30,7 +30,7 @@ from .models import (
     EmptyModelHidden, EmptyModelMixin, EmptyModelVisible, ExplicitlyProvidedPK,
     ExternalSubscriber, Fabric, FancyDoodad, FieldOverridePost,
     FilteredManager, FooAccount, FoodDelivery, FunkyTag, Gadget, Gallery,
-    GenRelReference, Grommet, ImplicitlyGeneratedPK, Ingredient,
+    GenRelReference, Grommet, ImplicitlyGeneratedPK, Ingredient, JSONHolder,
     InlineReference, InlineReferer, Inquisition, Language, Link,
     MainPrepopulated, ModelWithStringPrimaryKey, NotReferenced, OldSubscriber,
     OtherStory, Paper, Parent, ParentWithDependentChildren, ParentWithUUIDPK,
@@ -198,6 +198,10 @@ class CustomArticleAdmin(admin.ModelAdmin):
 
 class ThingAdmin(admin.ModelAdmin):
     list_filter = ('color', 'color__warm', 'color__value', 'pub_date')
+
+
+class JSONHolderAdmin(admin.ModelAdmin):
+    pass
 
 
 class InquisitionAdmin(admin.ModelAdmin):
@@ -1005,6 +1009,7 @@ site.register(
 site.register(ModelWithStringPrimaryKey)
 site.register(Color)
 site.register(Thing, ThingAdmin)
+site.register(JSONHolder, JSONHolderAdmin)
 site.register(Actor)
 site.register(Inquisition, InquisitionAdmin)
 site.register(Sketch, SketchAdmin)

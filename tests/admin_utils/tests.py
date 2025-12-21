@@ -195,6 +195,12 @@ class UtilsTests(SimpleTestCase):
                     display_value,
                 )
 
+    def test_json_display_for_field_unicode(self):
+        value = ["中国", "España", "😀"]
+        display_value = display_for_field(value, models.JSONField(), self.empty_value)
+        self.assertEqual(display_value, '["中国", "España", "😀"]')
+        self.assertNotIn('\\u', display_value)
+
     def test_number_formats_display_for_field(self):
         display_value = display_for_field(12345.6789, models.FloatField(), self.empty_value)
         self.assertEqual(display_value, '12345.6789')
