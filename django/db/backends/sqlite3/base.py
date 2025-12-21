@@ -550,6 +550,10 @@ def _sqlite_format_dtdelta(conn, lhs, rhs):
     - An integer number of microseconds
     - A string representing a datetime
     """
+    if isinstance(lhs, int) and isinstance(rhs, int):
+        if conn.strip() == '+':
+            return lhs + rhs
+        return lhs - rhs
     try:
         real_lhs = datetime.timedelta(0, 0, lhs) if isinstance(lhs, int) else backend_utils.typecast_timestamp(lhs)
         real_rhs = datetime.timedelta(0, 0, rhs) if isinstance(rhs, int) else backend_utils.typecast_timestamp(rhs)

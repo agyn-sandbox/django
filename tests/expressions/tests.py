@@ -1445,6 +1445,31 @@ class FTimeDeltaTests(TestCase):
             self.assertEqual(expected_ends, new_ends)
             self.assertEqual(expected_durations, new_durations)
 
+    def test_duration_only_arithmetic(self):
+        large_delta = datetime.timedelta(days=10000)
+        negative_offset = datetime.timedelta(days=120)
+        queryset = Experiment.objects.order_by('name').annotate(
+            doubled=F('estimated_time') + F('estimated_time'),
+            with_large=F('estimated_time') + large_delta,
+            negative=F('estimated_time') - negative_offset,
+        ).values_list('doubled', 'with_large', 'negative')
+        experiments = list(Experiment.objects.order_by('name'))
+        for experiment, (doubled, with_large, negative) in zip(experiments, queryset):
+            self.assertIsInstance(doubled, datetime.timedelta)
+            self.assertIsInstance(with_large, datetime.timedelta)
+            self.assertIsInstance(negative, datetime.timedelta)
+            self.assertEqual(doubled, experiment.estimated_time + experiment.estimated_time)
+            self.assertEqual(with_large, experiment.estimated_time + large_delta)
+            self.assertEqual(negative, experiment.estimated_time - negative_offset)
+
+    @unittest.skipUnless(connection.vendor == 'sqlite', 'SQLite-specific SQL assertion.')
+    def test_sqlite_duration_only_uses_numeric_sql(self):
+        query = Experiment.objects.annotate(
+            summed=F('estimated_time') + F('estimated_time'),
+            shifted=F('estimated_time') - datetime.timedelta(days=1),
+        ).query
+        self.assertNotIn('django_format_dtdelta', str(query))
+
     def test_invalid_operator(self):
         with self.assertRaises(DatabaseError):
             list(Experiment.objects.filter(start=F('start') * datetime.timedelta(0)))
