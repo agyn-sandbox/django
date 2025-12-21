@@ -2,6 +2,7 @@ from datetime import date, timedelta
 
 from django.template.defaultfilters import add
 from django.test import SimpleTestCase
+from django.utils.translation import gettext_lazy
 
 from ..utils import setup
 
@@ -45,6 +46,16 @@ class AddTests(SimpleTestCase):
     def test_add07(self):
         output = self.engine.render_to_string('add07', {'d': date(2000, 1, 1), 't': timedelta(10)})
         self.assertEqual(output, 'Jan. 11, 2000')
+
+    @setup({'add08': '{{ s|add:l }}'})
+    def test_add08_lazy_right_operand(self):
+        output = self.engine.render_to_string('add08', {'s': 'foo', 'l': gettext_lazy('bar')})
+        self.assertEqual(output, 'foobar')
+
+    @setup({'add09': '{{ l|add:s }}'})
+    def test_add09_lazy_left_operand(self):
+        output = self.engine.render_to_string('add09', {'l': gettext_lazy('foo'), 's': 'bar'})
+        self.assertEqual(output, 'foobar')
 
 
 class FunctionTests(SimpleTestCase):

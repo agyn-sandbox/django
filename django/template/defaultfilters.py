@@ -10,7 +10,7 @@ from urllib.parse import quote
 
 from django.utils import formats
 from django.utils.dateformat import format, time_format
-from django.utils.encoding import iri_to_uri
+from django.utils.encoding import force_str, iri_to_uri
 from django.utils.html import (
     avoid_wrapping, conditional_escape, escape, escapejs,
     json_script as _json_script, linebreaks, strip_tags, urlize as _urlize,
@@ -680,7 +680,13 @@ def add(value, arg):
         try:
             return value + arg
         except Exception:
-            return ''
+            try:
+                return (
+                    force_str(value, strings_only=True) +
+                    force_str(arg, strings_only=True)
+                )
+            except Exception:
+                return ''
 
 
 @register.filter(is_safe=False)
