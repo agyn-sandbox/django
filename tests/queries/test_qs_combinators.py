@@ -51,6 +51,14 @@ class QuerySetSetOperationTests(TestCase):
         self.assertEqual(len(list(qs1.union(qs2, all=True))), 20)
         self.assertEqual(len(list(qs1.union(qs2))), 10)
 
+    def test_union_none(self):
+        qs1 = Number.objects.filter(num__lte=1)
+        qs2 = Number.objects.filter(num__gte=8)
+        combined = qs1.union(qs2)
+        empty = combined.none()
+        self.assertEqual(empty.count(), 0)
+        self.assertEqual(list(empty), [])
+
     @skipUnlessDBFeature('supports_select_intersection')
     def test_intersection_with_empty_qs(self):
         qs1 = Number.objects.all()
@@ -63,6 +71,15 @@ class QuerySetSetOperationTests(TestCase):
         self.assertEqual(len(qs2.intersection(qs2)), 0)
         self.assertEqual(len(qs3.intersection(qs3)), 0)
 
+    @skipUnlessDBFeature('supports_select_intersection')
+    def test_intersection_none(self):
+        qs1 = Number.objects.filter(num__lte=5)
+        qs2 = Number.objects.filter(num__gte=8)
+        combined = qs1.intersection(qs2)
+        empty = combined.none()
+        self.assertEqual(empty.count(), 0)
+        self.assertEqual(list(empty), [])
+
     @skipUnlessDBFeature('supports_select_difference')
     def test_difference_with_empty_qs(self):
         qs1 = Number.objects.all()
@@ -74,6 +91,15 @@ class QuerySetSetOperationTests(TestCase):
         self.assertEqual(len(qs3.difference(qs1)), 0)
         self.assertEqual(len(qs2.difference(qs2)), 0)
         self.assertEqual(len(qs3.difference(qs3)), 0)
+
+    @skipUnlessDBFeature('supports_select_difference')
+    def test_difference_none(self):
+        qs1 = Number.objects.filter(num__lte=5)
+        qs2 = Number.objects.filter(num__lte=4)
+        combined = qs1.difference(qs2)
+        empty = combined.none()
+        self.assertEqual(empty.count(), 0)
+        self.assertEqual(list(empty), [])
 
     @skipUnlessDBFeature('supports_select_difference')
     def test_difference_with_values(self):
