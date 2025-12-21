@@ -34,6 +34,7 @@ from django.test import (
     RequestFactory, TestCase, ignore_warnings, override_settings,
 )
 from django.utils import timezone
+from django.utils.deprecation import RemovedInDjango40Warning
 
 from .models import SessionStore as CustomDatabaseSession
 
@@ -310,6 +311,17 @@ class SessionTestsMixin:
         data = {'a test key': 'a test value'}
         encoded = self.session.encode(data)
         self.assertEqual(self.session.decode(encoded), data)
+
+    @ignore_warnings(category=RemovedInDjango40Warning)
+    @override_settings(DEFAULT_HASHING_ALGORITHM='sha1')
+    def test_encode_legacy_format_with_sha1(self):
+        session = self.backend()
+        data = {'a test key': 'a test value'}
+        serializer = session.serializer()
+        serialized = serializer.dumps(data)
+        expected_hash = session._hash(serialized)
+        expected = base64.b64encode(expected_hash.encode() + b":" + serialized).decode('ascii')
+        self.assertEqual(session.encode(data), expected)
 
     @override_settings(SECRET_KEY='django_tests_secret_key')
     def test_decode_legacy(self):

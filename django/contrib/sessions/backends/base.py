@@ -108,6 +108,13 @@ class SessionBase:
 
     def encode(self, session_dict):
         "Return the given session dictionary serialized and encoded as a string."
+        default_algorithm = getattr(settings, 'DEFAULT_HASHING_ALGORITHM', 'sha256')
+        if default_algorithm == 'sha1':
+            serializer = self.serializer()
+            serialized = serializer.dumps(session_dict)
+            legacy_hash = self._hash(serialized)
+            encoded = base64.b64encode(legacy_hash.encode() + b":" + serialized)
+            return encoded.decode('ascii')
         return signing.dumps(
             session_dict, salt=self.key_salt, serializer=self.serializer,
             compress=True,
