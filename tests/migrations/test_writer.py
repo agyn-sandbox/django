@@ -15,6 +15,7 @@ import custom_migration_operations.operations
 
 from django import get_version
 from django.conf import SettingsReference, settings
+from django.core.files.storage import Storage
 from django.core.validators import EmailValidator, RegexValidator
 from django.db import migrations, models
 from django.db.migrations.serializer import BaseSerializer
@@ -46,6 +47,19 @@ class TestModel1:
     def upload_to(self):
         return '/somewhere/dynamic/'
     thing = models.FileField(upload_to=upload_to)
+
+
+class DummyMigrationStorage(Storage):
+
+    def _open(self, name, mode='rb'):
+        raise NotImplementedError
+
+    def _save(self, name, content):
+        return name
+
+
+def file_field_storage_callable():
+    return DummyMigrationStorage()
 
 
 class TextEnum(enum.Enum):
@@ -613,6 +627,25 @@ class WriterTests(SimpleTestCase):
 
         with self.assertRaisesMessage(ValueError, 'Could not find function upload_to in migrations.test_writer'):
             self.serialize_round_trip(TestModel2.thing)
+
+    def test_serialize_file_field_with_storage_callable(self):
+        field = models.FileField(storage=file_field_storage_callable)
+        string, imports = MigrationWriter.serialize(field)
+        self.assertTrue(string.startswith('models.FileField('))
+        self.assertIn(
+            'storage=migrations.test_writer.file_field_storage_callable',
+            string,
+        )
+        self.assertIn("upload_to=''", string)
+        self.assertNotIn('DummyMigrationStorage(', string)
+        self.assertIn('from django.db import models', imports)
+        self.assertIn('import migrations.test_writer', imports)
+        self.assertIsInstance(field.storage, DummyMigrationStorage)
+
+    def test_serialize_file_field_with_storage_lambda_errors(self):
+        field = models.FileField(storage=lambda: DummyMigrationStorage())
+        with self.assertRaisesMessage(ValueError, 'Cannot serialize function: lambda'):
+            MigrationWriter.serialize(field)
 
     def test_serialize_managers(self):
         self.assertSerializedEqual(models.Manager())
