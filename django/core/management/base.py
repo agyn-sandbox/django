@@ -150,6 +150,10 @@ class OutputWrapper(TextIOBase):
         style_func = style_func or self.style_func
         self._out.write(style_func(msg))
 
+    def flush(self):
+        if hasattr(self._out, 'flush'):
+            return self._out.flush()
+
 
 class BaseCommand:
     """
