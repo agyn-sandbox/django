@@ -1,5 +1,11 @@
 from datetime import datetime, timedelta, timezone as datetime_timezone
 
+try:
+    from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
+except ImportError:  # pragma: no cover -- Python < 3.9
+    ZoneInfo = None
+    ZoneInfoNotFoundError = Exception
+
 import pytz
 
 from django.conf import settings
@@ -20,6 +26,15 @@ from django.test import (
 from django.utils import timezone
 
 from ..models import Author, DTModel, Fan
+
+
+def get_tz(name):
+    if ZoneInfo is not None:
+        try:
+            return ZoneInfo(name)
+        except ZoneInfoNotFoundError:
+            pass
+    return pytz.timezone(name)
 
 
 def truncate_to(value, kind, tzinfo=None):
@@ -1132,6 +1147,33 @@ class DateFunctionWithTimeZoneTests(DateFunctionTests):
         self.assertEqual(model.start_datetime.year, 2016)
         self.assertEqual(model.melb_year.year, 2016)
         self.assertEqual(model.pacific_year.year, 2015)
+
+    def test_trunc_date_respects_tzinfo_argument(self):
+        pacific = get_tz('US/Pacific')
+        aware = datetime(2016, 1, 1, 1, 30, tzinfo=timezone.utc)
+        self.create_model(aware, aware)
+
+        with timezone.override(timezone.utc):
+            model = DTModel.objects.annotate(
+                pacific_date=TruncDate('start_datetime', tzinfo=pacific),
+            ).get()
+
+        self.assertEqual(model.pacific_date, aware.astimezone(pacific).date())
+
+    def test_trunc_time_respects_tzinfo_argument(self):
+        pacific = get_tz('US/Pacific')
+        aware = datetime(2016, 1, 1, 1, 30, 45, tzinfo=timezone.utc)
+        self.create_model(aware, aware)
+
+        with timezone.override(timezone.utc):
+            model = DTModel.objects.annotate(
+                pacific_time=TruncTime('start_datetime', tzinfo=pacific),
+            ).get()
+
+        expected = aware.astimezone(pacific).time()
+        if expected.tzinfo is not None:
+            expected = expected.replace(tzinfo=None)
+        self.assertEqual(model.pacific_time, expected)
 
     def test_trunc_ambiguous_and_invalid_times(self):
         sao = pytz.timezone('America/Sao_Paulo')
