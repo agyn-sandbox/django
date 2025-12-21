@@ -110,3 +110,74 @@ class TokenGeneratorTest(TestCase):
         legacy_token = p_old_generator.make_token(user)
         self.assertIs(p_old_generator.check_token(user, legacy_token), True)
         self.assertIs(p_new_generator.check_token(user, legacy_token), True)
+
+    def test_token_invalid_after_email_change(self):
+        user = User.objects.create_user('emailchange', 'old@example.com', 'testpw')
+        generator = PasswordResetTokenGenerator()
+        token = generator.make_token(user)
+        user.email = 'new@example.com'
+        user.save(update_fields=['email'])
+        self.assertIs(generator.check_token(user, token), False)
+        new_token = generator.make_token(user)
+        self.assertIs(generator.check_token(user, new_token), True)
+
+    def test_blank_email_transitions_invalidate_token(self):
+        user = User.objects.create_user('blankemail', '', 'testpw')
+        generator = PasswordResetTokenGenerator()
+        token = generator.make_token(user)
+        user.email = 'filled@example.com'
+        user.save(update_fields=['email'])
+        self.assertIs(generator.check_token(user, token), False)
+
+        new_token = generator.make_token(user)
+        user.email = ''
+        user.save(update_fields=['email'])
+        self.assertIs(generator.check_token(user, new_token), False)
+        final_token = generator.make_token(user)
+        self.assertIs(generator.check_token(user, final_token), True)
+
+    def test_token_remains_valid_when_email_unchanged(self):
+        user = User.objects.create_user('stableemail', 'stable@example.com', 'testpw')
+        generator = PasswordResetTokenGenerator()
+        token = generator.make_token(user)
+        user.first_name = 'Updated'
+        user.save(update_fields=['first_name'])
+        self.assertIs(generator.check_token(user, token), True)
+
+    def test_custom_email_field_change_invalidates_token(self):
+        class CustomEmailUser:
+            EMAIL_FIELD = 'email_address'
+
+            def __init__(self):
+                self.pk = 1
+                self.password = 'secret-hash'
+                self.last_login = None
+                self.email_address = 'initial@example.com'
+
+            @classmethod
+            def get_email_field_name(cls):
+                return cls.EMAIL_FIELD
+
+        user = CustomEmailUser()
+        generator = PasswordResetTokenGenerator()
+        token = generator.make_token(user)
+        user.email_address = 'changed@example.com'
+        self.assertIs(generator.check_token(user, token), False)
+        new_token = generator.make_token(user)
+        self.assertIs(generator.check_token(user, new_token), True)
+
+    def test_make_token_without_email_field(self):
+
+        class UserWithoutEmail:
+            pk = 1
+            password = 'secret-hash'
+            last_login = None
+
+            @classmethod
+            def get_email_field_name(cls):
+                return 'email'
+
+        generator = PasswordResetTokenGenerator()
+        user = UserWithoutEmail()
+        token = generator.make_token(user)
+        self.assertIs(generator.check_token(user, token), True)
