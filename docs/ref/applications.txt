@@ -349,6 +349,12 @@ following is true:
 If neither of these conditions is met, Django will raise
 :exc:`~django.core.exceptions.ImproperlyConfigured`.
 
+Regardless of how the application itself is provided, its ``migrations``
+subpackage must not be a :pep:`420` namespace package. Django relies on the
+module's :class:`importlib.machinery.ModuleSpec` loader to enumerate migration
+files and will treat the application as unmigrated if the migrations module is
+namespace-only.
+
 Application registry
 ====================
 

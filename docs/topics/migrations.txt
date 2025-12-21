@@ -43,6 +43,23 @@ staging machines, and eventually your production machines.
     migrations on a per-app basis by modifying the :setting:`MIGRATION_MODULES`
     setting.
 
+Migration discovery and namespace packages
+==========================================
+
+Django discovers migrations by importing each application's migrations module
+and iterating over the module's submodule search locations. The migrations
+module must provide a loader through its
+:attr:`importlib.machinery.ModuleSpec.loader` so Django can enumerate its
+:attr:`importlib.machinery.ModuleSpec.submodule_search_locations`. Packages
+loaded by custom import hooks (for example, from zip files) may legitimately
+lack a ``__file__`` attribute; Django accepts those packages as long as a
+loader is present. True :pep:`420` namespace packages expose search locations
+without a loader, so Django cannot reliably list their contents. In that case
+the application is treated as unmigrated and its migrations are ignored. Ensure
+that an application's migrations package is implemented as a regular package
+(for example, by including an ``__init__.py`` or a custom loader) when using
+namespace packages elsewhere in your project.
+
 Migrations will run the same way on the same dataset and produce consistent
 results, meaning that what you see in development and staging is, under the
 same circumstances, exactly what will happen in production.
