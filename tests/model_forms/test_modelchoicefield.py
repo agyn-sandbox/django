@@ -421,6 +421,16 @@ class ModelChoiceFieldLimitChoicesToJoinTests(TestCase):
         ])
         self.assertEqual(field.clean(self.alice.code), self.alice)
 
+    def test_to_field_name_non_unique_raises_invalid_choice(self):
+        other_alice = Staff.objects.create(name='Alice', code='ALICE-DUP')
+        Department.objects.create(name='HR', staff=other_alice)
+        field = forms.ModelChoiceField(
+            Staff.objects.filter(department__name='HR'),
+            to_field_name='name',
+        )
+        with self.assertRaises(ValidationError):
+            field.clean('Alice')
+
     def test_modelmultiplechoicefield_dedup_parity(self):
         field = forms.ModelMultipleChoiceField(
             Staff.objects.filter(department__name='HR'),

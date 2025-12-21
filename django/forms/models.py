@@ -7,7 +7,6 @@ from itertools import chain
 
 from django.core.exceptions import (
     NON_FIELD_ERRORS, FieldError, ImproperlyConfigured, ValidationError,
-    MultipleObjectsReturned,
 )
 from django.forms.fields import ChoiceField, Field
 from django.forms.forms import BaseForm, DeclarativeFieldsMetaclass
@@ -1283,10 +1282,11 @@ class ModelChoiceField(ChoiceField):
             value = getattr(value, key)
         try:
             value = self.queryset.get(**{key: value})
-        except MultipleObjectsReturned:
-            value = self.queryset.filter(**{key: value}).first()
-            if value is None:
-                raise ValidationError(self.error_messages['invalid_choice'], code='invalid_choice')
+        except self.queryset.model.MultipleObjectsReturned:
+            matches = list(self.queryset.filter(**{key: value}))
+            if matches and {obj.pk for obj in matches} == {matches[0].pk}:
+                return matches[0]
+            raise ValidationError(self.error_messages['invalid_choice'], code='invalid_choice')
         except (ValueError, TypeError, self.queryset.model.DoesNotExist):
             raise ValidationError(self.error_messages['invalid_choice'], code='invalid_choice')
         return value
@@ -1382,13 +1382,11 @@ class ModelMultipleChoiceField(ModelChoiceField):
                 )
         if qs._result_cache is not None:
             unique = []
-            seen = set()
-            prepare_value = super().prepare_value
+            seen_pks = set()
             for obj in qs._result_cache:
-                identifier = str(prepare_value(obj))
-                if identifier in seen:
+                if obj.pk in seen_pks:
                     continue
-                seen.add(identifier)
+                seen_pks.add(obj.pk)
                 unique.append(obj)
             if len(unique) != len(qs._result_cache):
                 qs._result_cache = unique
