@@ -1,0 +1,4 @@
+[
+  {"model": "fixtures_regress.keywordorder", "pk": 1, "fields": {"name": "O1"}},
+  {"model": "fixtures_regress.keywordorderitem", "pk": 1, "fields": {"order": 1, "name": "I1"}}
+]

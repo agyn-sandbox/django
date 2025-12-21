@@ -334,3 +334,15 @@ class M2MComplexCircular2B(BaseNKModel):
 class M2MCircular2ThroughAB(BaseNKModel):
     a = models.ForeignKey(M2MComplexCircular2A, models.CASCADE)
     b = models.ForeignKey(M2MComplexCircular2B, models.CASCADE)
+
+
+class KeywordOrder(models.Model):
+    name = models.CharField(max_length=50)
+
+    class Meta:
+        db_table = 'order'
+
+
+class KeywordOrderItem(models.Model):
+    order = models.ForeignKey(KeywordOrder, models.CASCADE, related_name='items')
+    name = models.CharField(max_length=50)
