@@ -12,3 +12,11 @@ class Employee(models.Model):
     hire_date = models.DateField(blank=False, null=False)
     age = models.IntegerField(blank=False, null=False)
     classification = models.ForeignKey('Classification', on_delete=models.CASCADE, null=True)
+
+
+class EmployeeDecimal(models.Model):
+    name = models.CharField(max_length=40, blank=False, null=False)
+    salary = models.DecimalField(max_digits=10, decimal_places=2)
+    bonus = models.FloatField()
+    department = models.CharField(max_length=40, blank=False, null=False)
+    hire_date = models.DateField(blank=False, null=False)

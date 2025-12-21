@@ -1,5 +1,6 @@
 import datetime
-from unittest import mock, skipIf
+from decimal import Decimal
+from unittest import mock, skipIf, skipUnless
 
 from django.core.exceptions import FieldError
 from django.db import NotSupportedError, connection
@@ -13,7 +14,7 @@ from django.db.models.functions import (
 )
 from django.test import SimpleTestCase, TestCase, skipUnlessDBFeature
 
-from .models import Employee
+from .models import Employee, EmployeeDecimal
 
 
 @skipUnlessDBFeature('supports_over_clause')
@@ -785,6 +786,88 @@ class WindowFunctionTests(TestCase):
                 order_by=F('hire_date').asc(),
                 frame=RowRange(start='a'),
             )))
+
+
+@skipUnless(connection.vendor == 'sqlite', 'SQLite specific tests.')
+@skipUnlessDBFeature('supports_over_clause')
+class DecimalWindowFunctionTests(TestCase):
+    @classmethod
+    def setUpTestData(cls):
+        EmployeeDecimal.objects.bulk_create([
+            EmployeeDecimal(
+                name='Alice',
+                salary=Decimal('1000.00'),
+                bonus=1.5,
+                department='IT',
+                hire_date=datetime.date(2020, 1, 1),
+            ),
+            EmployeeDecimal(
+                name='Bob',
+                salary=Decimal('1250.50'),
+                bonus=1.7,
+                department='IT',
+                hire_date=datetime.date(2020, 6, 1),
+            ),
+            EmployeeDecimal(
+                name='Carol',
+                salary=Decimal('1500.75'),
+                bonus=2.5,
+                department='Sales',
+                hire_date=datetime.date(2019, 9, 1),
+            ),
+            EmployeeDecimal(
+                name='Dave',
+                salary=Decimal('1600.25'),
+                bonus=2.8,
+                department='Sales',
+                hire_date=datetime.date(2020, 2, 1),
+            ),
+        ])
+
+    def test_lag_decimal_field(self):
+        qs = EmployeeDecimal.objects.annotate(
+            previous_salary=Window(
+                expression=Lag('salary'),
+                partition_by=F('department'),
+                order_by=F('hire_date').asc(),
+            ),
+        ).order_by('department', 'hire_date')
+        self.assertEqual(list(qs.values_list('name', 'previous_salary')), [
+            ('Alice', None),
+            ('Bob', Decimal('1000.00')),
+            ('Carol', None),
+            ('Dave', Decimal('1500.75')),
+        ])
+
+    def test_lag_float_field(self):
+        qs = EmployeeDecimal.objects.annotate(
+            previous_bonus=Window(
+                expression=Lag('bonus'),
+                partition_by=F('department'),
+                order_by=F('hire_date').asc(),
+            ),
+        ).order_by('department', 'hire_date')
+        self.assertEqual(list(qs.values_list('name', 'previous_bonus')), [
+            ('Alice', None),
+            ('Bob', 1.5),
+            ('Carol', None),
+            ('Dave', 2.5),
+        ])
+
+    def test_sum_decimal_field(self):
+        qs = EmployeeDecimal.objects.annotate(
+            department_total=Window(
+                expression=Sum('salary'),
+                partition_by=F('department'),
+                order_by=F('hire_date').asc(),
+            ),
+        ).order_by('department', 'hire_date')
+        self.assertEqual(list(qs.values_list('name', 'department_total')), [
+            ('Alice', Decimal('1000.00')),
+            ('Bob', Decimal('2250.50')),
+            ('Carol', Decimal('1500.75')),
+            ('Dave', Decimal('3101.00')),
+        ])
 
 
 class WindowUnsupportedTests(TestCase):
