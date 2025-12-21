@@ -513,20 +513,47 @@ class Field(RegisterLookupMixin):
         name, path, args, kwargs = self.deconstruct()
         return self.__class__(*args, **kwargs)
 
+    def _concrete_model(self):
+        model = getattr(self, 'model', None)
+        if model is None:
+            return None
+        return model._meta.concrete_model
+
+    def _model_sort_key(self):
+        concrete_model = self._concrete_model()
+        if concrete_model is None:
+            return ''
+        return concrete_model._meta.label_lower
+
     def __eq__(self, other):
         # Needed for @total_ordering
         if isinstance(other, Field):
-            return self.creation_counter == other.creation_counter
+            if self.creation_counter != other.creation_counter:
+                return False
+            self_model = self._concrete_model()
+            other_model = other._concrete_model()
+            if self_model is None or other_model is None:
+                return self_model is None and other_model is None
+            return self_model is other_model
         return NotImplemented
 
     def __lt__(self, other):
         # This is needed because bisect does not take a comparison function.
         if isinstance(other, Field):
-            return self.creation_counter < other.creation_counter
+            return (
+                self.creation_counter,
+                self._model_sort_key(),
+            ) < (
+                other.creation_counter,
+                other._model_sort_key(),
+            )
         return NotImplemented
 
     def __hash__(self):
-        return hash(self.creation_counter)
+        model = self._concrete_model()
+        if model is None:
+            return hash(self.creation_counter)
+        return hash((model, self.creation_counter))
 
     def __deepcopy__(self, memodict):
         # We don't have to deepcopy very much here, since most things are not
