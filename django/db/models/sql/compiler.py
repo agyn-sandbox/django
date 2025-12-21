@@ -6,7 +6,7 @@ from itertools import chain
 from django.core.exceptions import EmptyResultSet, FieldError
 from django.db import DatabaseError, NotSupportedError
 from django.db.models.constants import LOOKUP_SEP
-from django.db.models.expressions import F, OrderBy, RawSQL, Ref, Value
+from django.db.models.expressions import Col, F, OrderBy, RawSQL, Ref, Value
 from django.db.models.functions import Cast, Random
 from django.db.models.query_utils import Q, select_related_descend
 from django.db.models.sql.constants import (
@@ -129,7 +129,9 @@ class SQLCompiler:
             # Skip References to the select clause, as all expressions in the
             # select clause are already part of the group by.
             if not is_ref:
-                expressions.extend(expr.get_group_by_cols())
+                for col in expr.get_group_by_cols():
+                    if isinstance(col, Col):
+                        expressions.append(col)
         having_group_by = self.having.get_group_by_cols() if self.having else ()
         for expr in having_group_by:
             expressions.append(expr)

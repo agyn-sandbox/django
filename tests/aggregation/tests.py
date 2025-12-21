@@ -1,5 +1,6 @@
 import datetime
 import re
+from collections import Counter
 from decimal import Decimal
 
 from django.core.exceptions import FieldError
@@ -8,6 +9,7 @@ from django.db.models import (
     Avg, Case, Count, DecimalField, DurationField, Exists, F, FloatField, Func,
     IntegerField, Max, Min, OuterRef, Subquery, Sum, Value, When,
 )
+from django.db.models.expressions import RawSQL
 from django.db.models.functions import Coalesce
 from django.test import TestCase
 from django.test.testcases import skipUnlessDBFeature
@@ -100,6 +102,10 @@ class AggregateTestCase(TestCase):
         s1.books.add(cls.b1, cls.b2, cls.b3, cls.b4, cls.b5, cls.b6)
         s2.books.add(cls.b1, cls.b3, cls.b5, cls.b6)
         s3.books.add(cls.b3, cls.b4, cls.b6)
+
+    def _publisher_book_count_pairs(self):
+        counts = Counter(Book.objects.values_list('publisher_id', flat=True))
+        return sorted(counts.items())
 
     def test_empty_aggregate(self):
         self.assertEqual(Author.objects.all().aggregate(), {})
@@ -462,6 +468,50 @@ class AggregateTestCase(TestCase):
                 {'rating': 4.5, 'oldest': 35},
             ]
         )
+
+    def test_random_ordering_with_grouped_annotation(self):
+        expected = self._publisher_book_count_pairs()
+        qs = (
+            Book.objects.values('publisher_id')
+            .annotate(num_books=Count('id'))
+            .order_by('?')
+        )
+        results = list(qs)
+        observed = sorted((row['publisher_id'], row['num_books']) for row in results)
+        self.assertEqual(observed, expected)
+        query_sql = str(qs.query).upper().replace('\n', ' ')
+        group_by_sql = query_sql.split(' ORDER BY')[0]
+        self.assertNotIn(' RAND(', group_by_sql)
+        self.assertNotIn(' RANDOM(', group_by_sql)
+        self.assertNotIn(' DBMS_RANDOM', group_by_sql)
+
+    def test_column_ordering_still_groups_columns(self):
+        expected = self._publisher_book_count_pairs()
+        qs = (
+            Book.objects.values('publisher_id')
+            .annotate(num_books=Count('id'))
+            .order_by('publisher_id')
+        )
+        results = list(qs)
+        observed = [(row['publisher_id'], row['num_books']) for row in results]
+        self.assertEqual(observed, expected)
+        query_sql = str(qs.query).upper().replace('\n', ' ')
+        group_by_sql = query_sql.split(' ORDER BY')[0]
+        self.assertIn('PUBLISHER_ID', group_by_sql)
+
+    def test_raw_sql_ordering_not_grouped(self):
+        expected = self._publisher_book_count_pairs()
+        qs = (
+            Book.objects.values('publisher_id')
+            .annotate(num_books=Count('id'))
+            .order_by(RawSQL("COALESCE(name, '')", []))
+        )
+        results = list(qs)
+        observed = sorted((row['publisher_id'], row['num_books']) for row in results)
+        self.assertEqual(observed, expected)
+        query_sql = str(qs.query).upper().replace('\n', ' ')
+        group_by_sql = query_sql.split(' ORDER BY')[0]
+        self.assertNotIn('COALESCE', group_by_sql)
 
     def test_aggregate_annotation(self):
         vals = Book.objects.annotate(num_authors=Count("authors__id")).aggregate(Avg("num_authors"))
