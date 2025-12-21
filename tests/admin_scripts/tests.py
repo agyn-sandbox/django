@@ -11,6 +11,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from contextlib import ExitStack
 from io import StringIO
 from unittest import mock
 
@@ -1312,6 +1313,98 @@ class ManageRunserver(SimpleTestCase):
             self.cmd.check_migrations()
         # You have # ...
         self.assertIn('unapplied migration(s)', self.output.getvalue())
+
+
+class ManageRunserverSkipChecks(SimpleTestCase):
+
+    def setUp(self):
+        self.stdout = StringIO()
+        self.command = RunserverCommand(stdout=self.stdout)
+        self.command.addr = '127.0.0.1'
+        self.command.port = '8000'
+        self.command.use_ipv6 = False
+        self.command._raw_ipv6 = False
+
+    def _run_inner(self, skip_checks):
+        options = {
+            'use_threading': True,
+            'shutdown_message': '',
+            'skip_checks': skip_checks,
+        }
+        runserver_module = 'django.core.management.commands.runserver'
+        with ExitStack() as stack:
+            stack.enter_context(mock.patch(f'{runserver_module}.autoreload.raise_last_exception'))
+            mock_get_handler = stack.enter_context(
+                mock.patch.object(
+                    RunserverCommand,
+                    'get_handler',
+                    return_value=mock.sentinel.handler,
+                )
+            )
+            mock_check = stack.enter_context(mock.patch.object(RunserverCommand, 'check'))
+            mock_check_migrations = stack.enter_context(
+                mock.patch.object(RunserverCommand, 'check_migrations')
+            )
+            mock_run = stack.enter_context(mock.patch(f'{runserver_module}.run'))
+            self.command.inner_run(**options)
+        return {
+            'get_handler': mock_get_handler,
+            'check': mock_check,
+            'check_migrations': mock_check_migrations,
+            'run': mock_run,
+        }
+
+    def test_inner_run_performs_checks_by_default(self):
+        mocks = self._run_inner(skip_checks=False)
+        mocks['check'].assert_called_once_with(display_num_errors=True)
+        mocks['check_migrations'].assert_called_once_with()
+        mocks['get_handler'].assert_called_once()
+        mocks['run'].assert_called_once_with(
+            '127.0.0.1', 8000, mock.sentinel.handler,
+            ipv6=False, threading=True, server_cls=self.command.server_cls,
+        )
+        self.assertIn('Performing system checks...', self.stdout.getvalue())
+
+    def test_inner_run_skips_checks_when_requested(self):
+        mocks = self._run_inner(skip_checks=True)
+        mocks['check'].assert_not_called()
+        mocks['check_migrations'].assert_called_once_with()
+        mocks['get_handler'].assert_called_once()
+        mocks['run'].assert_called_once_with(
+            '127.0.0.1', 8000, mock.sentinel.handler,
+            ipv6=False, threading=True, server_cls=self.command.server_cls,
+        )
+        self.assertNotIn('Performing system checks...', self.stdout.getvalue())
+
+    def test_call_command_skip_checks_kwarg_bypasses_checks(self):
+        def fake_run_with_reloader(func, *args, **kwargs):
+            return func(*args, **kwargs)
+
+        runserver_module = 'django.core.management.commands.runserver'
+        with ExitStack() as stack:
+            stack.enter_context(mock.patch(f'{runserver_module}.autoreload.raise_last_exception'))
+            stack.enter_context(
+                mock.patch(
+                    f'{runserver_module}.autoreload.run_with_reloader',
+                    side_effect=fake_run_with_reloader,
+                )
+            )
+            stack.enter_context(
+                mock.patch.object(
+                    RunserverCommand,
+                    'get_handler',
+                    return_value=mock.sentinel.handler,
+                )
+            )
+            mock_check = stack.enter_context(mock.patch.object(RunserverCommand, 'check'))
+            mock_check_migrations = stack.enter_context(
+                mock.patch.object(RunserverCommand, 'check_migrations')
+            )
+            mock_run = stack.enter_context(mock.patch(f'{runserver_module}.run'))
+            call_command('runserver', skip_checks=True, stdout=StringIO())
+        mock_check.assert_not_called()
+        mock_check_migrations.assert_called_once_with()
+        mock_run.assert_called_once()
 
 
 class ManageRunserverMigrationWarning(TestCase):
