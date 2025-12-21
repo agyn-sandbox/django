@@ -17,7 +17,7 @@ from unittest import mock
 from django import conf, get_version
 from django.conf import settings
 from django.core.management import (
-    BaseCommand, CommandError, call_command, color,
+    BaseCommand, CommandError, ManagementUtility, call_command, color,
 )
 from django.core.management.commands.loaddata import Command as LoaddataCommand
 from django.core.management.commands.runserver import (
@@ -2287,3 +2287,28 @@ class DjangoAdminSuggestions(AdminScriptTestCase):
         out, err = self.run_django_admin(args)
         self.assertNoOutput(out)
         self.assertNotInOutput(err, 'Did you mean')
+
+
+class ManagementUtilityProgNameTests(SimpleTestCase):
+    def _get_usage(self, argv):
+        parser = ManagementUtility(argv).fetch_command('help').create_parser('python -m django', 'help')
+        # However, we want to check top-level usage banner; it's produced by the top-level parser.
+        # Construct a top-level parser via ManagementUtility and format its usage.
+        util = ManagementUtility(argv)
+        # emulate the initial parser used in execute()
+        from django.core.management.base import CommandParser
+        parser = CommandParser(usage='%(prog)s subcommand [options] [args]', add_help=False, allow_abbrev=False, prog=util.prog_name)
+        return parser.format_usage()
+
+    def test_usage_prog_reflects_custom_prog_name(self):
+        usage = self._get_usage(['custom-cli', 'help'])
+        self.assertIn('custom-cli', usage)
+
+    def test_usage_prog_handles_none_argv0(self):
+        usage = self._get_usage([None, 'help'])
+        self.assertIn('django-admin', usage)
+        self.assertNotIn('None', usage)
+
+    def test_usage_prog_differs_from_sys_argv0(self):
+        usage = self._get_usage(['/usr/local/bin/__main__.py', 'help'])
+        self.assertIn('python -m django', usage)
