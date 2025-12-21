@@ -1332,6 +1332,45 @@ class Window(Expression):
             'window': ''.join(window_sql).strip()
         }, params
 
+    def as_sqlite(self, compiler, connection, template=None):
+        connection.ops.check_expression_support(self)
+        if not connection.features.supports_over_clause:
+            raise NotSupportedError('This backend does not support window expressions.')
+
+        expr_sql, params = self.source_expression.as_sql(compiler, connection)
+        window_sql, window_params = [], []
+
+        if self.partition_by is not None:
+            sql_expr, sql_params = self.partition_by.as_sql(
+                compiler=compiler, connection=connection,
+                template='PARTITION BY %(expressions)s',
+            )
+            window_sql.extend(sql_expr)
+            window_params.extend(sql_params)
+
+        if self.order_by is not None:
+            window_sql.append(' ORDER BY ')
+            order_sql, order_params = compiler.compile(self.order_by)
+            window_sql.extend(order_sql)
+            window_params.extend(order_params)
+
+        if self.frame:
+            frame_sql, frame_params = compiler.compile(self.frame)
+            window_sql.append(' ' + frame_sql)
+            window_params.extend(frame_params)
+
+        params = list(params)
+        params.extend(window_params)
+        template = template or self.template
+        sql = template % {
+            'expression': expr_sql,
+            'window': ''.join(window_sql).strip(),
+        }
+        output_field = self._output_field_or_none
+        if isinstance(output_field, fields.DecimalField):
+            sql = 'CAST(%s AS NUMERIC)' % sql
+        return sql, params
+
     def __str__(self):
         return '{} OVER ({}{}{})'.format(
             str(self.source_expression),
