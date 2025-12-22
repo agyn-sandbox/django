@@ -277,6 +277,9 @@ class BoundWidget:
 
     @property
     def id_for_label(self):
+        attrs = self.data.get('attrs')
+        if attrs is not None and 'id' in attrs:
+            return attrs['id']
         return 'id_%s_%s' % (self.data['name'], self.data['index'])
 
     @property

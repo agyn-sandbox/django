@@ -714,6 +714,47 @@ Java</label></li>
             'value="paul" id="id_name_1" required> Paul</label>'
         )
 
+    def test_radioselect_custom_auto_id_boundwidget_ids(self):
+        class BeatleForm(Form):
+            name = ChoiceField(
+                choices=[('john', 'John'), ('paul', 'Paul')],
+                widget=RadioSelect,
+            )
+
+        fields = list(BeatleForm(auto_id='prefix_%s')['name'])
+        self.assertEqual(
+            [field.id_for_label for field in fields],
+            ['prefix_name_0', 'prefix_name_1'],
+        )
+        self.assertEqual(
+            [field.data['attrs']['id'] for field in fields],
+            ['prefix_name_0', 'prefix_name_1'],
+        )
+        self.assertHTMLEqual(
+            str(fields[0]),
+            '<label for="prefix_name_0"><input type="radio" name="name" value="john" '
+            'id="prefix_name_0" required> John</label>',
+        )
+        self.assertHTMLEqual(
+            str(fields[1]),
+            '<label for="prefix_name_1"><input type="radio" name="name" value="paul" '
+            'id="prefix_name_1" required> Paul</label>',
+        )
+
+    def test_radioselect_boundwidget_id_without_auto_id(self):
+        class BeatleForm(Form):
+            name = ChoiceField(
+                choices=[('john', 'John'), ('paul', 'Paul')],
+                widget=RadioSelect,
+            )
+
+        fields = list(BeatleForm(auto_id=False)['name'])
+        self.assertEqual(
+            [field.id_for_label for field in fields],
+            ['id_name_0', 'id_name_1'],
+        )
+        self.assertTrue(all('id' not in field.data['attrs'] for field in fields))
+
     def test_iterable_boundfield_select(self):
         class BeatleForm(Form):
             name = ChoiceField(choices=[('john', 'John'), ('paul', 'Paul'), ('george', 'George'), ('ringo', 'Ringo')])
@@ -910,6 +951,35 @@ Java</label></li>
 <li><label for="composers_id_1">
 <input type="checkbox" name="composers" value="P" id="composers_id_1"> Paul McCartney</label></li>
 </ul>"""
+        )
+
+    def test_checkbox_subwidget_custom_id_attrs(self):
+        class SongForm(Form):
+            name = CharField()
+            composers = MultipleChoiceField(
+                choices=[('J', 'John Lennon'), ('P', 'Paul McCartney')],
+                widget=CheckboxSelectMultiple(attrs={'id': 'abc'}),
+            )
+
+        form = SongForm(auto_id=False)
+        subwidgets = list(form['composers'])
+        self.assertEqual(
+            [widget.id_for_label for widget in subwidgets],
+            ['abc_0', 'abc_1'],
+        )
+        self.assertEqual(
+            [widget.data['attrs']['id'] for widget in subwidgets],
+            ['abc_0', 'abc_1'],
+        )
+        self.assertHTMLEqual(
+            str(subwidgets[0]),
+            '<label for="abc_0"><input type="checkbox" name="composers" value="J" id="abc_0"> '
+            'John Lennon</label>',
+        )
+        self.assertHTMLEqual(
+            str(subwidgets[1]),
+            '<label for="abc_1"><input type="checkbox" name="composers" value="P" id="abc_1"> '
+            'Paul McCartney</label>',
         )
 
     def test_multiple_choice_list_data(self):
