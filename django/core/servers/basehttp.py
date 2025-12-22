@@ -83,8 +83,10 @@ class ThreadedWSGIServer(socketserver.ThreadingMixIn, WSGIServer):
     daemon_threads = True
 
     def close_request(self, request):
-        connections.close_all()
-        super().close_request(request)
+        try:
+            connections.close_all()
+        finally:
+            super().close_request(request)
 
 
 class ServerHandler(simple_server.ServerHandler):
