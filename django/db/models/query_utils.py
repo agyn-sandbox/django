@@ -40,7 +40,10 @@ class Q(tree.Node):
         super().__init__(children=[*args, *sorted(kwargs.items())], connector=_connector, negated=_negated)
 
     def _combine(self, other, conn):
-        if not(isinstance(other, Q) or getattr(other, 'conditional', False) is True):
+        if isinstance(other, bool):
+            from django.db.models.expressions import Value
+            other = Value(other)
+        if not (isinstance(other, Q) or getattr(other, 'conditional', False) is True):
             raise TypeError(other)
 
         # If the other Q() is empty, ignore it and just use `self`.
@@ -85,13 +88,22 @@ class Q(tree.Node):
         if path.startswith('django.db.models.query_utils'):
             path = path.replace('django.db.models.query_utils', 'django.db.models')
         args, kwargs = (), {}
-        if len(self.children) == 1 and not isinstance(self.children[0], Q):
+        if len(self.children) == 1:
             child = self.children[0]
-            kwargs = {child[0]: child[1]}
+            if isinstance(child, Q):
+                args = (child,)
+            elif (
+                isinstance(child, tuple) and
+                len(child) == 2 and
+                isinstance(child[0], str)
+            ):
+                kwargs = {child[0]: child[1]}
+            else:
+                args = (child,)
         else:
             args = tuple(self.children)
-            if self.connector != self.default:
-                kwargs = {'_connector': self.connector}
+        if self.connector != self.default:
+            kwargs['_connector'] = self.connector
         if self.negated:
             kwargs['_negated'] = True
         return path, args, kwargs
