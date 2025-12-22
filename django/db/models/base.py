@@ -1297,8 +1297,13 @@ class Model(metaclass=ModelBase):
 
     @classmethod
     def _check_default_pk(cls):
+        pk = cls._meta.pk
+        remote = getattr(pk, "remote_field", None)
+        is_parent_link = bool(getattr(remote, "parent_link", False))
+
         if (
-            cls._meta.pk.auto_created and
+            pk.auto_created and
+            not is_parent_link and
             not settings.is_overridden('DEFAULT_AUTO_FIELD') and
             not cls._meta.app_config._is_default_auto_field_overridden
         ):
