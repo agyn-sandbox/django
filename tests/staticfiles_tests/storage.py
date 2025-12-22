@@ -77,6 +77,10 @@ class SimpleStorage(ManifestStaticFilesStorage):
         return 'deploy12345'
 
 
+class ZeroPassStorage(ManifestStaticFilesStorage):
+    max_post_process_passes = 0
+
+
 class ExtraPatternsStorage(ManifestStaticFilesStorage):
     """
     A storage class to test pattern substitutions with more than one pattern

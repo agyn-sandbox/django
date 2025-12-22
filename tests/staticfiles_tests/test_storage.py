@@ -454,6 +454,56 @@ class TestCollectionManifestStorage(TestHashedFiles, CollectionTestCase):
         )
 
 
+@override_settings(STATICFILES_STORAGE='staticfiles_tests.storage.ZeroPassStorage')
+class TestCollectionZeroPassStorage(CollectionTestCase):
+    hashed_file_path = hashed_file_path
+    run_collectstatic_in_setUp = False
+
+    def setUp(self):
+        super().setUp()
+        storage.staticfiles_storage.hashed_files.clear()
+
+    def tearDown(self):
+        storage.staticfiles_storage.hashed_files.clear()
+        super().tearDown()
+
+    def _run_collectstatic(self, **kwargs):
+        storage.staticfiles_storage.hashed_files.clear()
+        self.run_collectstatic(**kwargs)
+
+    def test_collectstatic_completes_without_extra_passes(self):
+        self._run_collectstatic()
+        self.assertTrue(storage.staticfiles_storage.hashed_files)
+
+    def test_initial_pass_substitutions_applied(self):
+        self._run_collectstatic()
+
+        relpath = self.hashed_file_path("cached/relative.css")
+        self.assertEqual(relpath, "cached/relative.c3e9e1ea6f2e.css")
+        with storage.staticfiles_storage.open(relpath) as relfile:
+            content = relfile.read()
+            self.assertIn(b'url("img/relative.acae32e4532b.png")', content)
+            self.assertIn(b"../cached/styles.5e0040571e1a.css", content)
+
+        relpath = self.hashed_file_path('cached/module.js')
+        self.assertEqual(relpath, 'cached/module.91b9cf9935da.js')
+        with storage.staticfiles_storage.open(relpath) as relfile:
+            content = relfile.read()
+            self.assertIn(b'import testConst from "./module_test.d489af3cf882.js";', content)
+            self.assertIn(b'export * from "./module_test.d489af3cf882.js";', content)
+
+    @override_settings(
+        STATICFILES_DIRS=[os.path.join(TEST_ROOT, 'project', 'loop')],
+        STATICFILES_FINDERS=['django.contrib.staticfiles.finders.FileSystemFinder'],
+    )
+    def test_import_loop_does_not_raise(self):
+        finders.get_finder.cache_clear()
+        err = StringIO()
+        self._run_collectstatic(stderr=err)
+        self.assertNotEqual("Post-processing 'All' failed!\n\n", err.getvalue())
+        self.assertNotIn('Max post-process passes exceeded', err.getvalue())
+
+
 @override_settings(STATICFILES_STORAGE='staticfiles_tests.storage.NoneHashStorage')
 class TestCollectionNoneHashStorage(CollectionTestCase):
     hashed_file_path = hashed_file_path
