@@ -93,3 +93,22 @@ class ExtraPatternsStorage(ManifestStaticFilesStorage):
 class NoneHashStorage(ManifestStaticFilesStorage):
     def file_hash(self, name, content=None):
         return None
+
+
+class TrackingPostProcessStorage(ManifestStaticFilesStorage):
+    """Storage that records post_process calls and rejects duplicates."""
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._latest_post_process_names = []
+
+    def post_process(self, paths, dry_run=False, **options):
+        seen = set()
+        self._latest_post_process_names = []
+        for name, hashed_name, processed in super().post_process(paths, dry_run=dry_run, **options):
+            if name != 'All':
+                if name in seen:
+                    raise RuntimeError("Duplicate post_process invocation for '%s'" % name)
+                seen.add(name)
+            self._latest_post_process_names.append(name)
+            yield name, hashed_name, processed

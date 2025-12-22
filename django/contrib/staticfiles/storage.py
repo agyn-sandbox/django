@@ -214,39 +214,68 @@ class HashedFilesMixin:
         If either of these are performed on a file, then that file is considered
         post-processed.
         """
-        # don't even dare to process the files if we're in dry run mode
         if dry_run:
             return
 
-        # where to store the new paths
         hashed_files = {}
-
-        # build a list of adjustable files
         adjustable_paths = [
             path for path in paths
             if matches_patterns(path, self._patterns)
         ]
-        # Do a single pass first. Post-process all files once, then repeat for
-        # adjustable files.
-        for name, hashed_name, processed, _ in self._post_process(paths, adjustable_paths, hashed_files):
-            yield name, hashed_name, processed
+        adjustable_path_set = set(adjustable_paths)
+        processed_adjustable_paths = {}
+        unresolved_paths = set()
+        reported_errors = set()
 
-        paths = {path: paths[path] for path in adjustable_paths}
+        for name, hashed_name, processed, substitutions in self._post_process(paths, adjustable_paths, hashed_files):
+            if isinstance(processed, Exception):
+                if name not in reported_errors:
+                    yield name, hashed_name, processed
+                    reported_errors.add(name)
+                continue
 
-        for i in range(self.max_post_process_passes):
-            substitutions = False
-            for name, hashed_name, processed, subst in self._post_process(paths, adjustable_paths, hashed_files):
+            if name in adjustable_path_set:
+                processed_adjustable_paths[name] = (name, hashed_name, processed)
+                if substitutions:
+                    unresolved_paths.add(name)
+            else:
                 yield name, hashed_name, processed
-                substitutions = substitutions or subst
 
-            if not substitutions:
+        adjustable_only_paths = {path: paths[path] for path in adjustable_paths}
+
+        for _ in range(self.max_post_process_passes):
+            if not unresolved_paths:
                 break
 
-        if substitutions:
-            yield 'All', None, RuntimeError('Max post-process passes exceeded.')
+            next_unresolved_paths = set()
+            post_process_results = self._post_process(
+                adjustable_only_paths,
+                adjustable_paths,
+                hashed_files,
+            )
+            for name, hashed_name, processed, substitutions in post_process_results:
+                if isinstance(processed, Exception):
+                    if name not in reported_errors:
+                        yield name, hashed_name, processed
+                        reported_errors.add(name)
+                    continue
 
-        # Store the processed paths
+                processed_adjustable_paths[name] = (name, hashed_name, processed)
+                if substitutions:
+                    next_unresolved_paths.add(name)
+
+            unresolved_paths = next_unresolved_paths
+        else:
+            if unresolved_paths:
+                error = RuntimeError('Max post-process passes exceeded.')
+                error.unresolved_paths = tuple(sorted(unresolved_paths))
+                yield 'All', None, error
+
         self.hashed_files.update(hashed_files)
+
+        for name in adjustable_paths:
+            if name in processed_adjustable_paths:
+                yield processed_adjustable_paths[name]
 
     def _post_process(self, paths, adjustable_paths, hashed_files):
         # Sort the files by directory level
