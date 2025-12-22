@@ -6602,6 +6602,36 @@ class AdminSiteFinalCatchAllPatternTests(TestCase):
         response = self.client.get(known_url[:-1])
         self.assertRedirects(response, known_url, status_code=301, target_status_code=403)
 
+    @override_settings(APPEND_SLASH=True, FORCE_SCRIPT_NAME='/script-root')
+    def test_missing_slash_append_slash_true_preserves_force_script_name(self):
+        superuser = User.objects.create_user(
+            username='staff',
+            password='secret',
+            email='staff@example.com',
+            is_staff=True,
+        )
+        self.client.force_login(superuser)
+        changelist_url = reverse('admin:admin_views_article_changelist')
+        request_path = changelist_url[:-1]
+        response = self.client.get(request_path)
+        self.assertEqual(response.status_code, 301)
+        location = response['Location']
+        expected_location = f"/script-root{changelist_url}"
+        self.assertEqual(location, expected_location)
+        self.assertTrue(location.startswith('/script-root'))
+
+    @override_settings(APPEND_SLASH=True, FORCE_SCRIPT_NAME='/script-root')
+    def test_missing_slash_append_slash_true_unknown_url_does_not_redirect(self):
+        superuser = User.objects.create_user(
+            username='staff',
+            password='secret',
+            email='staff@example.com',
+            is_staff=True,
+        )
+        self.client.force_login(superuser)
+        response = self.client.get('/test_admin/admin/unknown')
+        self.assertEqual(response.status_code, 404)
+
     @override_settings(APPEND_SLASH=True)
     def test_missing_slash_append_slash_true_non_staff_user(self):
         user = User.objects.create_user(
@@ -6614,6 +6644,21 @@ class AdminSiteFinalCatchAllPatternTests(TestCase):
         known_url = reverse('admin:admin_views_article_changelist')
         response = self.client.get(known_url[:-1])
         self.assertRedirects(response, '/test_admin/admin/login/?next=/test_admin/admin/admin_views/article')
+
+    @override_settings(APPEND_SLASH=True, FORCE_SCRIPT_NAME='/script-root')
+    def test_missing_slash_append_slash_true_non_staff_preserves_force_script_name(self):
+        user = User.objects.create_user(
+            username='user',
+            password='secret',
+            email='user@example.com',
+            is_staff=False,
+        )
+        self.client.force_login(user)
+        changelist_url = reverse('admin:admin_views_article_changelist')
+        request_path = changelist_url[:-1]
+        response = self.client.get(request_path)
+        expected_login_url = f"{reverse('admin:login')}?next=/script-root{request_path}"
+        self.assertRedirects(response, expected_login_url)
 
     @override_settings(APPEND_SLASH=False)
     def test_missing_slash_append_slash_false(self):
