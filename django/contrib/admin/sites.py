@@ -420,14 +420,15 @@ class AdminSite:
     def catch_all_view(self, request, url):
         if settings.APPEND_SLASH and not url.endswith('/'):
             urlconf = getattr(request, 'urlconf', None)
-            path = '%s/' % request.path_info
+            path_info_with_slash = f"{request.path_info}/"
+            redirect_path = f"{request.path}/"
             try:
-                match = resolve(path, urlconf)
+                match = resolve(path_info_with_slash, urlconf)
             except Resolver404:
                 pass
             else:
                 if getattr(match.func, 'should_append_slash', True):
-                    return HttpResponsePermanentRedirect(path)
+                    return HttpResponsePermanentRedirect(redirect_path)
         raise Http404
 
     def _build_app_dict(self, request, label=None):
