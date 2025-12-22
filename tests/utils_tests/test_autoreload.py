@@ -222,14 +222,17 @@ class TestChildArguments(SimpleTestCase):
     @mock.patch('sys.warnoptions', [])
     def test_bare_main_falls_back_to_script(self):
         module = types.ModuleType('__main__')
-        module.__file__ = 'manage.py'
-        module.__spec__ = importlib.machinery.ModuleSpec('__main__', loader=None)
-        with mock.patch.dict(sys.modules, {'__main__': module}):
-            with mock.patch('sys.argv', ['manage.py', 'runserver']):
-                self.assertEqual(
-                    autoreload.get_child_arguments(),
-                    [sys.executable, 'manage.py', 'runserver'],
-                )
+        with tempfile.TemporaryDirectory() as tmpdir:
+            script_path = Path(tmpdir) / 'manage.py'
+            script_path.touch()
+            module.__file__ = str(script_path)
+            module.__spec__ = importlib.machinery.ModuleSpec('__main__', loader=None)
+            with mock.patch.dict(sys.modules, {'__main__': module}):
+                with mock.patch('sys.argv', [module.__file__, 'runserver']):
+                    self.assertEqual(
+                        autoreload.get_child_arguments(),
+                        [sys.executable, module.__file__, 'runserver'],
+                    )
 
     @mock.patch('sys.argv', [__file__, 'runserver'])
     @mock.patch('sys.warnoptions', ['error'])
@@ -260,6 +263,21 @@ class TestChildArguments(SimpleTestCase):
                     autoreload.get_child_arguments(),
                     [sys.executable, script_path, 'runserver']
                 )
+
+    @mock.patch('sys.warnoptions', [])
+    def test_spec_without_module_uses_windows_fallback(self):
+        module = types.ModuleType('__main__')
+        module.__file__ = 'manage.py'
+        module.__spec__ = importlib.machinery.ModuleSpec('__main__', loader=None)
+        with tempfile.TemporaryDirectory() as tmpdir:
+            exe_path = Path(tmpdir) / 'django-admin.exe'
+            exe_path.touch()
+            with mock.patch.dict(sys.modules, {'__main__': module}):
+                with mock.patch('sys.argv', [exe_path.with_suffix(''), 'runserver']):
+                    self.assertEqual(
+                        autoreload.get_child_arguments(),
+                        [exe_path, 'runserver']
+                    )
 
     @mock.patch('sys.argv', ['does-not-exist', 'runserver'])
     @mock.patch('sys.warnoptions', [])

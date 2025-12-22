@@ -237,7 +237,7 @@ def get_child_arguments():
             args += ['-m', module_name]
             args += sys.argv[1:]
             return args
-    elif not py_script.exists():
+    if not py_script.exists():
         # sys.argv[0] may not exist for several reasons on Windows.
         # It may exist with a .exe extension or have a -script.py suffix.
         exe_entrypoint = py_script.with_suffix('.exe')
