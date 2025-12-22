@@ -2,8 +2,8 @@ import datetime
 
 from django import forms
 from django.core.exceptions import ValidationError
-from django.forms.models import ModelChoiceIterator
-from django.forms.widgets import CheckboxSelectMultiple
+from django.forms.models import ModelChoiceIterator, ModelChoiceIteratorValue
+from django.forms.widgets import CheckboxSelectMultiple, Select
 from django.template import Context, Template
 from django.test import TestCase
 
@@ -133,6 +133,38 @@ class ModelChoiceFieldTests(TestCase):
         self.assertIs(bool(f.choices), True)
         Category.objects.all().delete()
         self.assertIs(bool(f.choices), False)
+
+    def test_modelchoiceiteratorvalue_hashable(self):
+        field = forms.ModelChoiceField(Category.objects.all(), empty_label=None)
+        iterator = iter(field.choices)
+        first_choice = next(iterator)[0]
+        second_choice = next(iterator)[0]
+        self.assertIsInstance(first_choice, ModelChoiceIteratorValue)
+        mapping = {first_choice: 'first', second_choice: 'second'}
+        duplicate_first_choice = list(field.choices)[0][0]
+        self.assertIsInstance(duplicate_first_choice, ModelChoiceIteratorValue)
+        self.assertIsNot(first_choice, duplicate_first_choice)
+        self.assertEqual(hash(first_choice), hash(duplicate_first_choice))
+        mapping[duplicate_first_choice] = 'updated-first'
+        self.assertEqual(len(mapping), 2)
+        self.assertEqual(mapping[first_choice], 'updated-first')
+        values_set = {first_choice, duplicate_first_choice, second_choice}
+        self.assertEqual(len(values_set), 2)
+        self.assertIn(first_choice, values_set)
+        self.assertIn(second_choice, values_set)
+        self.assertEqual(first_choice, first_choice.value)
+
+    def test_modelchoiceiteratorvalue_widget_dict_lookup(self):
+        class DictLookupSelect(Select):
+            def create_option(self, name, value, label, selected, index, subindex=None, attrs=None):
+                option = super().create_option(name, value, label, selected, index, subindex, attrs)
+                mapping = {value: 'x'}
+                option['attrs']['data-dummy'] = mapping[value]
+                return option
+
+        field = forms.ModelChoiceField(Category.objects.all(), empty_label=None, widget=DictLookupSelect)
+        rendered = field.widget.render('category', None)
+        self.assertIn('data-dummy="x"', rendered)
 
     def test_choices_bool_empty_label(self):
         f = forms.ModelChoiceField(Category.objects.all(), empty_label='--------')
