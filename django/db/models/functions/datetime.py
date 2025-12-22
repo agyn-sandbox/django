@@ -6,6 +6,7 @@ from django.db.models.fields import (
     DateField, DateTimeField, DurationField, Field, IntegerField, TimeField,
 )
 from django.db.models.lookups import (
+    Exact, GreaterThan, GreaterThanOrEqual, LessThan, LessThanOrEqual,
     Transform, YearExact, YearGt, YearGte, YearLt, YearLte,
 )
 from django.utils import timezone
@@ -164,11 +165,11 @@ ExtractYear.register_lookup(YearGte)
 ExtractYear.register_lookup(YearLt)
 ExtractYear.register_lookup(YearLte)
 
-ExtractIsoYear.register_lookup(YearExact)
-ExtractIsoYear.register_lookup(YearGt)
-ExtractIsoYear.register_lookup(YearGte)
-ExtractIsoYear.register_lookup(YearLt)
-ExtractIsoYear.register_lookup(YearLte)
+ExtractIsoYear.register_lookup(Exact)
+ExtractIsoYear.register_lookup(GreaterThan)
+ExtractIsoYear.register_lookup(GreaterThanOrEqual)
+ExtractIsoYear.register_lookup(LessThan)
+ExtractIsoYear.register_lookup(LessThanOrEqual)
 
 
 class Now(Func):

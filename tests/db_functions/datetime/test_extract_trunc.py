@@ -90,6 +90,26 @@ class DateFunctionTests(TestCase):
             duration=(end_datetime - start_datetime) if start_datetime and end_datetime else None,
         )
 
+    def assertIsoYearQueryUsesExtraction(self, query):
+        sql = str(query).lower()
+        self.assertIn('extract', sql)
+        self.assertNotIn(' between ', sql)
+        return sql
+
+    def create_iso_year_samples(self):
+        datetimes = [
+            datetime(2014, 12, 28, 12, 0),
+            datetime(2014, 12, 29, 12, 0),
+            datetime(2015, 12, 31, 12, 0),
+            datetime(2016, 1, 1, 12, 0),
+            datetime(2016, 1, 4, 12, 0),
+            datetime(2016, 12, 31, 12, 0),
+            datetime(2017, 1, 1, 12, 0),
+        ]
+        for value in datetimes:
+            self.create_model(value, value + timedelta(hours=1))
+        return datetimes
+
     def test_extract_year_exact_lookup(self):
         """
         Extract year uses a BETWEEN filter to compare the year to allow indexes
@@ -103,7 +123,7 @@ class DateFunctionTests(TestCase):
         self.create_model(start_datetime, end_datetime)
         self.create_model(end_datetime, start_datetime)
 
-        for lookup in ('year', 'iso_year'):
+        for lookup in ('year',):
             with self.subTest(lookup):
                 qs = DTModel.objects.filter(**{'start_datetime__%s__exact' % lookup: 2015})
                 self.assertEqual(qs.count(), 1)
@@ -140,7 +160,7 @@ class DateFunctionTests(TestCase):
         self.create_model(start_datetime, end_datetime)
         self.create_model(end_datetime, start_datetime)
 
-        for lookup in ('year', 'iso_year'):
+        for lookup in ('year',):
             with self.subTest(lookup):
                 qs = DTModel.objects.filter(**{'start_datetime__%s__gt' % lookup: 2015})
                 self.assertEqual(qs.count(), 1)
@@ -163,7 +183,7 @@ class DateFunctionTests(TestCase):
         self.create_model(start_datetime, end_datetime)
         self.create_model(end_datetime, start_datetime)
 
-        for lookup in ('year', 'iso_year'):
+        for lookup in ('year',):
             with self.subTest(lookup):
                 qs = DTModel.objects.filter(**{'start_datetime__%s__lt' % lookup: 2016})
                 self.assertEqual(qs.count(), 1)
@@ -370,6 +390,62 @@ class DateFunctionTests(TestCase):
             (week_1_day_2014_2015, 2015),
             (week_53_day_2015, 2015),
         ], lambda m: (m.start_datetime, m.extracted))
+
+    def test_extract_iso_year_lookup_uses_extraction(self):
+        datetimes = self.create_iso_year_samples()
+        target_iso_year = 2015
+        expected = [value for value in datetimes if value.isocalendar().year == target_iso_year]
+        qs = DTModel.objects.filter(start_datetime__iso_year=target_iso_year).order_by('start_datetime')
+        self.assertIsoYearQueryUsesExtraction(qs.query)
+        self.assertQuerysetEqual(qs, expected, lambda m: m.start_datetime)
+
+        qs = DTModel.objects.annotate(
+            iso_year=ExtractIsoYear('start_datetime'),
+        ).filter(iso_year=target_iso_year).order_by('start_datetime')
+        self.assertIsoYearQueryUsesExtraction(qs.query)
+        self.assertQuerysetEqual(qs, expected, lambda m: m.start_datetime)
+
+    def test_extract_iso_year_inequality_lookups_use_extraction(self):
+        datetimes = self.create_iso_year_samples()
+
+        def get_iso_year(value):
+            return value.isocalendar().year
+
+        cases = (
+            ('gt', 2015, [value for value in datetimes if get_iso_year(value) > 2015]),
+            ('gte', 2015, [value for value in datetimes if get_iso_year(value) >= 2015]),
+            ('lt', 2015, [value for value in datetimes if get_iso_year(value) < 2015]),
+            ('lte', 2015, [value for value in datetimes if get_iso_year(value) <= 2015]),
+        )
+        for lookup, comparison_value, expected in cases:
+            with self.subTest(lookup):
+                filter_kwargs = {'start_datetime__iso_year__%s' % lookup: comparison_value}
+                qs = DTModel.objects.filter(**filter_kwargs).order_by('start_datetime')
+                self.assertIsoYearQueryUsesExtraction(qs.query)
+                self.assertQuerysetEqual(qs, expected, lambda m: m.start_datetime)
+
+    def test_extract_iso_year_differs_from_calendar_year(self):
+        datetimes = self.create_iso_year_samples()
+        target_year = 2015
+        iso_expected = sorted(
+            [value for value in datetimes if value.isocalendar().year == target_year]
+        )
+        calendar_expected = sorted(
+            [value for value in datetimes if value.year == target_year]
+        )
+
+        iso_qs = DTModel.objects.filter(start_datetime__iso_year=target_year).order_by('start_datetime')
+        calendar_qs = DTModel.objects.filter(start_datetime__year=target_year).order_by('start_datetime')
+
+        self.assertIsoYearQueryUsesExtraction(iso_qs.query)
+        iso_start_times = list(iso_qs.values_list('start_datetime', flat=True))
+        calendar_start_times = list(calendar_qs.values_list('start_datetime', flat=True))
+        self.assertEqual(iso_start_times, iso_expected)
+        self.assertEqual(calendar_start_times, calendar_expected)
+        self.assertNotEqual(iso_start_times, calendar_start_times)
+
+        calendar_sql = str(calendar_qs.query).lower()
+        self.assertIn(' between ', calendar_sql)
 
     def test_extract_month_func(self):
         start_datetime = datetime(2015, 6, 15, 14, 30, 50, 321)
