@@ -20,7 +20,12 @@ class BaseDatabaseClient:
         )
 
     def runshell(self, parameters):
-        args, env = self.settings_to_cmd_args_env(self.connection.settings_dict, parameters)
-        if env:
-            env = {**os.environ, **env}
+        args, env_overrides = self.settings_to_cmd_args_env(
+            self.connection.settings_dict,
+            parameters,
+        )
+        if env_overrides:
+            env = {**os.environ, **env_overrides}
+        else:
+            env = None
         subprocess.run(args, env=env, check=True)

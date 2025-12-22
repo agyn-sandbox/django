@@ -39,7 +39,7 @@ class PostgreSqlDbshellCommandTestCase(SimpleTestCase):
                 'PORT': '444',
             }), (
                 ['psql', '-U', 'someuser', '-h', 'somehost', '-p', '444', 'dbname'],
-                {},
+                None,
             )
         )
 
@@ -134,8 +134,42 @@ class PostgreSqlDbshellCommandTestCase(SimpleTestCase):
     def test_parameters(self):
         self.assertEqual(
             self.settings_to_cmd_args_env({'NAME': 'dbname'}, ['--help']),
-            (['psql', 'dbname', '--help'], {}),
+            (['psql', 'dbname', '--help'], None),
         )
+
+    def test_runshell_inherits_environment_without_overrides(self):
+        settings = {'NAME': 'dbname'}
+        _, env = self.settings_to_cmd_args_env(settings, [])
+        self.assertIsNone(env)
+        self.assertNotEqual(env, {})
+        fake_connection = type('Conn', (), {'settings_dict': settings})()
+        with mock.patch('subprocess.run') as mocked_run:
+            DatabaseClient(fake_connection).runshell([])
+        mocked_run.assert_called_once()
+        _, kwargs = mocked_run.call_args
+        self.assertIn('env', kwargs)
+        self.assertIsNone(kwargs['env'])
+
+    def test_runshell_merges_environment_overrides(self):
+        """Regression: env={} dropped PATH and raised FileNotFoundError('psql')."""
+        settings = {'NAME': 'dbname', 'PASSWORD': 'override'}
+        _, env = self.settings_to_cmd_args_env(settings, [])
+        self.assertEqual(env, {'PGPASSWORD': 'override'})
+        self.assertNotEqual(env, {})
+        fake_connection = type('Conn', (), {'settings_dict': settings})()
+        with mock.patch.dict(os.environ, {'PATH': '/usr/bin'}, clear=False):
+            expected_path = os.environ['PATH']
+            with mock.patch('subprocess.run') as mocked_run:
+                DatabaseClient(fake_connection).runshell([])
+            mocked_run.assert_called_once()
+            _, kwargs = mocked_run.call_args
+            merged_env = kwargs['env']
+            # agyn-sandbox/django#321 - env={} dropped PATH and caused FileNotFoundError.
+            self.assertIsNotNone(merged_env)
+            self.assertNotEqual(merged_env, {})
+            self.assertEqual(merged_env['PGPASSWORD'], 'override')
+            self.assertIn('PATH', merged_env)
+            self.assertEqual(merged_env['PATH'], expected_path)
 
     @skipUnless(connection.vendor == 'postgresql', 'Requires a PostgreSQL connection')
     def test_sigint_handler(self):
