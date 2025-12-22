@@ -7,9 +7,9 @@ from django.test import TestCase
 from django.utils.translation import gettext_lazy
 
 from .models import (
-    Article, Category, Child, ChildNullableParent, City, Country, District,
-    First, Parent, Record, Relation, Reporter, School, Student, Third,
-    ToFieldChild,
+    Article, Category, CharFKChild, CharPKParent, Child, ChildNullableParent,
+    City, Country, District, First, Parent, Record, Relation, Reporter,
+    School, Student, Third, ToFieldChild,
 )
 
 
@@ -178,6 +178,17 @@ class ManyToOneTests(TestCase):
         self.assertFalse(Parent.bestchild.is_cached(parent))
         self.assertIsNone(parent.bestchild)
         self.assertTrue(Parent.bestchild.is_cached(parent))
+
+    def test_fk_child_updates_attname_after_parent_char_pk_save(self):
+        parent = CharPKParent.objects.create(id='')
+        child = CharFKChild.objects.create(parent=parent)
+        parent.id = 'P001'
+        parent.save()
+        child.save()
+        self.assertEqual(child.parent_id, 'P001')
+        reloaded = CharFKChild.objects.get(pk=child.pk)
+        self.assertEqual(reloaded.parent_id, 'P001')
+        self.assertEqual(reloaded.parent.pk, 'P001')
 
     def test_selects(self):
         new_article1 = self.r.article_set.create(

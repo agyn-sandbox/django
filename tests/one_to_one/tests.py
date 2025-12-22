@@ -217,6 +217,27 @@ class OneToOneTests(TestCase):
         self.assertIsNone(b.place)
         self.assertTrue(UndergroundBar.place.is_cached(b))
 
+    def test_o2o_child_updates_attname_after_parent_autopk_save(self):
+        place = Place(name='Warehouse', address='N/A')
+        bar = UndergroundBar(place=place)
+        place.save()
+        bar.save()
+        self.assertEqual(bar.place_id, place.pk)
+        reloaded = UndergroundBar.objects.get(pk=bar.pk)
+        self.assertEqual(reloaded.place_id, place.pk)
+        self.assertEqual(reloaded.place.pk, place.pk)
+
+    def test_o2o_child_updates_attname_after_parent_char_pk_save(self):
+        parent = ManualPrimaryKey.objects.create(primary_key='', name='parent')
+        child = RelatedModel.objects.create(link=parent, name='child')
+        parent.primary_key = 'MP001'
+        parent.save()
+        child.save()
+        self.assertEqual(child.link_id, 'MP001')
+        reloaded = RelatedModel.objects.get(pk=child.pk)
+        self.assertEqual(reloaded.link_id, 'MP001')
+        self.assertEqual(reloaded.link.pk, 'MP001')
+
     def test_related_object_cache(self):
         """ Regression test for #6886 (the related-object cache) """
 
