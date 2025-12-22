@@ -41,7 +41,9 @@ class Q(tree.Node):
 
     def _combine(self, other, conn):
         if not isinstance(other, Q):
-            raise TypeError(other)
+            if not hasattr(other, 'resolve_expression') or not getattr(other, 'conditional', False):
+                raise TypeError(other)
+            other = Q(other)
 
         # If the other Q() is empty, ignore it and just use `self`.
         if not other:
