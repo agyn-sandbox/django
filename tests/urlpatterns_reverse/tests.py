@@ -1146,6 +1146,46 @@ class ResolverMatchTests(SimpleTestCase):
         )
 
 
+@override_settings(ROOT_URLCONF='urlpatterns_reverse.urls')
+class ResolverMatchPartialTests(SimpleTestCase):
+
+    def test_repr_partial(self):
+        self.assertEqual(
+            repr(resolve('/partial/')),
+            "ResolverMatch(func=urlpatterns_reverse.views.empty_view "
+            "[partial args=(), kwargs={'template_name': 'template.html'}], "
+            "args=(), kwargs={}, url_name=partial, app_names=[], namespaces=[], "
+            "route=partial/)",
+        )
+
+    def test_repr_partial_nested(self):
+        self.assertEqual(
+            repr(resolve('/partial_nested/')),
+            "ResolverMatch(func=urlpatterns_reverse.views.empty_view "
+            "[partial args=(), kwargs={'template_name': 'nested_partial.html'}], "
+            "args=(), kwargs={}, url_name=partial_nested, app_names=[], "
+            "namespaces=[], route=partial_nested/)",
+        )
+
+    def test_repr_partial_wrapped(self):
+        self.assertEqual(
+            repr(resolve('/partial_wrapped/')),
+            "ResolverMatch(func=urlpatterns_reverse.views.empty_view "
+            "[partial args=(), kwargs={'template_name': 'template.html'}], "
+            "args=(), kwargs={}, url_name=partial_wrapped, app_names=[], "
+            "namespaces=[], route=partial_wrapped/)",
+        )
+
+    def test_repr_partial_callable_instance(self):
+        self.assertEqual(
+            repr(resolve('/partial_callable/')),
+            "ResolverMatch(func=urlpatterns_reverse.views.ViewClass.__call__ "
+            "[partial args=(), kwargs={'status': 204}], args=(), kwargs={}, "
+            "url_name=partial_callable, app_names=[], namespaces=[], "
+            "route=partial_callable/)",
+        )
+
+
 @override_settings(ROOT_URLCONF='urlpatterns_reverse.erroneous_urls')
 class ErroneousViewTests(SimpleTestCase):
 

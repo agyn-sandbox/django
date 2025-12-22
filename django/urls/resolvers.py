@@ -59,8 +59,57 @@ class ResolverMatch:
         return (self.func, self.args, self.kwargs)[index]
 
     def __repr__(self):
+        func_repr = self._func_path
+        func = self.func
+        partial_chain = []
+
+        while isinstance(func, functools.partial):
+            partial_chain.append(func)
+            func = func.func
+
+        if partial_chain:
+
+            def describe_callable(callable_obj):
+                if inspect.ismethod(callable_obj):
+                    return f"{callable_obj.__module__}.{callable_obj.__qualname__}"
+                if inspect.isfunction(callable_obj):
+                    return f"{callable_obj.__module__}.{callable_obj.__qualname__}"
+                if hasattr(callable_obj, '__call__'):
+                    cls = callable_obj.__class__
+                    return f"{cls.__module__}.{cls.__qualname__}.__call__"
+                module = getattr(callable_obj, '__module__', None)
+                qualname = getattr(callable_obj, '__qualname__', None)
+                name = getattr(callable_obj, '__name__', None)
+                if module and qualname:
+                    return f"{module}.{qualname}"
+                if module and name:
+                    return f"{module}.{name}"
+                return repr(callable_obj)
+
+            combined_args = []
+            combined_kwargs = {}
+            for partial_obj in reversed(partial_chain):
+                if partial_obj.args:
+                    combined_args.extend(partial_obj.args)
+                if partial_obj.keywords:
+                    combined_kwargs.update(partial_obj.keywords)
+
+            combined_args_tuple = tuple(combined_args)
+            sorted_kwargs = (
+                {key: combined_kwargs[key] for key in sorted(combined_kwargs)}
+                if combined_kwargs
+                else {}
+            )
+
+            func_repr = describe_callable(func)
+            if combined_args_tuple or sorted_kwargs:
+                func_repr = (
+                    f"{func_repr} [partial args={repr(combined_args_tuple)}, "
+                    f"kwargs={repr(sorted_kwargs)}]"
+                )
+
         return "ResolverMatch(func=%s, args=%s, kwargs=%s, url_name=%s, app_names=%s, namespaces=%s, route=%s)" % (
-            self._func_path, self.args, self.kwargs, self.url_name,
+            func_repr, self.args, self.kwargs, self.url_name,
             self.app_names, self.namespaces, self.route,
         )
 

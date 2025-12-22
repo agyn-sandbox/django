@@ -3,6 +3,7 @@ from django.urls import include, path, re_path
 from .views import (
     absolute_kwargs_view, defaults_view, empty_view, empty_view_nested_partial,
     empty_view_partial, empty_view_wrapped, nested_view,
+    view_class_instance_partial,
 )
 
 other_patterns = [
@@ -62,6 +63,7 @@ urlpatterns = [
     path('partial/', empty_view_partial, name='partial'),
     path('partial_nested/', empty_view_nested_partial, name='partial_nested'),
     path('partial_wrapped/', empty_view_wrapped, name='partial_wrapped'),
+    path('partial_callable/', view_class_instance_partial, name='partial_callable'),
 
     # This is non-reversible, but we shouldn't blow up when parsing it.
     re_path(r'^(?:foo|bar)(\w+)/$', empty_view, name='disjunction'),
