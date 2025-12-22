@@ -44,7 +44,6 @@ def create_namedtuple_class(*names):
     # QuerySet evaluation.
     def __reduce__(self):
         return unpickle_named_row, (names, tuple(self))
-
     return type(
         "Row",
         (namedtuple("Row", names),),
@@ -67,3 +66,19 @@ class AltersData:
                         break
 
         super().__init_subclass__(**kwargs)
+
+
+def convert_returning_values(connection, fields, values):
+    if not values or not fields:
+        return values
+    converted = []
+    for value, field in zip(values, fields):
+        expression = field.get_col(None)
+        converters = (
+            connection.ops.get_db_converters(expression)
+            + expression.get_db_converters(connection)
+        )
+        for converter in converters:
+            value = converter(value, expression, connection)
+        converted.append(value)
+    return tuple(converted)

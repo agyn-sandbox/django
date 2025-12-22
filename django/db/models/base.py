@@ -51,7 +51,7 @@ from django.db.models.signals import (
     pre_init,
     pre_save,
 )
-from django.db.models.utils import AltersData, make_model_tuple
+from django.db.models.utils import AltersData, convert_returning_values, make_model_tuple
 from django.utils.encoding import force_str
 from django.utils.hashable import make_hashable
 from django.utils.text import capfirst, get_text_list
@@ -1136,7 +1136,7 @@ class Model(AltersData, metaclass=ModelBase):
                 returning_fields,
             )
             if updated := bool(results):
-                self._assign_returned_values(results[0], returning_fields)
+                self._assign_returned_values(using, results[0], returning_fields)
             elif force_update:
                 raise self.NotUpdated("Forced update did not affect any rows.")
             elif update_fields:
@@ -1187,7 +1187,7 @@ class Model(AltersData, metaclass=ModelBase):
                 cls._base_manager, using, insert_fields, returning_fields, raw
             )
             if results:
-                self._assign_returned_values(results[0], returning_fields)
+                self._assign_returned_values(using, results[0], returning_fields)
         return updated
 
     def _do_update(
@@ -1243,9 +1243,15 @@ class Model(AltersData, metaclass=ModelBase):
             raw=raw,
         )
 
-    def _assign_returned_values(self, returned_values, returning_fields):
+    def _assign_returned_values(self, using, returned_values, returning_fields):
+        connection = connections[using]
+        converted_values = convert_returning_values(
+            connection,
+            returning_fields,
+            returned_values,
+        )
         returning_fields_iter = iter(returning_fields)
-        for value, field in zip(returned_values, returning_fields_iter):
+        for value, field in zip(converted_values, returning_fields_iter):
             setattr(self, field.attname, value)
         # Defer all fields that were meant to be updated with their database
         # resolved values but couldn't as they are effectively stale.

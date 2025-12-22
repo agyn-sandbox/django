@@ -1,10 +1,17 @@
 import datetime
+from unittest import mock
 
 from django.db import connection
 from django.test import TestCase, skipUnlessDBFeature
 from django.test.utils import CaptureQueriesContext
 
-from .models import DumbCategory, NonIntegerPKReturningModel, ReturningModel
+from .models import (
+    DumbCategory,
+    NonIntegerPKReturningModel,
+    ReturningModel,
+    WrappedAutoFieldModel,
+    WrappedInt,
+)
 
 
 @skipUnlessDBFeature("can_return_columns_from_insert")
@@ -68,3 +75,32 @@ class ReturningValuesTests(TestCase):
             with self.subTest(obj=obj):
                 self.assertTrue(obj.pk)
                 self.assertIsInstance(obj.created, datetime.datetime)
+
+
+class ReturningValueConvertersTests(TestCase):
+    def test_insert_returning_runs_pk_converters(self):
+        with mock.patch.object(type(connection.features), 'can_return_columns_from_insert', True), \
+                mock.patch('django.db.models.query.QuerySet._insert', return_value=[(1,)]):
+            obj = WrappedAutoFieldModel()
+            obj.save()
+        self.assertIsInstance(obj.pk, WrappedInt)
+
+    def test_bulk_insert_runs_pk_converters(self):
+        objs = [WrappedAutoFieldModel(), WrappedAutoFieldModel()]
+        with mock.patch.object(type(connection.features), 'can_return_rows_from_bulk_insert', True), \
+                mock.patch('django.db.models.query.QuerySet._insert', return_value=[(1,), (2,)]):
+            WrappedAutoFieldModel.objects.bulk_create(objs)
+        for obj in objs:
+            with self.subTest(obj=obj):
+                self.assertIsInstance(obj.pk, WrappedInt)
+
+    @skipUnlessDBFeature('supports_ignore_conflicts')
+    def test_bulk_insert_ignore_conflicts_without_returning(self):
+        objs = WrappedAutoFieldModel.objects.bulk_create([
+            WrappedAutoFieldModel(),
+            WrappedAutoFieldModel(),
+        ], ignore_conflicts=True)
+        self.assertEqual(WrappedAutoFieldModel.objects.count(), 2)
+        for obj in objs:
+            with self.subTest(obj=obj):
+                self.assertIsNone(obj.pk)

@@ -784,6 +784,22 @@ class NonIntegerPKReturningModel(models.Model):
     created = CreatedField(editable=False, primary_key=True)
 
 
+class WrappedInt(int):
+    """Wrapper type returned by WrappedBigAutoField converters."""
+
+
+class WrappedBigAutoField(models.BigAutoField):
+
+    def from_db_value(self, value, expression, connection):
+        if value is None:
+            return value
+        return WrappedInt(value)
+
+
+class WrappedAutoFieldModel(models.Model):
+    id = WrappedBigAutoField(primary_key=True)
+
+
 class JSONFieldNullable(models.Model):
     json_field = models.JSONField(blank=True, null=True)
 

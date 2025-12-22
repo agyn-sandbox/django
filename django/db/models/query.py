@@ -33,6 +33,7 @@ from django.db.models.query_utils import FilteredRelation, Q
 from django.db.models.sql.constants import GET_ITERATOR_CHUNK_SIZE, ROW_COUNT
 from django.db.models.utils import (
     AltersData,
+    convert_returning_values,
     create_namedtuple_class,
     resolve_callables,
 )
@@ -827,6 +828,7 @@ class QuerySet(AltersData):
             context = transaction.atomic(using=self.db, savepoint=False)
         else:
             context = nullcontext()
+        connection = connections[self.db]
         with context:
             self._handle_order_with_respect_to(objs)
             if objs_with_pk:
@@ -839,9 +841,14 @@ class QuerySet(AltersData):
                     unique_fields=unique_fields,
                 )
                 for obj_with_pk, results in zip(objs_with_pk, returned_columns):
-                    for result, field in zip(results, opts.db_returning_fields):
+                    converted = convert_returning_values(
+                        connection,
+                        opts.db_returning_fields,
+                        results,
+                    )
+                    for value, field in zip(converted, opts.db_returning_fields):
                         if field != opts.pk:
-                            setattr(obj_with_pk, field.attname, result)
+                            setattr(obj_with_pk, field.attname, value)
                 for obj_with_pk in objs_with_pk:
                     obj_with_pk._state.adding = False
                     obj_with_pk._state.db = self.db
@@ -855,15 +862,19 @@ class QuerySet(AltersData):
                     update_fields=update_fields,
                     unique_fields=unique_fields,
                 )
-                connection = connections[self.db]
                 if (
                     connection.features.can_return_rows_from_bulk_insert
                     and on_conflict is None
                 ):
                     assert len(returned_columns) == len(objs_without_pk)
                 for obj_without_pk, results in zip(objs_without_pk, returned_columns):
-                    for result, field in zip(results, opts.db_returning_fields):
-                        setattr(obj_without_pk, field.attname, result)
+                    converted = convert_returning_values(
+                        connection,
+                        opts.db_returning_fields,
+                        results,
+                    )
+                    for value, field in zip(converted, opts.db_returning_fields):
+                        setattr(obj_without_pk, field.attname, value)
                     obj_without_pk._state.adding = False
                     obj_without_pk._state.db = self.db
 
