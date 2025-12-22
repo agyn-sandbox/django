@@ -114,3 +114,11 @@ class School(models.Model):
 
 class Student(models.Model):
     school = models.ForeignKey(School, models.CASCADE)
+
+
+class CharPKParent(models.Model):
+    id = models.CharField(primary_key=True, max_length=20)
+
+
+class CharFKChild(models.Model):
+    parent = models.ForeignKey(CharPKParent, models.CASCADE)

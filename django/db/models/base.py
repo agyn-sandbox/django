@@ -912,6 +912,7 @@ class Model(metaclass=ModelBase):
         # Ensure that a model instance without a PK hasn't been assigned to
         # a ForeignKey or OneToOneField on this model. If the field is
         # nullable, allowing the save would result in silent data loss.
+        deferred_fields = self.get_deferred_fields()
         for field in self._meta.concrete_fields:
             # If the related field isn't cached, then an instance hasn't been
             # assigned and there's no need to worry about this check.
@@ -933,10 +934,12 @@ class Model(metaclass=ModelBase):
                         "%s() prohibited to prevent data loss due to unsaved "
                         "related object '%s'." % (operation_name, field.name)
                     )
-                elif getattr(self, field.attname) is None:
-                    # Use pk from related object if it has been saved after
-                    # an assignment.
-                    setattr(self, field.attname, obj.pk)
+                else:
+                    parent_val = getattr(self, field.attname)
+                    if parent_val in field.empty_values and field.attname not in deferred_fields:
+                        # Use pk from related object if it has been saved after
+                        # an assignment.
+                        setattr(self, field.attname, obj.pk)
                 # If the relationship's pk/to_field was changed, clear the
                 # cached relationship.
                 if getattr(obj, field.target_field.attname) != getattr(self, field.attname):
