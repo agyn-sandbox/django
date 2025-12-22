@@ -92,8 +92,27 @@ class DateFunctionTests(TestCase):
 
     def assertIsoYearQueryUsesExtraction(self, query):
         sql = str(query).lower()
-        self.assertIn('extract', sql)
         self.assertNotIn(' between ', sql)
+
+        def collect_lookups(node, collected):
+            for child in getattr(node, 'children', []):
+                if hasattr(child, 'children'):
+                    collect_lookups(child, collected)
+                else:
+                    collected.append(child)
+
+        lookups = []
+        collect_lookups(query.where, lookups)
+        iso_year_lookups = [
+            lookup for lookup in lookups
+            if getattr(getattr(lookup, 'lhs', None), 'lookup_name', None) == 'iso_year'
+        ]
+        self.assertTrue(
+            iso_year_lookups,
+            'Expected iso_year lookups to be present in query where clause.',
+        )
+        for lookup in iso_year_lookups:
+            self.assertIsInstance(lookup.lhs, ExtractIsoYear)
         return sql
 
     def create_iso_year_samples(self):
