@@ -44,7 +44,7 @@ from django.utils.html import escape
 from django.utils.http import urlencode
 
 from . import customadmin
-from .admin import CityAdmin, site, site2
+from .admin import CityAdmin, LanguageAdmin, ReadOnlyRelatedFieldAdmin, site, site2
 from .models import (
     Actor, AdminOrderedAdminMethod, AdminOrderedCallable, AdminOrderedField,
     AdminOrderedModelMethod, Album, Answer, Answer2, Article, BarAccount, Book,
@@ -5130,6 +5130,65 @@ class ReadonlyTest(AdminFieldExtractionMixin, TestCase):
             html=True,
         )
         # Related ForeignKey object not registered in admin.
+        self.assertContains(response, '<div class="readonly">Chapter 1</div>', html=True)
+
+    def test_readonly_foreignkey_links_namespaced_admin(self):
+        """Readonly ForeignKey links use the current AdminSite namespace."""
+
+        def register_temp(admin_site, model, admin_class):
+            if model in admin_site._registry:
+                original_admin = admin_site._registry[model].__class__
+                admin_site.unregister(model)
+                self.addCleanup(admin_site.register, model, original_admin)
+            admin_site.register(model, admin_class)
+            self.addCleanup(admin_site.unregister, model)
+
+        register_temp(site2, ReadOnlyRelatedField, ReadOnlyRelatedFieldAdmin)
+        register_temp(site2, Language, LanguageAdmin)
+
+        chapter = Chapter.objects.create(
+            title='Chapter 1',
+            content='content',
+            book=Book.objects.create(name='Book 1'),
+        )
+        language = Language.objects.create(iso='_40', name='Test')
+        obj = ReadOnlyRelatedField.objects.create(
+            chapter=chapter,
+            language=language,
+            user=self.superuser,
+        )
+        change_url = reverse(
+            'admin:admin_views_readonlyrelatedfield_change',
+            args=(obj.pk,),
+            current_app=site2.name,
+        )
+        response = self.client.get(change_url)
+
+        user_url = reverse(
+            'admin:auth_user_change',
+            args=(self.superuser.pk,),
+            current_app=site2.name,
+        )
+        self.assertContains(
+            response,
+            '<div class="readonly"><a href="%s">super</a></div>' % user_url,
+            html=True,
+        )
+
+        language_url = reverse(
+            'admin:admin_views_language_change',
+            args=(quote(language.pk),),
+            current_app=site2.name,
+        )
+        self.assertContains(
+            response,
+            '<div class="readonly"><a href="%s">%s</a></div>' % (language_url, language.pk),
+            html=True,
+        )
+
+        default_user_url = reverse('admin:auth_user_change', args=(self.superuser.pk,))
+        self.assertNotContains(response, f'href="{default_user_url}"')
+
         self.assertContains(response, '<div class="readonly">Chapter 1</div>', html=True)
 
     def test_readonly_manytomany_backwards_ref(self):
