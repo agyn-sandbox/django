@@ -119,6 +119,155 @@ class OptimizerTests(SimpleTestCase):
             ]
         )
 
+    def test_create_alter_model_options_empty_dict_clears_keys(self):
+        index = models.Index(fields=['name'], name='foo_name_idx')
+        self.assertOptimizesTo(
+            [
+                migrations.CreateModel(
+                    'Foo',
+                    fields=[('name', models.CharField(max_length=255))],
+                    options={
+                        'ordering': ['name'],
+                        'permissions': [('view_foo', 'Can view Foo')],
+                        'verbose_name': 'Foo',
+                        'indexes': [index],
+                    },
+                ),
+                migrations.AlterModelOptions(name='Foo', options={}),
+            ],
+            [
+                migrations.CreateModel(
+                    'Foo',
+                    fields=[('name', models.CharField(max_length=255))],
+                    options={'indexes': [index]},
+                ),
+            ],
+        )
+
+    def test_create_alter_model_options_ordering_none(self):
+        self.assertOptimizesTo(
+            [
+                migrations.CreateModel(
+                    'Foo',
+                    fields=[('name', models.CharField(max_length=255))],
+                    options={'ordering': ['name']},
+                ),
+                migrations.AlterModelOptions(name='Foo', options={'ordering': None}),
+            ],
+            [
+                migrations.CreateModel(
+                    'Foo',
+                    fields=[('name', models.CharField(max_length=255))],
+                ),
+            ],
+        )
+
+    def test_create_alter_model_options_permissions_empty(self):
+        self.assertOptimizesTo(
+            [
+                migrations.CreateModel(
+                    'Foo',
+                    fields=[('name', models.CharField(max_length=255))],
+                    options={'permissions': [('view_foo', 'Can view Foo')]},
+                ),
+                migrations.AlterModelOptions(name='Foo', options={'permissions': []}),
+            ],
+            [
+                migrations.CreateModel(
+                    'Foo',
+                    fields=[('name', models.CharField(max_length=255))],
+                ),
+            ],
+        )
+
+    def test_create_alter_model_options_default_related_name_none(self):
+        self.assertOptimizesTo(
+            [
+                migrations.CreateModel(
+                    'Foo',
+                    fields=[],
+                    options={'default_related_name': 'foos'},
+                ),
+                migrations.AlterModelOptions(name='Foo', options={'default_related_name': None}),
+            ],
+            [
+                migrations.CreateModel('Foo', fields=[]),
+            ],
+        )
+
+    def test_create_multiple_alter_model_options(self):
+        index = models.Index(fields=['name'], name='foo_name_idx')
+        self.assertOptimizesTo(
+            [
+                migrations.CreateModel(
+                    'Foo',
+                    fields=[('name', models.CharField(max_length=255))],
+                    options={
+                        'ordering': ['name'],
+                        'verbose_name': 'Foo',
+                        'indexes': [index],
+                    },
+                ),
+                migrations.AlterModelOptions(
+                    name='Foo',
+                    options={
+                        'verbose_name': 'Bar',
+                        'permissions': [('view_foo', 'Can view Foo')],
+                    },
+                ),
+                migrations.AlterModelOptions(
+                    name='Foo',
+                    options={
+                        'permissions': [],
+                        'default_related_name': 'foos',
+                        'verbose_name_plural': 'Foos',
+                    },
+                ),
+            ],
+            [
+                migrations.CreateModel(
+                    'Foo',
+                    fields=[('name', models.CharField(max_length=255))],
+                    options={
+                        'indexes': [index],
+                        'default_related_name': 'foos',
+                        'verbose_name_plural': 'Foos',
+                    },
+                ),
+            ],
+        )
+
+    def test_create_alter_model_options_preserve_indexes_constraints(self):
+        index = models.Index(fields=['name'], name='foo_name_idx')
+        constraint = models.UniqueConstraint(fields=['name'], name='foo_unique')
+        self.assertOptimizesTo(
+            [
+                migrations.CreateModel(
+                    'Foo',
+                    fields=[('name', models.CharField(max_length=255))],
+                    options={
+                        'indexes': [index],
+                        'constraints': [constraint],
+                    },
+                ),
+                migrations.AlterModelOptions(
+                    name='Foo',
+                    options={'verbose_name': 'Foo'},
+                ),
+            ],
+            [
+                migrations.CreateModel(
+                    'Foo',
+                    fields=[('name', models.CharField(max_length=255))],
+                    options={
+                        'indexes': [index],
+                        'constraints': [constraint],
+                        'verbose_name': 'Foo',
+                    },
+                ),
+            ],
+        )
+
     def _test_create_alter_foo_delete_model(self, alter_foo):
         """
         CreateModel, AlterModelTable, AlterUniqueTogether/AlterIndexTogether/

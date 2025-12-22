@@ -137,11 +137,28 @@ class CreateModel(ModelOperation):
                 ),
             ]
         elif isinstance(operation, AlterModelOptions) and self.name_lower == operation.name_lower:
+            alter_option_keys = set(AlterModelOptions.ALTER_OPTION_KEYS)
+            new_options = dict(self.options)
+            for key in alter_option_keys:
+                if key not in operation.options:
+                    new_options.pop(key, None)
+                    continue
+                value = operation.options[key]
+                if value is None:
+                    new_options.pop(key, None)
+                    continue
+                if key in {"ordering", "permissions"} and not value:
+                    new_options.pop(key, None)
+                    continue
+                new_options[key] = value
+            for key, value in operation.options.items():
+                if key not in alter_option_keys:
+                    new_options[key] = value
             return [
                 CreateModel(
                     self.name,
                     fields=self.fields,
-                    options={**self.options, **operation.options},
+                    options=new_options,
                     bases=self.bases,
                     managers=self.managers,
                 ),
