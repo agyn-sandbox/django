@@ -1,7 +1,7 @@
 import datetime
 import pickle
 from decimal import Decimal
-from operator import attrgetter
+from operator import attrgetter, itemgetter
 from unittest import mock
 
 from django.contrib.contenttypes.models import ContentType
@@ -105,6 +105,11 @@ class AggregationTests(TestCase):
     def assertObjectAttrs(self, obj, **kwargs):
         for attr, value in kwargs.items():
             self.assertEqual(getattr(obj, attr), value)
+
+    def _group_by_sql(self, qs):
+        compiler = qs.query.get_compiler(connection=connection)
+        extra_select, order_by, group_by = compiler.pre_sql_setup()
+        return ' '.join(sql for sql, _ in group_by)
 
     def test_annotation_with_value(self):
         values = Book.objects.filter(
@@ -212,6 +217,52 @@ class AggregationTests(TestCase):
             Book.objects.extra(select={'price_per_page': 'price / pages'}).aggregate(Sum('pages')),
             {'pages__sum': 3703}
         )
+
+    def test_group_by_excludes_meta_ordering_in_values_annotate(self):
+        qs = Book.objects.values('publisher').annotate(book_count=Count('id'))
+        results = sorted(qs, key=itemgetter('publisher'))
+        self.assertEqual(results, [
+            {'publisher': self.p1.pk, 'book_count': 2},
+            {'publisher': self.p2.pk, 'book_count': 1},
+            {'publisher': self.p3.pk, 'book_count': 2},
+            {'publisher': self.p4.pk, 'book_count': 1},
+        ])
+
+        grouping_sql = self._group_by_sql(qs)
+        self.assertNotIn('name', grouping_sql)
+
+    def test_group_by_excludes_meta_ordering_in_values_annotation(self):
+        qs = Book.objects.values('rating').annotate(max_pages=Max('pages'))
+        results = sorted(qs, key=itemgetter('rating'))
+        self.assertEqual(results, [
+            {'rating': 3.0, 'max_pages': 528},
+            {'rating': 4.0, 'max_pages': 1132},
+            {'rating': 4.5, 'max_pages': 447},
+            {'rating': 5.0, 'max_pages': 946},
+        ])
+
+        grouping_sql = self._group_by_sql(qs)
+        self.assertNotIn('name', grouping_sql)
+
+    def test_distinct_values_annotate_still_excludes_meta_ordering(self):
+        qs = Book.objects.values('publisher').distinct().annotate(
+            book_count=Count('id')
+        ).order_by()
+        results = sorted(qs, key=itemgetter('publisher'))
+        self.assertEqual(results, [
+            {'publisher': self.p1.pk, 'book_count': 2},
+            {'publisher': self.p2.pk, 'book_count': 1},
+            {'publisher': self.p3.pk, 'book_count': 2},
+            {'publisher': self.p4.pk, 'book_count': 1},
+        ])
+
+        grouping_sql = self._group_by_sql(qs)
+        self.assertNotIn('name', grouping_sql)
+
+    def test_explicit_order_by_retains_group_by_contribution(self):
+        qs = Book.objects.values('publisher').annotate(book_count=Count('id')).order_by('name')
+        grouping_sql = self._group_by_sql(qs)
+        self.assertIn('name', grouping_sql)
 
     def test_annotation(self):
         # Annotations get combined with extra select clauses

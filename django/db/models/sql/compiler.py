@@ -126,6 +126,8 @@ class SQLCompiler:
             for col in cols:
                 expressions.append(col)
         for expr, (sql, params, is_ref) in order_by:
+            if self._meta_ordering:
+                continue
             # Skip References to the select clause, as all expressions in the
             # select clause are already part of the group by.
             if not is_ref:
