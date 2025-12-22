@@ -154,6 +154,23 @@ class CheckboxSelectMultipleTest(WidgetTest):
         """
         self.check_html(widget, 'letters', ['a', 'c'], html=html)
 
+    def test_boundwidget_id_for_label_uses_attrs_id(self):
+        class LettersForm(forms.Form):
+            letters = forms.MultipleChoiceField(
+                choices=[('a', 'A'), ('b', 'B')],
+                widget=CheckboxSelectMultiple(attrs={'id': 'abc'}),
+            )
+
+        subwidgets = list(LettersForm(auto_id=False)['letters'])
+        self.assertEqual(
+            [widget.id_for_label for widget in subwidgets],
+            ['abc_0', 'abc_1'],
+        )
+        self.assertEqual(
+            [widget.data['attrs']['id'] for widget in subwidgets],
+            ['abc_0', 'abc_1'],
+        )
+
     @override_settings(USE_L10N=True, USE_THOUSAND_SEPARATOR=True)
     def test_doesnt_localize_input_value(self):
         choices = [
