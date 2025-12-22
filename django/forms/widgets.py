@@ -830,6 +830,8 @@ class MultiWidget(Widget):
         final_attrs = context['widget']['attrs']
         input_type = final_attrs.pop('type', None)
         id_ = final_attrs.get('id')
+        required_subwidgets = final_attrs.pop('_required_subwidgets', None)
+        use_required_attribute = final_attrs.pop('_use_required_attribute', False)
         subwidgets = []
         for i, (widget_name, widget) in enumerate(zip(self.widgets_names, self.widgets)):
             if input_type is not None:
@@ -839,11 +841,19 @@ class MultiWidget(Widget):
                 widget_value = value[i]
             except IndexError:
                 widget_value = None
+            widget_attrs = final_attrs.copy()
             if id_:
-                widget_attrs = final_attrs.copy()
                 widget_attrs['id'] = '%s_%s' % (id_, i)
-            else:
-                widget_attrs = final_attrs
+            if (
+                use_required_attribute and
+                required_subwidgets is not None and
+                i < len(required_subwidgets) and
+                required_subwidgets[i] and
+                widget.use_required_attribute(widget_value)
+            ):
+                widget_attrs['required'] = True
+            elif required_subwidgets is not None:
+                widget_attrs.pop('required', None)
             subwidgets.append(widget.get_context(widget_name, widget_value, widget_attrs)['widget'])
         context['widget']['subwidgets'] = subwidgets
         return context
