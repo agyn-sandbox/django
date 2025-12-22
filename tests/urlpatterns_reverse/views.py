@@ -41,6 +41,7 @@ class ViewClass:
 
 
 view_class_instance = ViewClass()
+view_class_instance_partial = partial(view_class_instance, status=204)
 
 
 class LazyRedirectView(RedirectView):
