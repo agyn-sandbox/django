@@ -267,10 +267,9 @@ class HashedFilesMixin:
             unresolved_paths = next_unresolved_paths
         else:
             if unresolved_paths:
-                unresolved_list = ', '.join(sorted(unresolved_paths))
-                yield 'All', None, RuntimeError(
-                    'Max post-process passes exceeded for: %s' % unresolved_list
-                )
+                error = RuntimeError('Max post-process passes exceeded.')
+                error.unresolved_paths = tuple(sorted(unresolved_paths))
+                yield 'All', None, error
 
         self.hashed_files.update(hashed_files)
 
