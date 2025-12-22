@@ -55,6 +55,34 @@ class OrderedSetTests(SimpleTestCase):
         s.add(2)
         self.assertEqual(len(s), 2)
 
+    def test_reversed_basic(self):
+        s = OrderedSet(['a', 'b', 'c'])
+        self.assertEqual(list(reversed(s)), ['c', 'b', 'a'])
+
+    def test_reversed_empty(self):
+        self.assertEqual(list(reversed(OrderedSet())), [])
+
+    def test_reversed_after_mutations(self):
+        s = OrderedSet(['a', 'b'])
+        s.add('c')
+        s.add('b')
+        s.remove('a')
+        s.add('d')
+        s.discard('x')
+        self.assertEqual(list(s), ['b', 'c', 'd'])
+        self.assertEqual(list(reversed(s)), ['d', 'c', 'b'])
+
+    def test_reversed_parity_with_sequences(self):
+        s = OrderedSet([1, 2, 3, 4])
+        forward = list(s)
+        self.assertEqual(list(reversed(s)), list(reversed(forward)))
+        self.assertEqual(list(reversed(s)), list(reversed(tuple(s))))
+
+    def test_reversed_matches_forward_iteration_order(self):
+        s = OrderedSet([10, 20, 30])
+        forward = list(iter(s))
+        self.assertEqual(list(reversed(s)), list(reversed(forward)))
+
 
 class MultiValueDictTests(SimpleTestCase):
 

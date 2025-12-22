@@ -1,4 +1,5 @@
 import copy
+from collections import OrderedDict
 from collections.abc import Mapping
 
 
@@ -8,7 +9,7 @@ class OrderedSet:
     """
 
     def __init__(self, iterable=None):
-        self.dict = dict.fromkeys(iterable or ())
+        self.dict = OrderedDict.fromkeys(iterable or ())
 
     def add(self, item):
         self.dict[item] = None
@@ -24,6 +25,9 @@ class OrderedSet:
 
     def __iter__(self):
         return iter(self.dict)
+
+    def __reversed__(self):
+        return reversed(self.dict)
 
     def __contains__(self, item):
         return item in self.dict
