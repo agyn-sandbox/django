@@ -44,11 +44,19 @@ class DatabaseOperations(BaseDatabaseOperations):
         return "DATE_TRUNC('%s', %s)" % (lookup_type, field_name)
 
     def _prepare_tzname_delta(self, tzname):
-        if '+' in tzname:
-            return tzname.replace('+', '-')
-        elif '-' in tzname:
-            return tzname.replace('-', '+')
-        return tzname
+        if not tzname or tzname[0] not in '+-':
+            return tzname
+
+        remainder = tzname[1:]
+        if not remainder or remainder.count(':') > 1:
+            return tzname
+
+        numeric_part = remainder.replace(':', '')
+        if not numeric_part.isdigit():
+            return tzname
+
+        flipped_sign = '+' if tzname[0] == '-' else '-'
+        return flipped_sign + remainder
 
     def _convert_field_to_tz(self, field_name, tzname):
         if tzname and settings.USE_TZ:

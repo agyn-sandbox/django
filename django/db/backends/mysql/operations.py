@@ -76,10 +76,35 @@ class DatabaseOperations(BaseDatabaseOperations):
             return "DATE(%s)" % (field_name)
 
     def _prepare_tzname_delta(self, tzname):
-        if '+' in tzname:
-            return tzname[tzname.find('+'):]
-        elif '-' in tzname:
-            return tzname[tzname.find('-'):]
+        def is_numeric(body):
+            if not body or body.count(':') > 1:
+                return False
+            return body.replace(':', '').isdigit()
+
+        def format_offset(sign, body):
+            if ':' in body:
+                hours_part, minutes_part = body.split(':', 1)
+            elif len(body) <= 2:
+                hours_part, minutes_part = body, '0'
+            else:
+                hours_part, minutes_part = body[:-2], body[-2:]
+            hours = int(hours_part) if hours_part else 0
+            minutes = int(minutes_part) if minutes_part else 0
+            return f"{sign}{hours:02d}:{minutes:02d}"
+
+        if tzname.startswith('Etc/GMT') and len(tzname) > 7:
+            offset = tzname[7:]
+            sign = offset[0]
+            body = offset[1:]
+            if sign in '+-' and is_numeric(body):
+                translated_sign = '-' if sign == '+' else '+'
+                return format_offset(translated_sign, body)
+            return tzname
+
+        if tzname and tzname[0] in '+-':
+            body = tzname[1:]
+            if is_numeric(body):
+                return format_offset(tzname[0], body)
         return tzname
 
     def _convert_field_to_tz(self, field_name, tzname):
