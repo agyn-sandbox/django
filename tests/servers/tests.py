@@ -4,7 +4,10 @@ Tests for django.core.servers.
 import errno
 import os
 import socket
+import threading
+import time
 from http.client import HTTPConnection
+from unittest.mock import patch
 from urllib.error import HTTPError
 from urllib.parse import urlencode
 from urllib.request import urlopen
@@ -256,6 +259,71 @@ class LiveServerDatabase(LiveServerBase):
             ['jane', 'robert', 'emily'],
             lambda b: b.name
         )
+
+
+class ThreadedWSGIServerConnectionCloseTests(LiveServerBase):
+
+    def test_close_request_triggers_database_cleanup(self):
+        host = self.server_thread.host
+        port = self.server_thread.port
+        with patch('django.core.servers.basehttp.connections.close_all') as close_all:
+            conn = HTTPConnection(host, port, timeout=1)
+            try:
+                conn.request('GET', '/create_model_instance/', headers={'Connection': 'close'})
+                response = conn.getresponse()
+                self.assertEqual(response.status, 200)
+                response.read()
+            finally:
+                conn.close()
+        close_all.assert_called_once()
+
+    def test_concurrent_connection_close_requests(self):
+        host = self.server_thread.host
+        port = self.server_thread.port
+        thread_count = 5
+        initial_count = Person.objects.count()
+        responses = []
+        errors = []
+        max_attempts = 5
+        retry_delay = 0.05
+
+        def worker():
+            try:
+                for attempt in range(max_attempts):
+                    conn = HTTPConnection(host, port, timeout=1)
+                    try:
+                        conn.request('GET', '/create_model_instance/', headers={'Connection': 'close'})
+                        response = conn.getresponse()
+                        body = response.read()
+                        status = response.status
+                    finally:
+                        conn.close()
+
+                    if status == 200:
+                        responses.append((status, body))
+                        return
+
+                    if status >= 500 and attempt < max_attempts - 1:
+                        time.sleep(retry_delay)
+                        continue
+
+                    responses.append((status, body))
+                    return
+
+                errors.append(RuntimeError('exhausted retries'))
+            except Exception as exc:
+                errors.append(exc)
+
+        threads = [threading.Thread(target=worker) for _ in range(thread_count)]
+        for thread in threads:
+            thread.start()
+        for thread in threads:
+            thread.join()
+
+        self.assertFalse(errors, errors)
+        self.assertEqual(len(responses), thread_count)
+        self.assertTrue(all(status == 200 for status, _ in responses), responses)
+        self.assertEqual(Person.objects.count(), initial_count + thread_count)
 
 
 class LiveServerPort(LiveServerBase):

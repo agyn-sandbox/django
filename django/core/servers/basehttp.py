@@ -16,6 +16,7 @@ from wsgiref import simple_server
 from django.core.exceptions import ImproperlyConfigured
 from django.core.handlers.wsgi import LimitedStream
 from django.core.wsgi import get_wsgi_application
+from django.db import connections
 from django.utils.module_loading import import_string
 
 __all__ = ('WSGIServer', 'WSGIRequestHandler')
@@ -80,6 +81,12 @@ class WSGIServer(simple_server.WSGIServer):
 class ThreadedWSGIServer(socketserver.ThreadingMixIn, WSGIServer):
     """A threaded version of the WSGIServer"""
     daemon_threads = True
+
+    def close_request(self, request):
+        try:
+            connections.close_all()
+        finally:
+            super().close_request(request)
 
 
 class ServerHandler(simple_server.ServerHandler):
