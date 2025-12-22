@@ -3,8 +3,10 @@ import shutil
 import sys
 import tempfile
 import unittest
+from collections import Counter
 from io import StringIO
 from pathlib import Path
+from types import MethodType
 from unittest import mock
 
 from django.conf import settings
@@ -12,6 +14,7 @@ from django.contrib.staticfiles import finders, storage
 from django.contrib.staticfiles.management.commands.collectstatic import (
     Command as CollectstaticCommand,
 )
+from django.contrib.staticfiles.utils import matches_patterns
 from django.core.management import call_command
 from django.test import override_settings
 
@@ -42,6 +45,45 @@ class TestHashedFiles:
         the end of each test.
         """
         pass
+
+    def _collectstatic_options(self, **overrides):
+        options = {
+            'interactive': False,
+            'verbosity': 0,
+            'link': False,
+            'clear': False,
+            'dry_run': False,
+            'post_process': True,
+            'use_default_ignore_patterns': True,
+            'ignore_patterns': ['*.ignoreme'],
+        }
+        options.update(overrides)
+        return options
+
+    def _collectstatic_stats(self, **overrides):
+        collectstatic_cmd = CollectstaticCommand()
+        collectstatic_cmd.set_options(**self._collectstatic_options(**overrides))
+        return collectstatic_cmd.collect()
+
+    def _collectstatic_with_capture(self, **overrides):
+        collectstatic_cmd = CollectstaticCommand()
+        collectstatic_cmd.set_options(**self._collectstatic_options(**overrides))
+        storage_obj = collectstatic_cmd.storage
+        captured = []
+        original_post_process = storage_obj.post_process
+
+        def capturing_post_process(self_storage, *args, **kwargs):
+            for result in original_post_process(*args, **kwargs):
+                captured.append(result)
+                yield result
+
+        storage_obj.post_process = MethodType(capturing_post_process, storage_obj)
+        try:
+            stats = collectstatic_cmd.collect()
+        finally:
+            storage_obj.post_process = original_post_process
+
+        return stats, captured, storage_obj
 
     def test_template_tag_return(self):
         self.assertStaticRaises(ValueError, "does/not/exist.png", "/static/does/not/exist.png")
@@ -203,6 +245,71 @@ class TestHashedFiles:
         self.assertIn(os.path.join('cached', 'css', 'window.css'), stats['post_processed'])
         self.assertIn(os.path.join('cached', 'css', 'img', 'window.png'), stats['unmodified'])
         self.assertIn(os.path.join('test', 'nonascii.css'), stats['post_processed'])
+        self.assertPostCondition()
+
+    def test_collectstatic_post_process_no_duplicates(self):
+        stats = self._collectstatic_stats()
+        self.assertTrue(stats['post_processed'])
+        counts = Counter(stats['post_processed'])
+        duplicates = [name for name, count in counts.items() if count > 1]
+        self.assertEqual(duplicates, [])
+        self.assertPostCondition()
+
+    def test_adjustable_files_yielded_once_with_final_name(self):
+        stats, captured, storage_obj = self._collectstatic_with_capture()
+        self.assertTrue(stats['post_processed'])
+        adjustable_results = [
+            result for result in captured
+            if matches_patterns(result[0], storage_obj._patterns)
+        ]
+        self.assertTrue(adjustable_results)
+        counts = Counter(name for name, _, _ in adjustable_results)
+        self.assertEqual(len(adjustable_results), len(counts))
+        for name, hashed_name, _ in adjustable_results:
+            clean_name = storage_obj.clean_name(name)
+            self.assertIn(clean_name, storage_obj.hashed_files)
+            self.assertEqual(storage_obj.hashed_files[clean_name], hashed_name)
+        self.assertPostCondition()
+
+    def test_post_process_counts_reflect_unique_files(self):
+        stats, captured, _ = self._collectstatic_with_capture()
+        unique_processed_names = {
+            name for name, _, processed in captured
+            if name != 'All' and processed
+        }
+        self.assertEqual(len(stats['post_processed']), len(unique_processed_names))
+        self.assertPostCondition()
+
+    def test_nested_references_resolved_without_duplicates(self):
+        _, captured, storage_obj = self._collectstatic_with_capture()
+        nested_files = {
+            os.path.join('cached', 'styles.css'),
+            os.path.join('cached', 'relative.css'),
+            os.path.join('cached', 'css', 'window.css'),
+        }
+        counts = Counter(name for name, _, _ in captured if name in nested_files)
+        for name in nested_files:
+            self.assertEqual(counts[name], 1)
+
+        hashed_relative = self.hashed_file_path(os.path.join('cached', 'relative.css'))
+        with storage_obj.open(hashed_relative) as relfile:
+            content = relfile.read()
+            self.assertIn(b'../cached/styles.5e0040571e1a.css', content)
+            self.assertIn(b'url("img/relative.acae32e4532b.png")', content)
+
+        hashed_window = self.hashed_file_path(os.path.join('cached', 'css', 'window.css'))
+        with storage_obj.open(hashed_window) as relfile:
+            content = relfile.read()
+            self.assertIn(b'url("img/window.acae32e4532b.png")', content)
+        self.assertPostCondition()
+
+    def test_non_adjustable_assets_unchanged_and_counted_once(self):
+        stats, captured, _ = self._collectstatic_with_capture()
+        image_name = os.path.join('cached', 'css', 'img', 'window.png')
+        occurrences = [entry for entry in captured if entry[0] == image_name]
+        self.assertEqual(len(occurrences), 1)
+        self.assertFalse(occurrences[0][2])
+        self.assertEqual(stats['unmodified'].count(image_name), 1)
         self.assertPostCondition()
 
     def test_css_import_case_insensitive(self):
@@ -385,6 +492,20 @@ class TestCollectionManifestStorage(TestHashedFiles, CollectionTestCase):
             ]),
             2,
         )
+
+
+@override_settings(STATICFILES_STORAGE='staticfiles_tests.storage.TrackingPostProcessStorage')
+class TestTrackingPostProcessStorage(CollectionTestCase):
+
+    def test_downstream_hooks_receive_no_duplicates(self):
+        self.run_collectstatic(verbosity=0)
+        seen = getattr(storage.staticfiles_storage, '_latest_post_process_names', [])
+        self.assertTrue(seen)
+        duplicates = [
+            name for name, count in Counter(name for name in seen if name != 'All').items()
+            if count > 1
+        ]
+        self.assertEqual(duplicates, [])
 
 
 @override_settings(STATICFILES_STORAGE='staticfiles_tests.storage.NoneHashStorage')
