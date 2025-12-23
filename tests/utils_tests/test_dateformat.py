@@ -3,7 +3,7 @@ from datetime import date, datetime
 from django.test import SimpleTestCase, override_settings
 from django.test.utils import TZ_SUPPORT, requires_tz_support
 from django.utils import dateformat, translation
-from django.utils.dateformat import format
+from django.utils.dateformat import DateFormat, format
 from django.utils.timezone import (
     get_default_timezone, get_fixed_timezone, make_aware, utc,
 )
@@ -194,3 +194,22 @@ class DateFormatTests(SimpleTestCase):
                     dateformat.format(datetime(2000, 1, 1, hour), 'g'),
                     expected,
                 )
+
+    def test_year_format_zero_padding(self):
+        tests = [
+            (1, '0001'),
+            (10, '0010'),
+            (100, '0100'),
+            (999, '0999'),
+            (1000, '1000'),
+            (2025, '2025'),
+        ]
+        for year, expected in tests:
+            with self.subTest(year=year):
+                self.assertEqual(
+                    dateformat.format(datetime(year, 1, 1), 'Y'),
+                    expected,
+                )
+
+    def test_year_format_returns_string(self):
+        self.assertIsInstance(DateFormat(date(1, 1, 1)).Y(), str)
