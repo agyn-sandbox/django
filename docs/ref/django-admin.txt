@@ -822,8 +822,8 @@ Generate migration files without Django version and timestamp header.
 
 .. django-admin-option:: --check
 
-Makes ``makemigrations`` exit with a non-zero status when model changes without
-migrations are detected.
+Runs ``makemigrations`` in dry-run mode and exits with a non-zero status when
+model changes without migrations are detected.
 
 .. django-admin-option:: --scriptable
 
