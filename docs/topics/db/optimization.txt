@@ -211,6 +211,31 @@ them:
 * in view code or other layers, possibly making use of
   :func:`~django.db.models.prefetch_related_objects` where needed.
 
+.. warning::
+
+    Prefetch querysets cannot be sliced (limit/offset). Use an unsliced
+    queryset and apply limits via window functions,
+    :class:`~django.db.models.Subquery`/:class:`~django.db.models.OuterRef`
+    per parent, or slice in-memory via :class:`~django.db.models.Prefetch`'s
+    ``to_attr``.
+
+For example, to prefetch the three newest comments per post without slicing::
+
+    from django.db.models import F, Prefetch, Window
+    from django.db.models.functions import RowNumber
+
+    top_comments = Comment.objects.annotate(
+        row_number=Window(
+            expression=RowNumber(),
+            partition_by=[F("post_id")],
+            order_by=[F("created_at").desc()],
+        )
+    ).filter(row_number__lte=3)
+
+    Post.objects.prefetch_related(
+        Prefetch("comments", queryset=top_comments, to_attr="top_comments"),
+    )
+
 Don't retrieve things you don't need
 ====================================
 
