@@ -976,6 +976,34 @@ class AutodetectorTests(BaseAutodetectorTests):
             ("title", models.CharField(max_length=200)),
         ],
     )
+    cross_app_target = ModelState(
+        "app_b",
+        "Target",
+        [("id", models.AutoField(primary_key=True))],
+    )
+    cross_app_link = ModelState(
+        "app_c",
+        "Link",
+        [
+            ("id", models.AutoField(primary_key=True)),
+            ("source", models.ForeignKey("app_a.Source", models.CASCADE)),
+            ("target", models.ForeignKey("app_b.Target", models.CASCADE)),
+        ],
+    )
+    cross_app_source = ModelState(
+        "app_a",
+        "Source",
+        [
+            ("id", models.AutoField(primary_key=True)),
+            (
+                "targets",
+                models.ManyToManyField(
+                    "app_b.Target",
+                    through="app_c.Link",
+                ),
+            ),
+        ],
+    )
     book_indexes = ModelState(
         "otherapp",
         "Book",
@@ -3583,6 +3611,42 @@ class AutodetectorTests(BaseAutodetectorTests):
         self.assertOperationAttributes(changes, "testapp", 0, 2, name="Contract")
         self.assertOperationAttributes(
             changes, "testapp", 0, 3, model_name="author", name="publishers"
+        )
+
+    def test_cross_app_custom_through_dependency(self):
+        changes = self.get_changes(
+            [],
+            [
+                self.cross_app_source,
+                self.cross_app_target,
+                self.cross_app_link,
+            ],
+        )
+        self.assertNumberMigrations(changes, "app_a", 2)
+        self.assertOperationTypes(changes, "app_a", 0, ["CreateModel"])
+        self.assertOperationTypes(changes, "app_a", 1, ["AddField"])
+        self.assertMigrationDependencies(
+            changes,
+            "app_a",
+            1,
+            [
+                ("app_a", "auto_1"),
+                ("app_b", "auto_1"),
+                ("app_c", "auto_1"),
+            ],
+        )
+        self.assertNumberMigrations(changes, "app_b", 1)
+        self.assertOperationTypes(changes, "app_b", 0, ["CreateModel"])
+        self.assertNumberMigrations(changes, "app_c", 1)
+        self.assertOperationTypes(changes, "app_c", 0, ["CreateModel"])
+        self.assertMigrationDependencies(
+            changes,
+            "app_c",
+            0,
+            [
+                ("app_a", "auto_1"),
+                ("app_b", "auto_1"),
+            ],
         )
 
     def test_many_to_many_removed_before_through_model(self):

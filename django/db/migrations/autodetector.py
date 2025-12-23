@@ -570,11 +570,12 @@ class MigrationAutodetector:
                                 rem_model_state.app_label,
                                 rem_model_state.name_lower,
                             )
-                            self.renamed_models_rel[
-                                renamed_models_rel_key
-                            ] = "%s.%s" % (
-                                model_state.app_label,
-                                model_state.name_lower,
+                            self.renamed_models_rel[renamed_models_rel_key] = (
+                                "%s.%s"
+                                % (
+                                    model_state.app_label,
+                                    model_state.name_lower,
+                                )
                             )
                             self.old_model_keys.remove((rem_app_label, rem_model_name))
                             self.old_model_keys.add((app_label, model_name))
@@ -975,9 +976,9 @@ class MigrationAutodetector:
                                 (rem_app_label, rem_model_name, rem_field_name)
                             )
                             old_field_keys.add((app_label, model_name, field_name))
-                            self.renamed_fields[
-                                app_label, model_name, field_name
-                            ] = rem_field_name
+                            self.renamed_fields[app_label, model_name, field_name] = (
+                                rem_field_name
+                            )
                             break
 
     def generate_renamed_fields(self):
@@ -1420,9 +1421,12 @@ class MigrationAutodetector:
                 model_name,
             )
         dependencies = [(dep_app_label, dep_object_name, None, True)]
-        if getattr(field.remote_field, "through", None):
+        through_model = getattr(field.remote_field, "through", None)
+        if through_model and not (
+            hasattr(through_model, "_meta") and through_model._meta.auto_created
+        ):
             through_app_label, through_object_name = resolve_relation(
-                remote_field_model,
+                through_model,
                 app_label,
                 model_name,
             )
