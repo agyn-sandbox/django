@@ -406,6 +406,11 @@ class CommandTests(SimpleTestCase):
         with self.assertRaisesMessage(CommandError, msg):
             management.call_command("subparser_dest", subcommand="foo", bar=12)
 
+    def test_subparser_missing_positional_programmatic(self):
+        msg = "Error: the following arguments are required: name"
+        with self.assertRaisesMessage(CommandError, msg):
+            management.call_command("subparser_required_name", "create")
+
     def test_create_parser_kwargs(self):
         """BaseCommand.create_parser() passes kwargs to CommandParser."""
         epilog = "some epilog text"
@@ -467,6 +472,15 @@ class CommandRunTests(AdminScriptTestCase):
         out, err = self.run_manage(["set_option", "--skip-checks", "--set", "foo"])
         self.assertNoOutput(err)
         self.assertEqual(out.strip(), "Set foo")
+
+    def test_subparser_missing_positional_cli(self):
+        self.write_settings("settings.py", apps=["user_commands"])
+        out, err = self.run_manage(["subparser_required_name", "create"])
+        self.assertNoOutput(out)
+        self.assertIn("usage:", err)
+        self.assertIn("error: the following arguments are required: name", err)
+        self.assertNotIn("Traceback", err)
+        self.assertEqual(self.last_returncode, 2)
 
 
 class UtilsTests(SimpleTestCase):
