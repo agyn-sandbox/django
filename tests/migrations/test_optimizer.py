@@ -796,6 +796,71 @@ class OptimizerTests(SimpleTestCase):
             ],
         )
 
+    def test_reduce_consecutive_alterfield_same_field_to_final(self):
+        self.assertOptimizesTo(
+            [
+                migrations.AlterField("Foo", "age", models.IntegerField()),
+                migrations.AlterField("Foo", "age", models.FloatField()),
+                migrations.AlterField(
+                    "Foo",
+                    "age",
+                    models.DecimalField(max_digits=5, decimal_places=2),
+                ),
+            ],
+            [
+                migrations.AlterField(
+                    "Foo",
+                    "age",
+                    models.DecimalField(max_digits=5, decimal_places=2),
+                ),
+            ],
+        )
+
+    def test_addfield_separated_by_barrier_then_alterfields_collapse_only_after_barrier(
+        self,
+    ):
+        self.assertOptimizesTo(
+            [
+                migrations.AddField("Foo", "age", models.IntegerField()),
+                migrations.RunPython(migrations.RunPython.noop),
+                migrations.AlterField("Foo", "age", models.FloatField()),
+                migrations.AlterField(
+                    "Foo",
+                    "age",
+                    models.DecimalField(max_digits=5, decimal_places=2),
+                ),
+            ],
+            [
+                migrations.AddField("Foo", "age", models.IntegerField()),
+                migrations.RunPython(migrations.RunPython.noop),
+                migrations.AlterField(
+                    "Foo",
+                    "age",
+                    models.DecimalField(max_digits=5, decimal_places=2),
+                ),
+            ],
+        )
+
+    def test_addfield_then_chained_alterfields_merge_to_addfield_final(self):
+        self.assertOptimizesTo(
+            [
+                migrations.AddField("Foo", "age", models.IntegerField()),
+                migrations.AlterField("Foo", "age", models.FloatField()),
+                migrations.AlterField(
+                    "Foo",
+                    "age",
+                    models.DecimalField(max_digits=5, decimal_places=2),
+                ),
+            ],
+            [
+                migrations.AddField(
+                    "Foo",
+                    name="age",
+                    field=models.DecimalField(max_digits=5, decimal_places=2),
+                ),
+            ],
+        )
+
     def test_add_field_delete_field(self):
         """
         RemoveField should cancel AddField

@@ -247,6 +247,10 @@ class AlterField(FieldOperation):
         return "alter_%s_%s" % (self.model_name_lower, self.name_lower)
 
     def reduce(self, operation, app_label):
+        if isinstance(operation, AlterField) and self.is_same_field_operation(
+            operation
+        ):
+            return [operation]
         if isinstance(operation, RemoveField) and self.is_same_field_operation(
             operation
         ):
