@@ -254,6 +254,7 @@ class Query(BaseExpression):
         self.extra = {}  # Maps col_alias -> (col_sql, params).
 
         self._filtered_relations = {}
+        self.has_select_fields = False
 
     @property
     def output_field(self):
@@ -262,12 +263,6 @@ class Query(BaseExpression):
             return getattr(select, "target", None) or select.field
         elif len(self.annotation_select) == 1:
             return next(iter(self.annotation_select.values())).output_field
-
-    @property
-    def has_select_fields(self):
-        return bool(
-            self.select or self.annotation_select_mask or self.extra_select_mask
-        )
 
     @cached_property
     def base_table(self):
@@ -2096,6 +2091,7 @@ class Query(BaseExpression):
         self.select_related = False
         self.set_extra_mask(())
         self.set_annotation_mask(())
+        self.has_select_fields = False
 
     def clear_select_fields(self):
         """
@@ -2105,14 +2101,18 @@ class Query(BaseExpression):
         """
         self.select = ()
         self.values_select = ()
+        self.has_select_fields = False
 
     def add_select_col(self, col, name):
         self.select += (col,)
         self.values_select += (name,)
+        if self.select:
+            self.has_select_fields = True
 
     def set_select(self, cols):
         self.default_cols = False
         self.select = tuple(cols)
+        self.has_select_fields = bool(self.select)
 
     def add_distinct_fields(self, *field_names):
         """
@@ -2430,6 +2430,7 @@ class Query(BaseExpression):
 
         self.values_select = tuple(field_names)
         self.add_fields(field_names, True)
+        self.has_select_fields = True
 
     @property
     def annotation_select(self):
