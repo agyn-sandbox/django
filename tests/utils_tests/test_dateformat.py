@@ -105,6 +105,20 @@ class DateFormatTests(SimpleTestCase):
         self.assertEqual(dateformat.format(my_birthday, 'Y'), '1979')
         self.assertEqual(dateformat.format(my_birthday, 'z'), '189')
 
+    def test_year_two_digits(self):
+        cases = (
+            (date(1, 1, 1), '01'),
+            (date(9, 1, 1), '09'),
+            (date(99, 1, 1), '99'),
+            (date(123, 1, 1), '23'),
+            (date(1000, 1, 1), '00'),
+            (date(2001, 1, 1), '01'),
+        )
+
+        for value, expected in cases:
+            with self.subTest(value=value):
+                self.assertEqual(dateformat.format(value, 'y'), expected)
+
     def test_dateformat(self):
         my_birthday = datetime(1979, 7, 8, 22, 00)
 
