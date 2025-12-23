@@ -520,9 +520,11 @@ class Query(BaseExpression):
                 inner_query.select = (
                     self.model._meta.pk.get_col(inner_query.get_initial_alias()),
                 )
+                inner_query.has_select_fields = True
         else:
             outer_query = self
             self.select = ()
+            self.has_select_fields = False
             self.default_cols = False
             self.extra = {}
 
@@ -688,6 +690,7 @@ class Query(BaseExpression):
             self.set_select([col.relabeled_clone(change_map) for col in rhs.select])
         else:
             self.select = ()
+            self.has_select_fields = False
 
         if connector == OR:
             # It would be nice to be able to handle this, but the queries don't
@@ -2106,13 +2109,10 @@ class Query(BaseExpression):
     def add_select_col(self, col, name):
         self.select += (col,)
         self.values_select += (name,)
-        if self.select:
-            self.has_select_fields = True
 
     def set_select(self, cols):
         self.default_cols = False
         self.select = tuple(cols)
-        self.has_select_fields = bool(self.select)
 
     def add_distinct_fields(self, *field_names):
         """
