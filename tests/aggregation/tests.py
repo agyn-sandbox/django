@@ -28,6 +28,7 @@ from django.db.models import (
     Value,
     Variance,
     When,
+    Window,
 )
 from django.db.models.expressions import Func, RawSQL
 from django.db.models.functions import (
@@ -36,6 +37,7 @@ from django.db.models.functions import (
     Greatest,
     Now,
     Pi,
+    RowNumber,
     TruncDate,
     TruncHour,
 )
@@ -2068,6 +2070,114 @@ class AggregateTestCase(TestCase):
             exists=Exists(Author.objects.none()),
         )
         self.assertEqual(len(qs), 6)
+
+
+class AnnotationPruningTests(AggregateTestCase):
+    def _run_and_capture(self, queryset, method):
+        with CaptureQueriesContext(connection) as ctx:
+            result = getattr(queryset, method)()
+        self.assertGreaterEqual(len(ctx.captured_queries), 1)
+        return result, ctx.captured_queries[-1]["sql"]
+
+    def _assert_alias_absent(self, sql, alias):
+        self.assertNotIn(alias, sql)
+        self.assertNotIn(f'"{alias}"', sql)
+
+    def _assert_alias_present(self, sql, alias):
+        self.assertTrue(
+            alias in sql or f'"{alias}"' in sql,
+            msg=f"Expected alias {alias!r} in SQL {sql!r}",
+        )
+
+    def test_count_prunes_unused_annotation(self):
+        qs = Book.objects.annotate(num_authors=Count("authors"))
+        result, sql = self._run_and_capture(qs, "count")
+        self.assertEqual(result, Book.objects.count())
+        self._assert_alias_absent(sql, "num_authors")
+        self.assertNotIn("GROUP BY", sql)
+
+    def test_exists_prunes_unused_annotation(self):
+        qs = Book.objects.annotate(num_authors=Count("authors"))
+        result, sql = self._run_and_capture(qs, "exists")
+        self.assertTrue(result)
+        self._assert_alias_absent(sql, "num_authors")
+
+    def test_count_retains_annotation_used_in_filter(self):
+        qs = Book.objects.annotate(num_authors=Count("authors")).filter(
+            num_authors__gt=1
+        )
+        result, sql = self._run_and_capture(qs, "count")
+        self.assertEqual(result, 3)
+        self._assert_alias_present(sql, "num_authors")
+        self.assertIn("HAVING", sql)
+
+    def test_count_prunes_order_by_only_annotation(self):
+        qs = Book.objects.annotate(num_authors=Count("authors")).order_by(
+            "num_authors"
+        )
+        result, sql = self._run_and_capture(qs, "count")
+        self.assertEqual(result, Book.objects.count())
+        self._assert_alias_absent(sql, "num_authors")
+        self.assertNotIn("ORDER BY", sql)
+
+    def test_count_retains_transitive_annotation_dependency(self):
+        qs = Book.objects.annotate(
+            num_authors=Count("authors"),
+            doubled=F("num_authors") * 2,
+        ).filter(doubled__gt=2)
+        result, sql = self._run_and_capture(qs, "count")
+        self.assertEqual(result, 3)
+        self._assert_alias_present(sql, "doubled")
+        self._assert_alias_present(sql, "num_authors")
+
+    def test_values_list_count_keeps_annotation(self):
+        qs = Book.objects.annotate(num_authors=Count("authors")).values(
+            "pk", "num_authors"
+        )
+        result, sql = self._run_and_capture(qs, "count")
+        self.assertEqual(result, Book.objects.count())
+        self._assert_alias_present(sql, "num_authors")
+        self.assertIn("GROUP BY", sql)
+
+    def test_values_pk_count_prunes_annotation(self):
+        qs = Book.objects.annotate(num_authors=Count("authors")).values("pk")
+        result, sql = self._run_and_capture(qs, "count")
+        self.assertEqual(result, Book.objects.count())
+        self._assert_alias_absent(sql, "num_authors")
+
+    def test_distinct_count_prunes_annotation(self):
+        qs = Book.objects.annotate(num_authors=Count("authors")).distinct()
+        result, sql = self._run_and_capture(qs, "count")
+        self.assertEqual(result, Book.objects.count())
+        self._assert_alias_absent(sql, "num_authors")
+
+    @skipUnlessDBFeature("supports_distinct_on_fields")
+    def test_distinct_on_fields_keeps_annotation(self):
+        qs = Book.objects.annotate(num_authors=Count("authors")).distinct("num_authors")
+        result, sql = self._run_and_capture(qs, "count")
+        self.assertEqual(result, Book.objects.count())
+        self._assert_alias_present(sql, "num_authors")
+
+    def test_exists_retains_annotation_dependencies(self):
+        qs = Book.objects.annotate(num_authors=Count("authors")).filter(
+            num_authors__gt=1
+        )
+        result, sql = self._run_and_capture(qs, "exists")
+        self.assertTrue(result)
+        self.assertIn("HAVING", sql)
+        self.assertIn("COUNT(", sql)
+
+    @skipUnlessDBFeature("supports_over_clause")
+    def test_count_retains_window_function_annotation(self):
+        qs = Book.objects.annotate(
+            row_number=Window(
+                expression=RowNumber(),
+                order_by=F("id").asc(),
+            )
+        ).filter(row_number__lte=1)
+        result, sql = self._run_and_capture(qs, "count")
+        self.assertEqual(result, 1)
+        self._assert_alias_present(sql, "row_number")
 
     def test_alias_sql_injection(self):
         crafted_alias = """injected_name" from "aggregation_author"; --"""
