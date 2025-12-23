@@ -48,7 +48,7 @@ option.
 ``BaseConstraint``
 ==================
 
-.. class:: BaseConstraint(*, name, violation_error_message=None)
+.. class:: BaseConstraint(*, name, violation_error_message=None, violation_error_code=None)
 
     Base class for all constraints. Subclasses must implement
     ``constraint_sql()``, ``create_sql()``, ``remove_sql()`` and
@@ -77,6 +77,15 @@ The error message used when ``ValidationError`` is raised during
 :ref:`model validation <validating-objects>`. Defaults to
 ``"Constraint “%(name)s” is violated."``.
 
+``violation_error_code``
+------------------------
+
+.. attribute:: BaseConstraint.violation_error_code
+
+The error code used when ``ValidationError`` is raised during
+:ref:`model validation <validating-objects>`. Defaults to ``None``. The
+code is only added to errors raised by :meth:`validate() <BaseConstraint.validate>`.
+
 ``validate()``
 --------------
 
@@ -94,7 +103,7 @@ This method must be implemented by a subclass.
 ``CheckConstraint``
 ===================
 
-.. class:: CheckConstraint(*, check, name, violation_error_message=None)
+.. class:: CheckConstraint(*, check, name, violation_error_message=None, violation_error_code=None)
 
     Creates a check constraint in the database.
 
@@ -121,7 +130,7 @@ ensures the age field is never less than 18.
 ``UniqueConstraint``
 ====================
 
-.. class:: UniqueConstraint(*expressions, fields=(), name=None, condition=None, deferrable=None, include=None, opclasses=(), violation_error_message=None)
+.. class:: UniqueConstraint(*expressions, fields=(), name=None, condition=None, deferrable=None, include=None, opclasses=(), violation_error_message=None, violation_error_code=None)
 
     Creates a unique constraint in the database.
 
@@ -257,3 +266,16 @@ This message is *not used* for :class:`UniqueConstraint`\s with
 same message as constraints defined with
 :attr:`.Field.unique` or in
 :attr:`Meta.unique_together <django.db.models.Options.constraints>`.
+
+``violation_error_code``
+------------------------
+
+.. attribute:: UniqueConstraint.violation_error_code
+
+The error code used when ``ValidationError`` is raised during
+:ref:`model validation <validating-objects>`. Defaults to
+:attr:`.BaseConstraint.violation_error_code`. The code is applied to violations
+detected by :meth:`~BaseConstraint.validate` for expression-based constraints
+and conditional checks. When :meth:`~Model.unique_error_message
+<django.db.models.Model.unique_error_message>` is used (for example, field-based
+constraints without conditions), the code from that method takes precedence.
