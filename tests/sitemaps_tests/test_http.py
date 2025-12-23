@@ -231,6 +231,16 @@ class HTTPSitemapTests(SitemapTestsBase):
         response = self.client.get("/lastmod/get-latest-lastmod-none-sitemap.xml")
         self.assertNotContains(response, "<lastmod>")
 
+    def test_callable_lastmod_empty_index(self):
+        response = self.client.get("/callable-lastmod-empty/index.xml")
+        self.assertEqual(response.status_code, 200)
+        self.assertNotContains(response, "<lastmod>")
+
+    def test_callable_lastmod_empty_sitemap(self):
+        response = self.client.get("/callable-lastmod-empty/sitemap.xml")
+        self.assertEqual(response.status_code, 200)
+        self.assertNotContains(response, "<lastmod>")
+
     def test_sitemap_get_latest_lastmod(self):
         """
         sitemapindex.lastmod is included when Sitemap.lastmod is
