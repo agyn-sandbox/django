@@ -462,8 +462,10 @@ class Query(BaseExpression):
         # those operations must be done in a subquery so that the query
         # aggregates on the limit and/or distinct results instead of applying
         # the distinct and limit after the aggregation.
+        contains_having = self.where and self.where.contains_aggregate
         if (
-            isinstance(self.group_by, tuple)
+            self.group_by is not None
+            or contains_having
             or self.is_sliced
             or existing_annotations
             or self.distinct

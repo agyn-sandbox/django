@@ -32,10 +32,12 @@ from .models import (
     Book,
     Bravo,
     Charlie,
+    Child,
     Clues,
     Entries,
     HardbackBook,
     ItemTag,
+    Parent,
     Publisher,
     SelfRefFK,
     Store,
@@ -1818,6 +1820,51 @@ class AggregationTests(TestCase):
             Q(authors__in=authors) | Q(authors__count__gt=2)
         )
         self.assertEqual(set(books), {self.b1, self.b4})
+
+
+class CountAnnotationHavingTests(TestCase):
+    @classmethod
+    def setUpTestData(cls):
+        cls.alpha = Parent.objects.create(name="alpha")
+        cls.beta = Parent.objects.create(name="beta")
+        cls.gamma = Parent.objects.create(name="gamma")
+        Child.objects.bulk_create(
+            [
+                Child(parent=cls.alpha, amount=5),
+                Child(parent=cls.alpha, amount=-2),
+                Child(parent=cls.beta, amount=1),
+                Child(parent=cls.gamma, amount=-3),
+            ]
+        )
+
+    def _base_queryset(self):
+        return (
+            Parent.objects.annotate(total=Sum("child__amount"))
+            .filter(total__gt=0)
+            .order_by("pk")
+        )
+
+    def _assert_count_matches_length(self, qs):
+        count = qs.count()
+        results = list(qs)
+        self.assertEqual(count, len(results))
+
+    def test_count_with_annotation_filter(self):
+        self._assert_count_matches_length(self._base_queryset())
+
+    def test_count_with_values(self):
+        qs = (
+            Parent.objects.values("name")
+            .annotate(total=Sum("child__amount"))
+            .filter(total__gt=0)
+        )
+        self._assert_count_matches_length(qs)
+
+    def test_count_with_distinct(self):
+        self._assert_count_matches_length(self._base_queryset().distinct())
+
+    def test_count_with_slicing(self):
+        self._assert_count_matches_length(self._base_queryset()[1:])
 
 
 class JoinPromotionTests(TestCase):
