@@ -3,6 +3,8 @@ Helpers to manipulate deferred DDL statements that might need to be adjusted or
 discarded within when executing a migration.
 """
 
+from collections.abc import Mapping
+
 
 class Reference:
     """Base class that defines the reference interface."""
@@ -81,12 +83,30 @@ class Columns(TableColumns):
         self.col_suffixes = col_suffixes
         super().__init__(table, columns)
 
+    def _column_suffix(self, column, idx):
+        suffixes = self.col_suffixes
+        if not suffixes:
+            return ''
+        if isinstance(suffixes, Mapping):
+            raw = suffixes.get(column, '')
+        else:
+            try:
+                raw = suffixes[idx]
+            except IndexError:
+                raw = ''
+        if raw is None or raw == '':
+            return ''
+        if not isinstance(raw, str):
+            raise TypeError('Column suffixes must be strings.')
+        return raw.strip()
+
     def __str__(self):
         def col_str(column, idx):
-            try:
-                return self.quote_name(column) + self.col_suffixes[idx]
-            except IndexError:
-                return self.quote_name(column)
+            quoted = self.quote_name(column)
+            suffix = self._column_suffix(column, idx)
+            if suffix:
+                return '{} {}'.format(quoted, suffix)
+            return quoted
 
         return ', '.join(col_str(column, idx) for idx, column in enumerate(self.columns))
 
@@ -113,10 +133,9 @@ class IndexColumns(Columns):
             # Index.__init__() guarantees that self.opclasses is the same
             # length as self.columns.
             col = '{} {}'.format(self.quote_name(column), self.opclasses[idx])
-            try:
-                col = '{} {}'.format(col, self.col_suffixes[idx])
-            except IndexError:
-                pass
+            suffix = self._column_suffix(column, idx)
+            if suffix:
+                col = '{} {}'.format(col, suffix)
             return col
 
         return ', '.join(col_str(column, idx) for idx, column in enumerate(self.columns))
