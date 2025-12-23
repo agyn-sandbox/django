@@ -1814,6 +1814,7 @@ class SQLDeleteCompiler(SQLCompiler):
         innerq.clear_select_clause()
         pk = self.query.model._meta.pk
         innerq.select = [pk.get_col(self.query.get_initial_alias())]
+        innerq.has_select_fields = True
         outerq = Query(self.query.model)
         if not self.connection.features.update_can_self_select:
             # Force the materialization of the inner query to allow reference
@@ -1931,6 +1932,7 @@ class SQLUpdateCompiler(SQLCompiler):
         query.clear_ordering(force=True)
         query.extra = {}
         query.select = []
+        query.has_select_fields = False
         meta = query.get_meta()
         fields = [meta.pk.name]
         related_ids_index = []
