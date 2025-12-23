@@ -19,6 +19,7 @@ from django.forms.models import (
     fields_for_model,
     model_to_dict,
     modelform_factory,
+    modelformset_factory,
 )
 from django.template import Context, Template
 from django.test import SimpleTestCase, TestCase, skipUnlessDBFeature
@@ -3495,6 +3496,120 @@ class FormFieldCallbackTests(SimpleTestCase):
                 type(InheritedForm.base_fields[name].widget),
                 type(NewForm.base_fields[name].widget),
             )
+
+    def test_modelform_factory_honors_meta_formfield_callback(self):
+        callback_calls = []
+
+        def require_all_fields(db_field, **kwargs):
+            formfield = db_field.formfield(**kwargs)
+            if formfield is not None:
+                callback_calls.append(db_field.name)
+                formfield.required = True
+            return formfield
+
+        class MetaCallbackForm(forms.ModelForm):
+            class Meta:
+                model = Document
+                fields = "__all__"
+                formfield_callback = staticmethod(require_all_fields)
+
+        callback_calls.clear()
+
+        FactoryForm = modelform_factory(Document, form=MetaCallbackForm)
+        self.assertEqual(callback_calls, ["myfile"])
+        self.assertTrue(FactoryForm.base_fields["myfile"].required)
+
+    def test_modelform_factory_kwarg_overrides_meta_formfield_callback(self):
+        meta_calls = []
+        kwarg_calls = []
+
+        def meta_callback(db_field, **kwargs):
+            formfield = db_field.formfield(**kwargs)
+            if formfield is not None:
+                meta_calls.append(db_field.name)
+                formfield.required = True
+            return formfield
+
+        def override_callback(db_field, **kwargs):
+            formfield = db_field.formfield(**kwargs)
+            if formfield is not None:
+                kwarg_calls.append(db_field.name)
+                formfield.required = False
+            return formfield
+
+        class MetaCallbackForm(forms.ModelForm):
+            class Meta:
+                model = Document
+                fields = "__all__"
+                formfield_callback = staticmethod(meta_callback)
+
+        meta_calls.clear()
+        kwarg_calls.clear()
+
+        FactoryForm = modelform_factory(
+            Document,
+            form=MetaCallbackForm,
+            formfield_callback=override_callback,
+        )
+        self.assertEqual(meta_calls, [])
+        self.assertEqual(kwarg_calls, ["myfile"])
+        self.assertFalse(FactoryForm.base_fields["myfile"].required)
+
+    def test_modelform_factory_no_callback_uses_default_formfield(self):
+        class NoCallbackForm(forms.ModelForm):
+            class Meta:
+                model = Document
+                fields = "__all__"
+
+        FactoryForm = modelform_factory(Document, form=NoCallbackForm)
+        self.assertFalse(FactoryForm.base_fields["myfile"].required)
+
+    @isolate_apps("model_forms")
+    def test_formfield_callback_invocation_count_blank_null_fields(self):
+        callback_calls = []
+
+        class CallbackModel(models.Model):
+            active = models.BooleanField()
+            name = models.CharField(max_length=64, blank=True, null=True)
+
+        def record_callback(db_field, **kwargs):
+            formfield = db_field.formfield(**kwargs)
+            if formfield is not None:
+                callback_calls.append(db_field.name)
+            return formfield
+
+        class MetaCallbackForm(forms.ModelForm):
+            class Meta:
+                model = CallbackModel
+                fields = ["active", "name"]
+                formfield_callback = staticmethod(record_callback)
+
+        callback_calls.clear()
+
+        modelform_factory(CallbackModel, form=MetaCallbackForm)
+        self.assertEqual(callback_calls, ["active", "name"])
+
+    def test_modelformset_factory_honors_meta_formfield_callback(self):
+        callback_calls = []
+
+        def require_all_fields(db_field, **kwargs):
+            formfield = db_field.formfield(**kwargs)
+            if formfield is not None:
+                callback_calls.append(db_field.name)
+                formfield.required = True
+            return formfield
+
+        class MetaCallbackForm(forms.ModelForm):
+            class Meta:
+                model = Document
+                fields = "__all__"
+                formfield_callback = staticmethod(require_all_fields)
+
+        callback_calls.clear()
+
+        FormSet = modelformset_factory(Document, form=MetaCallbackForm, extra=0)
+        self.assertEqual(callback_calls, ["myfile"])
+        self.assertTrue(FormSet.form.base_fields["myfile"].required)
 
 
 class LocalizedModelFormTest(TestCase):
