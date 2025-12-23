@@ -10,6 +10,7 @@ from django.db.models.lookups import (
     LessThanOrEqual,
 )
 from django.utils.deprecation import RemovedInDjango50Warning
+from django.utils.functional import LazyObject
 
 
 class MultiColSource:
@@ -41,6 +42,10 @@ class MultiColSource:
 
 def get_normalized_value(value, lhs):
     from django.db.models import Model
+
+    if isinstance(value, LazyObject):
+        value._setup()
+        value = getattr(value, "_wrapped", value)
 
     if isinstance(value, Model):
         if value.pk is None:

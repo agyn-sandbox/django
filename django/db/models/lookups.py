@@ -13,7 +13,7 @@ from django.db.models.fields import (
 )
 from django.db.models.query_utils import RegisterLookupMixin
 from django.utils.datastructures import OrderedSet
-from django.utils.functional import cached_property
+from django.utils.functional import LazyObject, cached_property
 from django.utils.hashable import make_hashable
 
 
@@ -80,12 +80,28 @@ class Lookup(Expression):
     def get_prep_lookup(self):
         if not self.prepare_rhs or hasattr(self.rhs, "resolve_expression"):
             return self.rhs
-        if hasattr(self.lhs, "output_field"):
-            if hasattr(self.lhs.output_field, "get_prep_value"):
-                return self.lhs.output_field.get_prep_value(self.rhs)
-        elif self.rhs_is_direct_value():
-            return Value(self.rhs)
-        return self.rhs
+        rhs = self.rhs
+        if isinstance(rhs, LazyObject):
+            rhs._setup()
+            rhs = getattr(rhs, "_wrapped", rhs)
+        try:
+            from django.db.models import Model
+        except ImportError:  # pragma: no cover - defensive during app loading
+            Model = None
+        output_field = getattr(self.lhs, "output_field", None)
+        if (
+            Model is not None
+            and isinstance(rhs, Model)
+            and isinstance(output_field, Field)
+            and not getattr(output_field, "many_to_many", False)
+        ):
+            rhs = rhs.pk
+        self.rhs = rhs
+        if output_field is not None and hasattr(output_field, "get_prep_value"):
+            return output_field.get_prep_value(rhs)
+        if self.rhs_is_direct_value():
+            return Value(rhs)
+        return rhs
 
     def get_prep_lhs(self):
         if hasattr(self.lhs, "resolve_expression"):
