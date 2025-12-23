@@ -17,6 +17,7 @@ import custom_migration_operations.operations
 
 from django import get_version
 from django.conf import SettingsReference, settings
+from django.core.files.storage import InMemoryStorage, default_storage
 from django.core.validators import EmailValidator, RegexValidator
 from django.db import migrations, models
 from django.db.migrations.serializer import BaseSerializer
@@ -49,6 +50,14 @@ class TestModel1:
         return "/somewhere/dynamic/"
 
     thing = models.FileField(upload_to=upload_to)
+
+
+def storage_callable_default_storage():
+    return default_storage
+
+
+def storage_callable_custom_storage():
+    return InMemoryStorage()
 
 
 class TextEnum(enum.Enum):
@@ -412,6 +421,32 @@ class WriterTests(SimpleTestCase):
                 {"import migrations.test_writer"},
             ),
         )
+
+    def test_serialize_filefield_storage_callable_returns_default_storage_included(
+        self,
+    ):
+        field = models.FileField(storage=storage_callable_default_storage)
+        string, imports = MigrationWriter.serialize(field)
+        self.assertIn(
+            "storage=migrations.test_writer.storage_callable_default_storage",
+            string,
+        )
+        self.assertIn("import migrations.test_writer", imports)
+
+    def test_serialize_filefield_storage_callable_returns_custom_storage_included(self):
+        field = models.FileField(storage=storage_callable_custom_storage)
+        string, imports = MigrationWriter.serialize(field)
+        self.assertIn(
+            "storage=migrations.test_writer.storage_callable_custom_storage",
+            string,
+        )
+        self.assertIn("import migrations.test_writer", imports)
+
+    def test_serialize_filefield_no_callable_default_storage_omitted(self):
+        field = models.FileField(storage=default_storage)
+        string, imports = MigrationWriter.serialize(field)
+        self.assertNotIn("storage=", string)
+        self.assertNotIn("import migrations.test_writer", imports)
 
     def test_serialize_choices(self):
         class TextChoices(models.TextChoices):
