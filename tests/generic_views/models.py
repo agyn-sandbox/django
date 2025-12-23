@@ -1,3 +1,5 @@
+import uuid
+
 from django.db import models
 from django.db.models import QuerySet
 from django.db.models.manager import BaseManager
@@ -28,6 +30,14 @@ class Author(models.Model):
 
     def __str__(self):
         return self.name
+
+
+class UUIDAuthor(models.Model):
+    name = models.CharField(max_length=100)
+    uuid = models.UUIDField(default=uuid.uuid4, unique=True)
+
+    class Meta:
+        ordering = ['name']
 
 
 class DoesNotExistQuerySet(QuerySet):
