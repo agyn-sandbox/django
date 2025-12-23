@@ -1762,7 +1762,22 @@ class SaveAsTests(TestCase):
         cls.superuser = User.objects.create_superuser(
             username="super", password="secret", email="super@example.com"
         )
+        cls.change_only_user = User.objects.create_user(
+            username="changeonly", password="secret", email="changeonly@example.com"
+        )
+        cls.change_only_user.is_staff = True
+        cls.change_only_user.save()
+        person_ct = ContentType.objects.get_for_model(Person)
+        cls.change_only_user.user_permissions.add(
+            Permission.objects.get(content_type=person_ct, codename="change_person"),
+            Permission.objects.get(content_type=person_ct, codename="view_person"),
+        )
         cls.per1 = Person.objects.create(name="John Mauchly", gender=1, alive=True)
+        cls.article = Article.objects.create(
+            title="Article",
+            content="Content",
+            date=datetime.datetime(2024, 1, 1, 12, 0, 0),
+        )
 
     def setUp(self):
         self.client.force_login(self.superuser)
@@ -1861,6 +1876,36 @@ class SaveAsTests(TestCase):
         self.assertFalse(response.context["show_save_and_add_another"])
         self.assertFalse(response.context["show_save_and_continue"])
         self.assertTrue(response.context["show_save_as_new"])
+
+    def test_show_save_as_new_visible_with_add_and_change(self):
+        response = self.client.get(
+            reverse("admin:admin_views_person_change", args=(self.per1.pk,))
+        )
+        self.assertTrue(response.context["show_save_as_new"])
+
+    def test_show_save_as_new_hidden_without_add_permission(self):
+        self.client.force_login(self.change_only_user)
+        response = self.client.get(
+            reverse("admin:admin_views_person_change", args=(self.per1.pk,))
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(response.context["show_save_as_new"])
+
+    def test_show_save_as_new_hidden_when_save_as_disabled(self):
+        response = self.client.get(
+            reverse("admin:admin_views_article_change", args=(self.article.pk,))
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(response.context["show_save_as_new"])
+
+    def test_show_save_as_new_hidden_in_popup(self):
+        popup_url = "%s?%s=1" % (
+            reverse("admin:admin_views_person_change", args=(self.per1.pk,)),
+            IS_POPUP_VAR,
+        )
+        response = self.client.get(popup_url)
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(response.context["show_save_as_new"])
 
 
 @override_settings(ROOT_URLCONF="admin_views.urls")
