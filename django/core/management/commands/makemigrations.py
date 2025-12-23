@@ -111,6 +111,8 @@ class Command(BaseCommand):
             raise CommandError("The migration name must be a valid Python identifier.")
         self.include_header = options["include_header"]
         check_changes = options["check_changes"]
+        if check_changes:
+            self.dry_run = True
         self.scriptable = options["scriptable"]
         self.update = options["update"]
         # If logs and prompts are diverted to stderr, remove the ERROR style.

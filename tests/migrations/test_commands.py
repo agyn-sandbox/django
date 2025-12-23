@@ -1427,6 +1427,15 @@ class MakeMigrationsTests(MigrationTestBase):
     Tests running the makemigrations command.
     """
 
+    def _migration_file_names(self, path):
+        if not os.path.isdir(path):
+            return set()
+        return {
+            name
+            for name in os.listdir(path)
+            if name.endswith(".py") and name != "__init__.py"
+        }
+
     def setUp(self):
         super().setUp()
         self._old_models = apps.app_configs["migrations"].models.copy()
@@ -2391,14 +2400,41 @@ class MakeMigrationsTests(MigrationTestBase):
         makemigrations --check should exit with a non-zero status when
         there are changes to an app requiring migrations.
         """
-        with self.temporary_migration_module():
-            with self.assertRaises(SystemExit):
-                call_command("makemigrations", "--check", "migrations", verbosity=0)
+        with self.temporary_migration_module() as migration_dir:
+            initial_files = self._migration_file_names(migration_dir)
+            with self.assertRaises(SystemExit) as cm:
+                call_command(
+                    "makemigrations", "--check", "migrations", verbosity=0
+                )
+            self.assertEqual(cm.exception.code, 1)
+            self.assertEqual(
+                initial_files, self._migration_file_names(migration_dir)
+            )
 
         with self.temporary_migration_module(
             module="migrations.test_migrations_no_changes"
-        ):
+        ) as migration_dir:
+            initial_files = self._migration_file_names(migration_dir)
             call_command("makemigrations", "--check", "migrations", verbosity=0)
+            self.assertEqual(
+                initial_files, self._migration_file_names(migration_dir)
+            )
+
+    def test_makemigrations_check_does_not_write_files(self):
+        with self.temporary_migration_module() as migration_dir:
+            for name in self._migration_file_names(migration_dir):
+                os.remove(os.path.join(migration_dir, name))
+            pycache_path = os.path.join(migration_dir, "__pycache__")
+            if os.path.isdir(pycache_path):
+                shutil.rmtree(pycache_path)
+
+            self.assertEqual(self._migration_file_names(migration_dir), set())
+            with self.assertRaises(SystemExit) as cm:
+                call_command(
+                    "makemigrations", "--check", "migrations", verbosity=0
+                )
+            self.assertEqual(cm.exception.code, 1)
+            self.assertEqual(self._migration_file_names(migration_dir), set())
 
     def test_makemigrations_migration_path_output(self):
         """
