@@ -74,6 +74,14 @@ class FunctionTests(SimpleTestCase):
         self.assertEqual(floatformat(1.5e-15, -20), "0.00000000000000150000")
         self.assertEqual(floatformat(1.00000000000000015, 16), "1.0000000000000002")
 
+    def test_decimal_precision_preserved(self):
+        high_precision = Decimal("42.12345678901234567890")
+        self.assertEqual(floatformat(high_precision, 20), "42.12345678901234567890")
+        extended_precision = Decimal("0.1234567890123456789012345")
+        self.assertEqual(
+            floatformat(extended_precision, 25), "0.1234567890123456789012345"
+        )
+
     def test_force_grouping(self):
         with translation.override("en"):
             self.assertEqual(floatformat(10000, "g"), "10,000")
