@@ -3,14 +3,18 @@ import time
 from django.core.exceptions import ImproperlyConfigured
 from django.http import HttpResponse
 from django.test import (
-    RequestFactory, SimpleTestCase, ignore_warnings, override_settings,
+    RequestFactory, SimpleTestCase, TestCase, ignore_warnings, override_settings,
 )
 from django.test.utils import require_jinja2
+from django.shortcuts import get_object_or_404
 from django.urls import resolve
 from django.utils.deprecation import RemovedInDjango40Warning
+from django.utils.functional import SimpleLazyObject
 from django.views.generic import RedirectView, TemplateView, View
+from django.views.generic.base import _wrap_url_kwargs_with_deprecation_warning
 
 from . import views
+from .models import Artist, Author, UUIDAuthor
 
 
 class SimpleView(View):
@@ -388,6 +392,51 @@ class TemplateViewTest(SimpleTestCase):
     def test_extra_context(self):
         response = self.client.get('/template/extra_context/')
         self.assertEqual(response.context['title'], 'Title')
+
+
+class TemplateViewLazyKwargDatabaseTests(TestCase):
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.author = Author.objects.create(name='Lazy Author', slug='lazy-author')
+        cls.artist = Artist.objects.create(name='Lazy Artist')
+        cls.uuid_author = UUIDAuthor.objects.create(name='Lazy UUID Author')
+
+    def test_lazy_slug_kwarg_used_in_queryset(self):
+        lazy_kwargs = _wrap_url_kwargs_with_deprecation_warning({'slug': self.author.slug})
+        lazy_slug = lazy_kwargs['slug']
+        self.assertIsInstance(lazy_slug, SimpleLazyObject)
+        msg = (
+            'TemplateView passing URL kwargs to the context is deprecated. '
+            'Reference slug in your template through view.kwargs instead.'
+        )
+        with self.assertWarnsMessage(RemovedInDjango40Warning, msg):
+            found = get_object_or_404(Author, slug=lazy_slug)
+        self.assertEqual(found, self.author)
+
+    def test_lazy_pk_kwarg_used_in_queryset(self):
+        lazy_kwargs = _wrap_url_kwargs_with_deprecation_warning({'pk': self.artist.pk})
+        lazy_pk = lazy_kwargs['pk']
+        self.assertIsInstance(lazy_pk, SimpleLazyObject)
+        msg = (
+            'TemplateView passing URL kwargs to the context is deprecated. '
+            'Reference pk in your template through view.kwargs instead.'
+        )
+        with self.assertWarnsMessage(RemovedInDjango40Warning, msg):
+            found = get_object_or_404(Artist, pk=lazy_pk)
+        self.assertEqual(found, self.artist)
+
+    def test_lazy_uuid_kwarg_used_in_queryset(self):
+        lazy_kwargs = _wrap_url_kwargs_with_deprecation_warning({'uuid': self.uuid_author.uuid})
+        lazy_uuid = lazy_kwargs['uuid']
+        self.assertIsInstance(lazy_uuid, SimpleLazyObject)
+        msg = (
+            'TemplateView passing URL kwargs to the context is deprecated. '
+            'Reference uuid in your template through view.kwargs instead.'
+        )
+        with self.assertWarnsMessage(RemovedInDjango40Warning, msg):
+            found = get_object_or_404(UUIDAuthor, uuid=lazy_uuid)
+        self.assertEqual(found, self.uuid_author)
 
 
 @override_settings(ROOT_URLCONF='generic_views.urls')
