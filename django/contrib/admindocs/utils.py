@@ -204,13 +204,14 @@ def replace_named_groups(pattern):
     3. ^(?P<a>\w+)/b/(\w+) ==> ^<a>/b/(\w+)
     4. ^(?P<a>\w+)/b/(?P<c>\w+) ==> ^<a>/b/<c>
     """
-    group_pattern_and_name = [
-        (pattern[start:end], match[1])
-        for start, end, match in _find_groups(pattern, named_group_matcher)
-    ]
-    for group_pattern, group_name in group_pattern_and_name:
-        pattern = pattern.replace(group_pattern, group_name)
-    return pattern
+    parts = []
+    prev_end = 0
+    for start, end, match in _find_groups(pattern, named_group_matcher):
+        parts.append(pattern[prev_end:start])
+        parts.append(match[1])
+        prev_end = end
+    parts.append(pattern[prev_end:])
+    return "".join(parts)
 
 
 def replace_unnamed_groups(pattern):
@@ -221,13 +222,14 @@ def replace_unnamed_groups(pattern):
     3. ^(?P<a>\w+)/b/(\w+) ==> ^(?P<a>\w+)/b/<var>
     4. ^(?P<a>\w+)/b/((x|y)\w+) ==> ^(?P<a>\w+)/b/<var>
     """
-    final_pattern, prev_end = "", None
+    parts = []
+    prev_end = 0
     for start, end, _ in _find_groups(pattern, unnamed_group_matcher):
-        if prev_end:
-            final_pattern += pattern[prev_end:start]
-        final_pattern += pattern[:start] + "<var>"
+        parts.append(pattern[prev_end:start])
+        parts.append("<var>")
         prev_end = end
-    return final_pattern + pattern[prev_end:]
+    parts.append(pattern[prev_end:])
+    return "".join(parts)
 
 
 def remove_non_capturing_groups(pattern):
@@ -237,12 +239,16 @@ def remove_non_capturing_groups(pattern):
     2. ^(?:\w+(?:\w+))a => ^a
     3. ^a(?:\w+)/b(?:\w+) => ^a/b
     """
-    group_start_end_indices = _find_groups(pattern, non_capturing_group_matcher)
-    final_pattern, prev_end = "", None
-    for start, end, _ in group_start_end_indices:
-        final_pattern += pattern[prev_end:start]
+    parts = []
+    prev_end = 0
+    for start, end, match in _find_groups(pattern, non_capturing_group_matcher):
+        parts.append(pattern[prev_end:start])
+        inner = pattern[match.end(0) : end - 1]
+        if not re.search(r"[.^$*+?{}\[\]|\\]", inner):
+            parts.append(inner)
         prev_end = end
-    return final_pattern + pattern[prev_end:]
+    parts.append(pattern[prev_end:])
+    return "".join(parts)
 
 
 # Callback strings are cached in a dictionary for every urlconf.

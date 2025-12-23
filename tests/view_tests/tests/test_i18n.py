@@ -100,6 +100,24 @@ class SetLanguageTests(TestCase):
             self.client.cookies[settings.LANGUAGE_COOKIE_NAME].value, lang_code
         )
 
+    @override_settings(
+        LANGUAGE_CODE="en",
+        LANGUAGES=[("en", "English"), ("nl", "Dutch")],
+        ROOT_URLCONF="view_tests.urls_optional_group",
+    )
+    def test_set_language_redirect_with_optional_trailing_group(self):
+        post_data = {"language": "nl"}
+        response = self.client.post(
+            "/i18n/setlang/",
+            post_data,
+            HTTP_REFERER="/en/account/jane/",
+        )
+        self.assertRedirects(
+            response,
+            "/nl/account/jane/",
+            fetch_redirect_response=False,
+        )
+
     def test_setlang_default_redirect(self):
         """
         The set_language view redirects to '/' when there isn't a referer or

@@ -177,7 +177,12 @@ def translate_url(url, lang_code):
         )
         with override(lang_code):
             try:
-                url = reverse(to_be_reversed, args=match.args, kwargs=match.kwargs)
+                safe_kwargs = {
+                    key: value
+                    for key, value in match.kwargs.items()
+                    if value is not None
+                }
+                url = reverse(to_be_reversed, args=match.args, kwargs=safe_kwargs)
             except NoReverseMatch:
                 pass
             else:
