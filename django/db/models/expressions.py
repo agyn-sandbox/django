@@ -565,12 +565,6 @@ _connector_combinations = [
         )
         for field_type in (fields.IntegerField, fields.DecimalField, fields.FloatField)
     },
-    {
-        Combinable.MOD: [
-            (fields.DecimalField, NoneType, fields.DecimalField),
-            (NoneType, fields.DecimalField, fields.DecimalField),
-        ],
-    },
     # Date/DateTimeField/DurationField/TimeField.
     {
         Combinable.ADD: [

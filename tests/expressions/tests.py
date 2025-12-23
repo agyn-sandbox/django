@@ -2436,13 +2436,16 @@ class CombinedExpressionTests(SimpleTestCase):
                 return value
             return Expression(value)
 
-        def null():
-            return Value(None)
+        def decimal_null():
+            value = Value(None)
+            value.output_field = DecimalField()
+            return value
 
         numeric_tests = [
             (DecimalField, IntegerField, DecimalField),
             (IntegerField, DecimalField, DecimalField),
             (IntegerField, IntegerField, IntegerField),
+            (IntegerField, FloatField, FloatField),
             (FloatField, IntegerField, FloatField),
         ]
         for lhs, rhs, combined in numeric_tests:
@@ -2455,8 +2458,8 @@ class CombinedExpressionTests(SimpleTestCase):
                 self.assertIsInstance(expr.output_field, combined)
 
         null_tests = [
-            (DecimalField, null, DecimalField),
-            (null, DecimalField, DecimalField),
+            (DecimalField, decimal_null, DecimalField),
+            (decimal_null, DecimalField, DecimalField),
         ]
         for lhs, rhs, combined in null_tests:
             with self.subTest(lhs=lhs, rhs=rhs, combined=combined):
