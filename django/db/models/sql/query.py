@@ -693,10 +693,19 @@ class Query(BaseExpression):
             return
 
         to_remove = set(self.annotations).difference(to_keep)
+        keep_alias_refs = set()
+        for alias in to_keep:
+            expression = self.annotations[alias]
+            for ref_alias in self._gen_col_aliases([expression]):
+                if ref_alias in self.alias_refcount:
+                    keep_alias_refs.add(ref_alias)
         for alias in to_remove:
             expression = self.annotations.pop(alias)
             for ref_alias in self._gen_col_aliases([expression]):
-                if ref_alias in self.alias_refcount:
+                if (
+                    ref_alias in self.alias_refcount
+                    and ref_alias not in keep_alias_refs
+                ):
                     self.unref_alias(ref_alias)
         if self.annotation_select_mask is not None:
             self.annotation_select_mask.difference_update(to_remove)

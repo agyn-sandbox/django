@@ -2167,6 +2167,16 @@ class AnnotationPruningTests(AggregateTestCase):
         self.assertIn("HAVING", sql)
         self.assertIn("COUNT(", sql)
 
+    def test_count_keeps_join_alias_for_retained_annotation(self):
+        qs = Book.objects.annotate(
+            num_authors=Count("authors"),
+            doubled=F("num_authors") * 2,
+        ).values("num_authors")
+        result, sql = self._run_and_capture(qs, "count")
+        self.assertEqual(result, Book.objects.count())
+        self._assert_alias_absent(sql, "doubled")
+        self.assertIn("aggregation_book_authors", sql)
+
     @skipUnlessDBFeature("supports_over_clause")
     def test_count_retains_window_function_annotation(self):
         qs = Book.objects.annotate(
