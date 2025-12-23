@@ -2011,6 +2011,15 @@ class ModelAdmin(BaseModelAdmin):
             )
             if formset.is_valid():
                 changecount = 0
+                base_error_message = _("No changes were saved due to an error.")
+
+                def _format_list_editable_error(exc):
+                    if exc and str(exc):
+                        return _(
+                            "No changes were saved due to an error: %(error)s"
+                        ) % {"error": str(exc)}
+                    return base_error_message
+
                 try:
                     with transaction.atomic(
                         using=router.db_for_write(self.model)
@@ -2027,10 +2036,17 @@ class ModelAdmin(BaseModelAdmin):
                                 )
                                 self.log_change(request, obj, change_msg)
                                 changecount += 1
-                except Exception:
+                except PermissionDenied as exc:
                     self.message_user(
                         request,
-                        _("No changes were saved due to an error."),
+                        _format_list_editable_error(exc),
+                        messages.ERROR,
+                    )
+                    raise
+                except Exception as exc:
+                    self.message_user(
+                        request,
+                        _format_list_editable_error(exc),
                         messages.ERROR,
                     )
                 else:
