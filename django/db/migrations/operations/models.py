@@ -953,9 +953,12 @@ class RenameIndex(IndexOperation):
                         ", ".join(columns),
                     )
                 )
+            current_index_name = matching_index_name[0]
+            if current_index_name.lower() == self.new_name_lower:
+                return
             old_index = models.Index(
                 fields=self.old_fields,
-                name=matching_index_name[0],
+                name=current_index_name,
             )
         else:
             from_model_state = from_state.models[app_label, self.model_name_lower]
@@ -967,7 +970,60 @@ class RenameIndex(IndexOperation):
 
     def database_backwards(self, app_label, schema_editor, from_state, to_state):
         if self.old_fields:
-            # Backward operation with unnamed index is a no-op.
+            model = to_state.apps.get_model(app_label, self.model_name)
+            if not self.allow_migrate_model(
+                schema_editor.connection.alias, model
+            ):
+                return
+            columns = [
+                model._meta.get_field(field).column for field in self.old_fields
+            ]
+            fields_tuple = tuple(self.old_fields)
+            opts = model._meta
+            if fields_tuple in [tuple(fields) for fields in opts.index_together]:
+                suffix = "_idx"
+            elif fields_tuple in [tuple(fields) for fields in opts.unique_together]:
+                suffix = "_uniq"
+            else:
+                suffix = "_idx"
+
+            old_auto_name = schema_editor._create_index_name(
+                opts.db_table,
+                columns,
+                suffix=suffix,
+            )
+            matching_index_name = schema_editor._constraint_names(
+                model,
+                column_names=columns,
+                index=True,
+            )
+            if len(matching_index_name) != 1:
+                raise ValueError(
+                    "Found wrong number (%s) of indexes for %s(%s)."
+                    % (
+                        len(matching_index_name),
+                        opts.db_table,
+                        ", ".join(columns),
+                    )
+                )
+            current_index_name = matching_index_name[0]
+            if current_index_name.lower() == old_auto_name.lower():
+                return
+            existing_index_names = schema_editor._constraint_names(model, index=True)
+            if any(
+                name.lower() == old_auto_name.lower()
+                for name in existing_index_names
+            ):
+                return
+            old_index = models.Index(
+                fields=self.old_fields,
+                name=current_index_name,
+            )
+            new_index = models.Index(
+                fields=self.old_fields,
+                name=old_auto_name,
+            )
+            schema_editor.rename_index(model, old_index, new_index)
             return
 
         self.new_name_lower, self.old_name_lower = (
