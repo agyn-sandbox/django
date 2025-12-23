@@ -1471,6 +1471,32 @@ class ChangelistTests(AuthViewsTestCase):
         self.logout()
         self.login(password="password1")
 
+    def test_user_change_password_link_with_to_field_username(self):
+        user_change_url = reverse(
+            "auth_test_admin:auth_user_change", args=(self.admin.username,)
+        )
+        to_field_url = f"{user_change_url}?_to_field=username"
+        with mock.patch(
+            "django.contrib.auth.admin.UserAdmin.to_field_allowed", return_value=True
+        ):
+            response = self.client.get(to_field_url)
+        self.assertEqual(response.status_code, 200, response.content.decode())
+        password_change_url = reverse(
+            "auth_test_admin:auth_user_password_change", args=(self.admin.pk,)
+        )
+
+        match = re.search(
+            r'you can change the password using <a href="([^"]*)">this form</a>',
+            response.content.decode(),
+        )
+        self.assertIsNotNone(match, response.content.decode())
+        rel_link = match[1]
+        resolved_link = urljoin(to_field_url, rel_link)
+        self.assertEqual(resolved_link, password_change_url)
+
+        password_response = self.client.get(resolved_link)
+        self.assertEqual(password_response.status_code, 200)
+
     def test_user_change_different_user_password(self):
         u = User.objects.get(email="staffmember@example.com")
         response = self.client.post(
