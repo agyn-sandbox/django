@@ -2978,16 +2978,35 @@ class OperationTests(OperationTestBase):
             "rename_pony_weight_pink_new_pony_test_idx",
         )
 
+        with connection.schema_editor() as editor:
+            auto_name = editor._create_index_name(
+                table_name,
+                ["weight", "pink"],
+                suffix="_idx",
+            )
+
         new_state = project_state.clone()
         operation.state_forwards(app_label, new_state)
         # Rename index.
         with connection.schema_editor() as editor:
             operation.database_forwards(app_label, editor, project_state, new_state)
         self.assertIndexNameExists(table_name, "new_pony_test_idx")
-        # Reverse is a no-op.
-        with connection.schema_editor() as editor, self.assertNumQueries(0):
-            operation.database_backwards(app_label, editor, new_state, project_state)
+        self.assertIndexNameNotExists(table_name, auto_name)
+        # Idempotent re-apply while already renamed.
+        with connection.schema_editor() as editor:
+            operation.database_forwards(app_label, editor, project_state, new_state)
         self.assertIndexNameExists(table_name, "new_pony_test_idx")
+        self.assertIndexNameNotExists(table_name, auto_name)
+        # Reverse restores the auto-generated name.
+        with connection.schema_editor() as editor:
+            operation.database_backwards(app_label, editor, new_state, project_state)
+        self.assertIndexNameExists(table_name, auto_name)
+        self.assertIndexNameNotExists(table_name, "new_pony_test_idx")
+        # Re-apply renaming succeeds after restoration.
+        with connection.schema_editor() as editor:
+            operation.database_forwards(app_label, editor, project_state, new_state)
+        self.assertIndexNameExists(table_name, "new_pony_test_idx")
+        self.assertIndexNameNotExists(table_name, auto_name)
         # Deconstruction.
         definition = operation.deconstruct()
         self.assertEqual(definition[0], "RenameIndex")
@@ -2998,6 +3017,57 @@ class OperationTests(OperationTestBase):
                 "model_name": "Pony",
                 "new_name": "new_pony_test_idx",
                 "old_fields": ("weight", "pink"),
+            },
+        )
+
+    def test_rename_index_unnamed_unique_index(self):
+        app_label = "test_rniuui"
+        project_state = self.set_up_test_model(app_label, unique_together=True)
+        table_name = app_label + "_pony"
+        self.assertIndexNameNotExists(table_name, "new_pony_test_idx")
+        operation = migrations.RenameIndex(
+            "Pony", new_name="new_pony_test_idx", old_fields=("pink", "weight")
+        )
+
+        with connection.schema_editor() as editor:
+            auto_name = editor._create_index_name(
+                table_name,
+                ["pink", "weight"],
+                suffix="_uniq",
+            )
+
+        new_state = project_state.clone()
+        operation.state_forwards(app_label, new_state)
+        # Rename unique constraint index.
+        with connection.schema_editor() as editor:
+            operation.database_forwards(app_label, editor, project_state, new_state)
+        self.assertIndexNameExists(table_name, "new_pony_test_idx")
+        self.assertIndexNameNotExists(table_name, auto_name)
+        # Idempotent re-apply while already renamed.
+        with connection.schema_editor() as editor:
+            operation.database_forwards(app_label, editor, project_state, new_state)
+        self.assertIndexNameExists(table_name, "new_pony_test_idx")
+        self.assertIndexNameNotExists(table_name, auto_name)
+        # Reverse restores the auto-generated unique index name.
+        with connection.schema_editor() as editor:
+            operation.database_backwards(app_label, editor, new_state, project_state)
+        self.assertIndexNameExists(table_name, auto_name)
+        self.assertIndexNameNotExists(table_name, "new_pony_test_idx")
+        # Re-apply renaming succeeds after restoration.
+        with connection.schema_editor() as editor:
+            operation.database_forwards(app_label, editor, project_state, new_state)
+        self.assertIndexNameExists(table_name, "new_pony_test_idx")
+        self.assertIndexNameNotExists(table_name, auto_name)
+        # Deconstruction.
+        definition = operation.deconstruct()
+        self.assertEqual(definition[0], "RenameIndex")
+        self.assertEqual(definition[1], [])
+        self.assertEqual(
+            definition[2],
+            {
+                "model_name": "Pony",
+                "new_name": "new_pony_test_idx",
+                "old_fields": ("pink", "weight"),
             },
         )
 
