@@ -2155,6 +2155,16 @@ class Prefetch:
             raise ValueError(
                 "Prefetch querysets cannot use raw(), values(), and values_list()."
             )
+        if (
+            queryset is not None
+            and hasattr(queryset, "query")
+            and queryset.query.is_sliced
+        ):
+            raise ValueError(
+                "Prefetch querysets cannot be sliced (limit/offset). Use an "
+                "unsliced queryset and apply limits via window functions, "
+                "Subquery/OuterRef per parent, or slice in-memory via to_attr."
+            )
         if to_attr:
             self.prefetch_to = LOOKUP_SEP.join(
                 lookup.split(LOOKUP_SEP)[:-1] + [to_attr]
