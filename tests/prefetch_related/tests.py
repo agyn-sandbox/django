@@ -1004,6 +1004,34 @@ class CustomPrefetchTests(TestCase):
         with self.assertRaisesMessage(ValueError, msg):
             Prefetch("houses", House.objects.raw("select pk from house"))
 
+    def test_prefetch_disallows_sliced_queryset_m2m(self):
+        msg = (
+            "Prefetch querysets cannot be sliced (limit/offset). Use an unsliced "
+            "queryset and apply limits via window functions, "
+            "Subquery/OuterRef per parent, or slice in-memory via to_attr."
+        )
+        with self.assertRaisesMessage(ValueError, msg):
+            Book.objects.prefetch_related(
+                Prefetch(
+                    "authors",
+                    queryset=Author.objects.order_by("name")[:2],
+                )
+            )
+
+    def test_prefetch_disallows_sliced_queryset_reverse_fk(self):
+        msg = (
+            "Prefetch querysets cannot be sliced (limit/offset). Use an unsliced "
+            "queryset and apply limits via window functions, "
+            "Subquery/OuterRef per parent, or slice in-memory via to_attr."
+        )
+        with self.assertRaisesMessage(ValueError, msg):
+            Author.objects.prefetch_related(
+                Prefetch(
+                    "books",
+                    queryset=Book.objects.order_by("title")[:1],
+                )
+            )
+
     def test_to_attr_doesnt_cache_through_attr_as_list(self):
         house = House.objects.prefetch_related(
             Prefetch("rooms", queryset=Room.objects.all(), to_attr="to_rooms"),
