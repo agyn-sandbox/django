@@ -218,6 +218,21 @@ class CaseExpressionTests(TestCase):
             transform=attrgetter("integer", "join_test"),
         )
 
+    def test_negated_empty_in_condition(self):
+        queryset = CaseTestModel.objects.annotate(
+            always_true=Case(
+                When(~Q(pk__in=[]), then=Value(True)),
+                default=Value(False),
+                output_field=BooleanField(),
+            )
+        ).order_by("pk")
+        compiled_sql = str(queryset.query)
+        self.assertIn("CASE WHEN", compiled_sql)
+        self.assertNotIn("CASE WHEN  THEN", compiled_sql)
+        values = list(queryset.values_list("always_true", flat=True))
+        self.assertTrue(values)
+        self.assertTrue(all(values))
+
     def test_annotate_with_annotation_in_value(self):
         self.assertQuerysetEqual(
             CaseTestModel.objects.annotate(
