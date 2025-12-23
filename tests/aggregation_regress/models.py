@@ -89,3 +89,12 @@ class SelfRefFK(models.Model):
     parent = models.ForeignKey(
         "self", models.SET_NULL, null=True, blank=True, related_name="children"
     )
+
+
+class Parent(models.Model):
+    name = models.CharField(max_length=50)
+
+
+class Child(models.Model):
+    parent = models.ForeignKey(Parent, models.CASCADE)
+    amount = models.IntegerField()
