@@ -194,17 +194,24 @@ class ValuesIterable(BaseIterable):
         query = queryset.query
         compiler = query.get_compiler(queryset.db)
 
+        rows = compiler.results_iter(
+            chunked_fetch=self.chunked_fetch, chunk_size=self.chunk_size
+        )
         # extra(select=...) cols are always at the start of the row.
         names = [
             *query.extra_select,
             *query.values_select,
             *query.annotation_select,
         ]
-        indexes = range(len(names))
-        for row in compiler.results_iter(
-            chunked_fetch=self.chunked_fetch, chunk_size=self.chunk_size
-        ):
-            yield {names[i]: row[i] for i in indexes}
+        base_index_map = {name: idx for idx, name in enumerate(names)}
+        index_lookup = {}
+        index_lookup.update(getattr(compiler, "extra_select_aliases", {}))
+        index_lookup.update(getattr(compiler, "values_select_map", {}))
+        if compiler.annotation_col_map:
+            index_lookup.update(compiler.annotation_col_map)
+        indexes = [index_lookup.get(name, base_index_map[name]) for name in names]
+        for row in rows:
+            yield {name: row[index] for name, index in zip(names, indexes)}
 
 
 class ValuesListIterable(BaseIterable):
@@ -218,32 +225,42 @@ class ValuesListIterable(BaseIterable):
         query = queryset.query
         compiler = query.get_compiler(queryset.db)
 
-        if queryset._fields:
-            # extra(select=...) cols are always at the start of the row.
-            names = [
-                *query.extra_select,
-                *query.values_select,
-                *query.annotation_select,
-            ]
-            fields = [
-                *queryset._fields,
-                *(f for f in query.annotation_select if f not in queryset._fields),
-            ]
-            if fields != names:
-                # Reorder according to fields.
-                index_map = {name: idx for idx, name in enumerate(names)}
-                rowfactory = operator.itemgetter(*[index_map[f] for f in fields])
-                return map(
-                    rowfactory,
-                    compiler.results_iter(
-                        chunked_fetch=self.chunked_fetch, chunk_size=self.chunk_size
-                    ),
-                )
-        return compiler.results_iter(
+        rows = compiler.results_iter(
             tuple_expected=True,
             chunked_fetch=self.chunked_fetch,
             chunk_size=self.chunk_size,
         )
+
+        names = [
+            *query.extra_select,
+            *query.values_select,
+            *query.annotation_select,
+        ]
+        base_index_map = {name: idx for idx, name in enumerate(names)}
+        index_lookup = {}
+        index_lookup.update(getattr(compiler, "extra_select_aliases", {}))
+        index_lookup.update(getattr(compiler, "values_select_map", {}))
+        if compiler.annotation_col_map:
+            index_lookup.update(compiler.annotation_col_map)
+
+        def get_index(name):
+            return index_lookup.get(name, base_index_map[name])
+
+        if queryset._fields:
+            fields = [
+                *queryset._fields,
+                *(f for f in query.annotation_select if f not in queryset._fields),
+            ]
+        else:
+            fields = names
+
+        indexes = [get_index(name) for name in fields]
+
+        def generator():
+            for row in rows:
+                yield tuple(row[index] for index in indexes)
+
+        return generator()
 
 
 class NamedValuesListIterable(ValuesListIterable):
@@ -277,11 +294,29 @@ class FlatValuesListIterable(BaseIterable):
 
     def __iter__(self):
         queryset = self.queryset
-        compiler = queryset.query.get_compiler(queryset.db)
-        for row in compiler.results_iter(
+        query = queryset.query
+        compiler = query.get_compiler(queryset.db)
+        rows = compiler.results_iter(
             chunked_fetch=self.chunked_fetch, chunk_size=self.chunk_size
-        ):
-            yield row[0]
+        )
+        names = [
+            *query.extra_select,
+            *query.values_select,
+            *query.annotation_select,
+        ]
+        base_index_map = {name: idx for idx, name in enumerate(names)}
+        index_lookup = {}
+        index_lookup.update(getattr(compiler, "extra_select_aliases", {}))
+        index_lookup.update(getattr(compiler, "values_select_map", {}))
+        if compiler.annotation_col_map:
+            index_lookup.update(compiler.annotation_col_map)
+        if queryset._fields:
+            target_name = queryset._fields[0]
+        else:
+            target_name = names[0]
+        index = index_lookup.get(target_name, base_index_map[target_name])
+        for row in rows:
+            yield row[index]
 
 
 class QuerySet:

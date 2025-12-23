@@ -1,5 +1,6 @@
 import datetime
 import pickle
+import re
 import sys
 import unittest
 from operator import attrgetter
@@ -2749,6 +2750,109 @@ class ValuesQuerysetTests(TestCase):
         value = Number.objects.values_list("num", "other_num", named=True).get()
         self.assertEqual(value, (72, None))
         self.assertEqual(pickle.loads(pickle.dumps(value)), value)
+
+    def _normalize_sql(self, sql):
+        sql = sql.strip()
+        if sql.startswith("(") and sql.endswith(")"):
+            inner = sql[1:-1].strip()
+            if inner.count("(") == inner.count(")"):
+                sql = inner
+        return re.sub(r"\s+", " ", sql)
+
+    def _select_info(self, qs):
+        compiler = qs.query.get_compiler(using="default", connection=connection)
+        select, _, annotations = compiler.get_select()
+        return [
+            (col, self._normalize_sql(sql), tuple(params), alias)
+            for (col, (sql, params), alias) in select
+        ], annotations
+
+    def test_extra_duplicate_select_pruned_with_aggregation(self):
+        qs = (
+            Number.objects.extra(
+                select={
+                    "num_dup": (
+                        f"{connection.ops.quote_name(Number._meta.db_table)}"
+                        f".{connection.ops.quote_name('num')}"
+                    )
+                }
+            )
+            .values("num", "num_dup")
+            .annotate(Count("id"))
+            .order_by("num")
+        )
+        select_info, annotations = self._select_info(qs)
+        seen = {(sql, params) for _, sql, params, _ in select_info}
+        self.assertEqual(len(select_info), len(seen))
+        num_field = Number._meta.get_field("num")
+        base_index = next(
+            idx
+            for idx, (col, _, _, _) in enumerate(select_info)
+            if getattr(col, "target", None) is num_field
+        )
+        self.assertEqual(annotations["num_dup"], base_index)
+        self.assertSequenceEqual(
+            list(qs),
+            [{"num": 72, "num_dup": 72, "id__count": 1}],
+        )
+
+    def test_extra_alias_collision_maps_existing_column(self):
+        qs = (
+            Number.objects.extra(
+                select={
+                    "num": (
+                        f"{connection.ops.quote_name(Number._meta.db_table)}"
+                        f".{connection.ops.quote_name('num')}"
+                    )
+                }
+            )
+            .values("num")
+            .annotate(Count("id"))
+            .order_by("num")
+        )
+        select_info, annotations = self._select_info(qs)
+        seen = {(sql, params) for _, sql, params, _ in select_info}
+        self.assertEqual(len(select_info), len(seen))
+        num_field = Number._meta.get_field("num")
+        base_index = next(
+            idx
+            for idx, (col, _, _, _) in enumerate(select_info)
+            if getattr(col, "target", None) is num_field
+        )
+        self.assertEqual(annotations["num"], base_index)
+        self.assertSequenceEqual(list(qs), [{"num": 72, "id__count": 1}])
+
+    def test_extra_non_equivalent_expression_retained(self):
+        qs = (
+            Number.objects.extra(select={"num_plus_one": "num + 1"})
+            .values("num", "num_plus_one")
+            .annotate(Count("id"))
+            .order_by("num")
+        )
+        select_info, _ = self._select_info(qs)
+        seen = {(sql, params) for _, sql, params, _ in select_info}
+        self.assertEqual(len(select_info), len(seen))
+        self.assertSequenceEqual(
+            list(qs),
+            [{"num": 72, "num_plus_one": 73, "id__count": 1}],
+        )
+
+    def test_extra_duplicate_values_list_named_aliases(self):
+        qs = (
+            Number.objects.extra(
+                select={
+                    "num_dup": (
+                        f"{connection.ops.quote_name(Number._meta.db_table)}"
+                        f".{connection.ops.quote_name('num')}"
+                    )
+                }
+            )
+            .annotate(Count("id"))
+            .values_list("num", "num_dup", named=True)
+        )
+        row = qs.get()
+        self.assertEqual(row._fields, ("num", "num_dup"))
+        self.assertEqual((row.num, row.num_dup), (72, 72))
 
 
 class QuerySetSupportsPythonIdioms(TestCase):

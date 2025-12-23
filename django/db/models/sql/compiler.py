@@ -4,7 +4,7 @@ import re
 from functools import partial
 from itertools import chain
 
-from django.core.exceptions import EmptyResultSet, FieldError
+from django.core.exceptions import EmptyResultSet, FieldDoesNotExist, FieldError
 from django.db import DatabaseError, NotSupportedError
 from django.db.models.constants import LOOKUP_SEP
 from django.db.models.expressions import F, OrderBy, RawSQL, Ref, Value
@@ -244,12 +244,12 @@ class SQLCompiler:
         select = []
         klass_info = None
         annotations = {}
-        select_idx = 0
-        for alias, (sql, params) in self.query.extra_select.items():
-            annotations[alias] = select_idx
-            select.append((RawSQL(sql, params), alias))
-            select_idx += 1
+        extra_select_items = [
+            (alias, RawSQL(sql, params))
+            for alias, (sql, params) in self.query.extra_select.items()
+        ]
         assert not (self.query.select and self.query.default_cols)
+        select_idx = 0
         if self.query.default_cols:
             cols = self.get_default_columns()
         else:
@@ -267,7 +267,6 @@ class SQLCompiler:
                 "select_fields": select_list,
             }
         for alias, annotation in self.query.annotation_select.items():
-            annotations[alias] = select_idx
             select.append((annotation, alias))
             select_idx += 1
 
@@ -285,8 +284,24 @@ class SQLCompiler:
 
             get_select_from_parent(klass_info)
 
-        ret = []
-        for col, alias in select:
+        def normalize_sql(sql):
+            sql = sql.strip()
+            if sql.startswith("(") and sql.endswith(")"):
+                depth = 0
+                balanced = False
+                for idx, char in enumerate(sql):
+                    if char == "(":
+                        depth += 1
+                    elif char == ")":
+                        depth -= 1
+                        if depth == 0:
+                            balanced = idx == len(sql) - 1
+                            break
+                if balanced:
+                    sql = sql[1:-1].strip()
+            return re.sub(r"\s+", " ", sql)
+
+        def compile_select_expression(col):
             try:
                 sql, params = self.compile(col)
             except EmptyResultSet:
@@ -300,7 +315,149 @@ class SQLCompiler:
                     sql, params = self.compile(Value(empty_result_set_value))
             else:
                 sql, params = col.select_format(self, sql, params)
-            ret.append((col, (sql, params), alias))
+            return sql, params
+
+        has_group_by = bool(self.query.group_by)
+        has_aggregate_annotations = any(
+            getattr(annotation, "contains_aggregate", False)
+            for annotation in chain(
+                self.query.annotation_select.values(),
+                self.query.annotations.values(),
+            )
+        )
+        dedupe_extras = bool(extra_select_items) and (
+            has_group_by or has_aggregate_annotations
+        )
+
+        extra_entries = []
+        extras_seen = {}
+        extras_indices_by_key = collections.defaultdict(list)
+        for alias, expr in extra_select_items:
+            sql, params = compile_select_expression(expr)
+            key = None
+            if dedupe_extras:
+                key = (normalize_sql(sql), make_hashable(params))
+                extras_indices_by_key[key].append(len(extra_entries))
+            entry = {
+                "alias": alias,
+                "expr": expr,
+                "sql": sql,
+                "params": params,
+                "key": key,
+                "keep": True,
+                "dedup_to_extra": None,
+                "dedup_to_base": None,
+                "final_index": None,
+            }
+            if dedupe_extras and key in extras_seen:
+                entry["keep"] = False
+                entry["dedup_to_extra"] = extras_seen[key]
+            elif dedupe_extras and key is not None:
+                extras_seen[key] = len(extra_entries)
+            extra_entries.append(entry)
+
+        base_entries = []
+        for position, (col, alias) in enumerate(select):
+            sql, params = compile_select_expression(col)
+            key = None
+            if dedupe_extras:
+                key = (normalize_sql(sql), make_hashable(params))
+                for extra_idx in extras_indices_by_key.get(key, []):
+                    extra_entries[extra_idx]["keep"] = False
+                    extra_entries[extra_idx]["dedup_to_base"] = position
+            base_entries.append(
+                {
+                    "col": col,
+                    "alias": alias,
+                    "sql": sql,
+                    "params": params,
+                    "key": key,
+                    "position": position,
+                    "final_index": None,
+                }
+            )
+
+        if dedupe_extras:
+            meta = self.query.get_meta()
+            base_alias = self.query.base_table
+            if meta is not None and base_alias is not None:
+                for entry in extra_entries:
+                    if not entry["keep"]:
+                        continue
+                    alias = entry["alias"]
+                    if not alias:
+                        continue
+                    try:
+                        field = meta.get_field(alias)
+                    except FieldDoesNotExist:
+                        continue
+                    if entry["key"] is None:
+                        continue
+                    col_expr = field.get_col(base_alias)
+                    col_sql, col_params = compile_select_expression(col_expr)
+                    col_key = (normalize_sql(col_sql), make_hashable(col_params))
+                    entry_sql_unquoted = entry["key"][0].replace('"', "")
+                    col_sql_unquoted = col_key[0].replace('"', "")
+                    if entry["key"] == col_key or (
+                        entry_sql_unquoted == col_sql_unquoted
+                        and entry["key"][1] == col_key[1]
+                    ):
+                        entry["expr"] = col_expr
+                        entry["sql"] = col_sql
+                        entry["params"] = col_params
+                        entry["key"] = col_key
+
+        extras_keep_count = 0
+        for entry in extra_entries:
+            if entry["keep"]:
+                entry["final_index"] = extras_keep_count
+                extras_keep_count += 1
+
+        for entry in base_entries:
+            entry["final_index"] = extras_keep_count + entry["position"]
+
+        for entry in extra_entries:
+            if entry["keep"]:
+                continue
+            if entry["dedup_to_base"] is not None:
+                entry["final_index"] = extras_keep_count + entry["dedup_to_base"]
+            elif entry["dedup_to_extra"] is not None:
+                entry["final_index"] = extra_entries[entry["dedup_to_extra"]][
+                    "final_index"
+                ]
+
+        if klass_info:
+            def shift_select_fields(info):
+                info["select_fields"] = [
+                    extras_keep_count + index for index in info["select_fields"]
+                ]
+                for related in info.get("related_klass_infos", []):
+                    shift_select_fields(related)
+
+            shift_select_fields(klass_info)
+
+        ret = []
+        annotations = {}
+        for entry in extra_entries:
+            if entry["keep"]:
+                ret.append(
+                    (entry["expr"], (entry["sql"], entry["params"]), entry["alias"])
+                )
+                annotations[entry["alias"]] = len(ret) - 1
+        for entry in base_entries:
+            ret.append((entry["col"], (entry["sql"], entry["params"]), entry["alias"]))
+            if entry["alias"] is not None:
+                annotations[entry["alias"]] = len(ret) - 1
+        for entry in extra_entries:
+            if not entry["keep"]:
+                annotations[entry["alias"]] = entry["final_index"]
+        self.extra_select_aliases = {
+            entry["alias"]: entry["final_index"] for entry in extra_entries
+        }
+        self.values_select_map = {
+            name: extras_keep_count + idx
+            for idx, name in enumerate(getattr(self.query, "values_select", ()))
+        }
         return ret, klass_info, annotations
 
     def _order_by_pairs(self):
