@@ -397,6 +397,17 @@ class ExclusionConstraintTests(PostgreSQLTestCase):
             "(F(datespan), '-|-')] name='exclude_overlapping' "
             "violation_error_message='Overlapping must be excluded'>",
         )
+        constraint = ExclusionConstraint(
+            name="exclude_overlapping",
+            expressions=[(F("datespan"), RangeOperators.ADJACENT_TO)],
+            violation_error_code="exclude_code",
+        )
+        self.assertEqual(
+            repr(constraint),
+            "<ExclusionConstraint: index_type='GIST' expressions=["
+            "(F(datespan), '-|-')] name='exclude_overlapping' "
+            "violation_error_code='exclude_code'>",
+        )
 
     def test_eq(self):
         constraint_1 = ExclusionConstraint(
@@ -470,6 +481,24 @@ class ExclusionConstraintTests(PostgreSQLTestCase):
             condition=Q(cancelled=False),
             violation_error_message="other custom error",
         )
+        constraint_12 = ExclusionConstraint(
+            name="exclude_overlapping",
+            expressions=[
+                (F("datespan"), RangeOperators.OVERLAPS),
+                (F("room"), RangeOperators.EQUAL),
+            ],
+            condition=Q(cancelled=False),
+            violation_error_code="exclude_code",
+        )
+        constraint_13 = ExclusionConstraint(
+            name="exclude_overlapping",
+            expressions=[
+                (F("datespan"), RangeOperators.OVERLAPS),
+                (F("room"), RangeOperators.EQUAL),
+            ],
+            condition=Q(cancelled=False),
+            violation_error_code="other_code",
+        )
         self.assertEqual(constraint_1, constraint_1)
         self.assertEqual(constraint_1, mock.ANY)
         self.assertNotEqual(constraint_1, constraint_2)
@@ -484,6 +513,9 @@ class ExclusionConstraintTests(PostgreSQLTestCase):
         self.assertNotEqual(constraint_1, object())
         self.assertNotEqual(constraint_10, constraint_11)
         self.assertEqual(constraint_10, constraint_10)
+        self.assertNotEqual(constraint_1, constraint_12)
+        self.assertNotEqual(constraint_12, constraint_13)
+        self.assertEqual(constraint_12, constraint_12)
 
     def test_deconstruct(self):
         constraint = ExclusionConstraint(
@@ -506,6 +538,32 @@ class ExclusionConstraintTests(PostgreSQLTestCase):
                     ("datespan", RangeOperators.OVERLAPS),
                     ("room", RangeOperators.EQUAL),
                 ],
+            },
+        )
+
+    def test_deconstruct_violation_error_code(self):
+        constraint = ExclusionConstraint(
+            name="exclude_overlapping",
+            expressions=[
+                ("datespan", RangeOperators.OVERLAPS),
+                ("room", RangeOperators.EQUAL),
+            ],
+            violation_error_code="exclude_code",
+        )
+        path, args, kwargs = constraint.deconstruct()
+        self.assertEqual(
+            path, "django.contrib.postgres.constraints.ExclusionConstraint"
+        )
+        self.assertEqual(args, ())
+        self.assertEqual(
+            kwargs,
+            {
+                "name": "exclude_overlapping",
+                "expressions": [
+                    ("datespan", RangeOperators.OVERLAPS),
+                    ("room", RangeOperators.EQUAL),
+                ],
+                "violation_error_code": "exclude_code",
             },
         )
 
@@ -765,11 +823,26 @@ class ExclusionConstraintTests(PostgreSQLTestCase):
         range_obj = RangesModel.objects.create(ints=(20, 50))
         constraint.validate(RangesModel, range_obj)
         msg = "Custom error message."
-        with self.assertRaisesMessage(ValidationError, msg):
+        with self.assertRaises(ValidationError) as caught:
             constraint.validate(RangesModel, RangesModel(ints=(10, 20)))
+        self.assertEqual(caught.exception.messages, [msg])
+        self.assertIsNone(caught.exception.code)
         constraint.validate(RangesModel, RangesModel(ints=(10, 19)))
         constraint.validate(RangesModel, RangesModel(ints=(51, 60)))
         constraint.validate(RangesModel, RangesModel(ints=(10, 20)), exclude={"ints"})
+
+    def test_validate_range_adjacent_violation_error_code(self):
+        constraint = ExclusionConstraint(
+            name="ints_adjacent",
+            expressions=[("ints", RangeOperators.ADJACENT_TO)],
+            violation_error_code="exclude_code",
+        )
+        RangesModel.objects.create(ints=(20, 50))
+        msg = f"Constraint “{constraint.name}” is violated."
+        with self.assertRaises(ValidationError) as caught:
+            constraint.validate(RangesModel, RangesModel(ints=(10, 20)))
+        self.assertEqual(caught.exception.messages, [msg])
+        self.assertEqual(caught.exception.code, "exclude_code")
 
     def test_expressions_with_params(self):
         constraint_name = "scene_left_equal"
