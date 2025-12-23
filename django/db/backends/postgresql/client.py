@@ -32,9 +32,9 @@ class DatabaseClient(BaseDatabaseClient):
             args += ["-h", host]
         if port:
             args += ["-p", str(port)]
-        if dbname:
-            args += [dbname]
         args.extend(parameters)
+        if dbname:
+            args.append(dbname)
 
         env = {}
         if passwd:
