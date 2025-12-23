@@ -401,7 +401,13 @@ class In(FieldGetDbPrepValueIterableMixin, BuiltinLookup):
             placeholder = '(' + ', '.join(sqls) + ')'
             return (placeholder, sqls_params)
         else:
-            if not getattr(self.rhs, 'has_select_fields', True):
+            from django.db.models.sql.query import Query
+
+            if isinstance(self.rhs, Query):
+                if self.rhs.default_cols or not self.rhs.has_select_fields:
+                    self.rhs.clear_select_clause()
+                    self.rhs.add_fields(['pk'])
+            elif not getattr(self.rhs, 'has_select_fields', True):
                 self.rhs.clear_select_clause()
                 self.rhs.add_fields(['pk'])
             return super().process_rhs(compiler, connection)

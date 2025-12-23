@@ -20,3 +20,35 @@ class Article(models.Model):
 
     def __str__(self):
         return self.headline
+
+
+class Author(models.Model):
+    code = models.CharField(max_length=20, unique=True)
+    active = models.BooleanField(default=False)
+
+    class Meta:
+        ordering = ('id',)
+
+    def __str__(self):
+        return self.code
+
+
+class Book(models.Model):
+    author = models.ForeignKey(Author, on_delete=models.CASCADE, related_name='books')
+    pages = models.IntegerField()
+
+    class Meta:
+        ordering = ('id',)
+
+
+class CodeBook(models.Model):
+    author = models.ForeignKey(
+        Author,
+        on_delete=models.CASCADE,
+        related_name='code_books',
+        to_field='code',
+    )
+    pages = models.IntegerField()
+
+    class Meta:
+        ordering = ('id',)

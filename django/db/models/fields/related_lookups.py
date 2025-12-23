@@ -86,18 +86,28 @@ class RelatedIn(In):
                     AND)
             return root_constraint.as_sql(compiler, connection)
         else:
-            if (not getattr(self.rhs, 'has_select_fields', True) and
-                    not getattr(self.lhs.field.target_field, 'primary_key', False)):
-                self.rhs.clear_select_clause()
-                if (getattr(self.lhs.output_field, 'primary_key', False) and
-                        self.lhs.output_field.model == self.rhs.model):
+            from django.db.models.sql.query import Query
+
+            rhs = self.rhs
+            if isinstance(rhs, Query):
+                should_limit_rhs = rhs.default_cols or not rhs.has_select_fields
+            else:
+                should_limit_rhs = not getattr(rhs, 'has_select_fields', True)
+
+            if should_limit_rhs:
+                rhs.clear_select_clause()
+                if (
+                    getattr(self.lhs.output_field, 'primary_key', False) and
+                    getattr(self.lhs.output_field, 'model', None) == getattr(rhs, 'model', None)
+                ):
                     # A case like Restaurant.objects.filter(place__in=restaurant_qs),
                     # where place is a OneToOneField and the primary key of
                     # Restaurant.
-                    target_field = self.lhs.field.name
+                    target_field_name = self.lhs.field.name
                 else:
-                    target_field = self.lhs.field.target_field.name
-                self.rhs.add_fields([target_field], True)
+                    target = getattr(self.lhs.field, 'target_field', None)
+                    target_field_name = getattr(target, 'name', 'pk')
+                rhs.add_fields([target_field_name], allow_m2m=True)
             return super().as_sql(compiler, connection)
 
 

@@ -1,10 +1,11 @@
 from datetime import datetime
 from operator import attrgetter
+import re
 
 from django.db.models import Q
 from django.test import TestCase
 
-from .models import Article
+from .models import Article, Author, Book, CodeBook
 
 
 class OrLookupsTests(TestCase):
@@ -238,3 +239,76 @@ class OrLookupsTests(TestCase):
             Article.objects.filter(Q(headline__startswith='Hello')).in_bulk([self.a1, self.a2]),
             {self.a1: Article.objects.get(pk=self.a1)}
         )
+
+
+class RelatedInOrLookupSingleColumnTests(TestCase):
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.active_author = Author.objects.create(code='ACTIVE', active=True)
+        cls.inactive_author = Author.objects.create(code='INACTIVE', active=False)
+        cls.other_inactive_author = Author.objects.create(code='OTHER', active=False)
+
+        cls.pk_books = {
+            'active': Book.objects.create(author=cls.active_author, pages=320),
+            'zero_pages': Book.objects.create(author=cls.inactive_author, pages=0),
+            'inactive': Book.objects.create(author=cls.other_inactive_author, pages=640),
+        }
+
+        cls.code_books = {
+            'active': CodeBook.objects.create(author=cls.active_author, pages=320),
+            'zero_pages': CodeBook.objects.create(author=cls.inactive_author, pages=0),
+            'inactive': CodeBook.objects.create(author=cls.other_inactive_author, pages=640),
+        }
+
+    def _assert_subquery_selects_single_column(self, queryset, expected_column):
+        compiler = queryset.query.get_compiler(using=queryset.db)
+        sql, params = compiler.as_sql()
+        match = re.search(r'IN\s*\(\s*SELECT\s+(.+?)\s+FROM', sql, flags=re.IGNORECASE | re.DOTALL)
+        self.assertIsNotNone(match, msg=sql)
+        select_expression = match.group(1)
+        self.assertNotIn(',', select_expression)
+        normalized = re.sub(r'["`\[\]]', '', select_expression).lower()
+        self.assertIn(expected_column.lower(), normalized)
+
+    def test_related_in_rhs_uses_single_pk_column(self):
+        active_authors = Author.objects.filter(active=True)
+        queryset = Book.objects.filter(
+            Q(author__in=active_authors) | Q(pages=0)
+        ).order_by('pk')
+
+        expected = Book.objects.filter(
+            Q(author__in=Author.objects.filter(active=True).values_list('pk', flat=True)) |
+            Q(pages=0)
+        ).order_by('pk')
+
+        self.assertEqual(list(queryset), list(expected))
+        self.assertEqual(
+            list(queryset.values_list('pk', flat=True)),
+            [
+                self.pk_books['active'].pk,
+                self.pk_books['zero_pages'].pk,
+            ],
+        )
+        self._assert_subquery_selects_single_column(queryset, Author._meta.pk.column)
+
+    def test_related_in_rhs_uses_single_to_field_column(self):
+        active_authors = Author.objects.filter(active=True)
+        queryset = CodeBook.objects.filter(
+            Q(author__in=active_authors) | Q(pages=0)
+        ).order_by('pk')
+
+        expected = CodeBook.objects.filter(
+            Q(author__in=Author.objects.filter(active=True).values_list('code', flat=True)) |
+            Q(pages=0)
+        ).order_by('pk')
+
+        self.assertEqual(list(queryset), list(expected))
+        self.assertEqual(
+            list(queryset.values_list('pk', flat=True)),
+            [
+                self.code_books['active'].pk,
+                self.code_books['zero_pages'].pk,
+            ],
+        )
+        self._assert_subquery_selects_single_column(queryset, Author._meta.get_field('code').column)
