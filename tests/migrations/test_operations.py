@@ -1651,6 +1651,59 @@ class OperationTests(OperationTestBase):
         ]
         self.apply_operations("test_rmflmmwt", project_state, operations=operations)
 
+    def test_add_field_m2m_with_relative_through(self):
+        app_label = "test_m2mrelthrough"
+        project_state = ProjectState()
+        project_state = self.apply_operations(
+            app_label,
+            project_state,
+            operations=[
+                migrations.CreateModel(
+                    "Source",
+                    fields=[
+                        ("id", models.AutoField(primary_key=True)),
+                    ],
+                ),
+                migrations.CreateModel(
+                    "Target",
+                    fields=[
+                        ("id", models.AutoField(primary_key=True)),
+                    ],
+                ),
+                migrations.CreateModel(
+                    "Link",
+                    fields=[
+                        ("id", models.AutoField(primary_key=True)),
+                        (
+                            "source",
+                            models.ForeignKey("Source", models.CASCADE),
+                        ),
+                        (
+                            "target",
+                            models.ForeignKey("Target", models.CASCADE),
+                        ),
+                    ],
+                ),
+                migrations.AddField(
+                    "Source",
+                    "targets",
+                    models.ManyToManyField("Target", through="Link"),
+                ),
+            ],
+        )
+        self.assertTableExists(f"{app_label}_link")
+        self.assertTableNotExists(f"{app_label}_source_targets")
+
+        project_state = self.apply_operations(
+            app_label,
+            project_state,
+            operations=[
+                migrations.RemoveField("Source", "targets"),
+                migrations.DeleteModel("Link"),
+            ],
+        )
+        self.assertTableNotExists(f"{app_label}_link")
+
     def test_remove_field(self):
         """
         Tests the RemoveField operation.

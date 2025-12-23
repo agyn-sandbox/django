@@ -12,6 +12,7 @@ from django.db.backends.ddl_references import (
     Table,
 )
 from django.db.backends.utils import names_digest, split_identifier
+from django.db.migrations.utils import resolve_relation
 from django.db.models import Deferrable, Index
 from django.db.models.sql import Query
 from django.db.transaction import TransactionManagementError, atomic
@@ -197,6 +198,16 @@ class BaseDatabaseSchemaEditor:
         else:
             with self.connection.cursor() as cursor:
                 cursor.execute(sql, params)
+
+    def _resolve_through_model(self, model, through):
+        if isinstance(through, str):
+            app_label, object_name = resolve_relation(
+                through,
+                model._meta.app_label,
+                model._meta.object_name,
+            )
+            return model._meta.apps.get_model(app_label, object_name)
+        return through
 
     def quote_name(self, name):
         return self.connection.ops.quote_name(name)
@@ -451,8 +462,7 @@ class BaseDatabaseSchemaEditor:
         # Make M2M tables
         for field in model._meta.local_many_to_many:
             through = field.remote_field.through
-            if isinstance(through, str):
-                through = model._meta.apps.get_model(through)
+            through = self._resolve_through_model(model, through)
             if through._meta.auto_created:
                 self.create_model(through)
 
@@ -461,8 +471,7 @@ class BaseDatabaseSchemaEditor:
         # Handle auto-created intermediary models
         for field in model._meta.local_many_to_many:
             through = field.remote_field.through
-            if isinstance(through, str):
-                through = model._meta.apps.get_model(through)
+            through = self._resolve_through_model(model, through)
             if through._meta.auto_created:
                 self.delete_model(through)
 
@@ -638,8 +647,7 @@ class BaseDatabaseSchemaEditor:
         # Special-case implicit M2M tables
         if field.many_to_many:
             through = field.remote_field.through
-            if isinstance(through, str):
-                through = model._meta.apps.get_model(through)
+            through = self._resolve_through_model(model, through)
             if through._meta.auto_created:
                 return self.create_model(through)
         # Get the column's definition
@@ -716,8 +724,7 @@ class BaseDatabaseSchemaEditor:
         # Special-case implicit M2M tables
         if field.many_to_many:
             through = field.remote_field.through
-            if isinstance(through, str):
-                through = model._meta.apps.get_model(through)
+            through = self._resolve_through_model(model, through)
             if through._meta.auto_created:
                 return self.delete_model(through)
         # It might not actually have a column behind it
@@ -756,12 +763,14 @@ class BaseDatabaseSchemaEditor:
             return
         if old_field.remote_field and getattr(old_field.remote_field, "through", None):
             old_through = old_field.remote_field.through
-            if isinstance(old_through, str):
-                old_field.remote_field.through = model._meta.apps.get_model(old_through)
+            old_field.remote_field.through = self._resolve_through_model(
+                model, old_through
+            )
         if new_field.remote_field and getattr(new_field.remote_field, "through", None):
             new_through = new_field.remote_field.through
-            if isinstance(new_through, str):
-                new_field.remote_field.through = model._meta.apps.get_model(new_through)
+            new_field.remote_field.through = self._resolve_through_model(
+                model, new_through
+            )
         # Ensure this field is even column-based
         old_db_params = old_field.db_parameters(connection=self.connection)
         old_type = old_db_params["type"]
