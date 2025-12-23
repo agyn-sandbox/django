@@ -569,4 +569,23 @@ class Migration(migrations.Migration):
                 "required_db_vendor": "postgresql",
             },
         ),
+        migrations.CreateModel(
+            name="MixedCaseColumns",
+            fields=[
+                (
+                    "blacklistid",
+                    models.IntegerField(
+                        db_column="BlacklistID", primary_key=True, serialize=False
+                    ),
+                ),
+                (
+                    "sectorid",
+                    models.IntegerField(db_column="SectorID"),
+                ),
+            ],
+            options={
+                "db_table": "MixedCaseUpsert",
+                "required_db_vendor": "postgresql",
+            },
+        ),
     ]
