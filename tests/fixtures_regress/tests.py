@@ -2,9 +2,11 @@
 import json
 import os
 import re
+import tempfile
 from io import StringIO
 from pathlib import Path
 
+from django.apps import apps
 from django.core import management, serializers
 from django.core.exceptions import ImproperlyConfigured
 from django.core.serializers.base import DeserializationError
@@ -196,6 +198,54 @@ class TestFixtures(TestCase):
     @override_settings(FIXTURE_DIRS=[os.path.join(_cur_dir, "fixtures_1")])
     def test_relative_path_in_fixture_dirs(self):
         self.test_relative_path(path=["inner", "absolute.json"])
+
+    def _call_loaddata(self, fixture):
+        management.call_command("loaddata", fixture, verbosity=0)
+
+    def test_fixture_dirs_duplicate_mixed_types(self):
+        fixture_dir = Path(_cur_dir) / "fixtures_1"
+        message = "settings.FIXTURE_DIRS contains duplicates."
+        with override_settings(FIXTURE_DIRS=[fixture_dir, str(fixture_dir)]):
+            with self.assertRaisesMessage(ImproperlyConfigured, message):
+                self._call_loaddata("absolute.json")
+
+    def test_fixture_dirs_default_directory_listed_as_path(self):
+        app_config = apps.get_app_config("fixtures_regress")
+        default_dir = Path(app_config.path) / "fixtures"
+        message = (
+            "'%s' is a default fixture directory for the '%s' app and cannot be "
+            "listed in settings.FIXTURE_DIRS." % (str(default_dir), app_config.label)
+        )
+        with override_settings(FIXTURE_DIRS=[default_dir]):
+            with self.assertRaisesMessage(ImproperlyConfigured, message):
+                self._call_loaddata("absolute.json")
+
+    def test_fixture_dirs_relative_and_absolute_duplicates(self):
+        fixture_dir = Path(_cur_dir) / "fixtures_1"
+        relative_dir = os.path.relpath(fixture_dir)
+        message = "settings.FIXTURE_DIRS contains duplicates."
+        with override_settings(FIXTURE_DIRS=[str(fixture_dir), relative_dir]):
+            with self.assertRaisesMessage(ImproperlyConfigured, message):
+                self._call_loaddata("absolute.json")
+
+    def test_fixture_dirs_symlink_duplicates(self):
+        if not hasattr(os, "symlink"):
+            self.skipTest("os.symlink() not supported on this platform.")
+        with tempfile.TemporaryDirectory() as tmpdir:
+            real_dir = Path(tmpdir) / "real"
+            real_dir.mkdir()
+            link_dir = Path(tmpdir) / "link"
+            try:
+                os.symlink(real_dir, link_dir)
+            except (OSError, NotImplementedError) as exc:
+                self.skipTest(f"Unable to create symlink: {exc}")
+
+            message = "settings.FIXTURE_DIRS contains duplicates."
+            with override_settings(
+                FIXTURE_DIRS=[str(real_dir), str(link_dir)],
+            ):
+                with self.assertRaisesMessage(ImproperlyConfigured, message):
+                    self._call_loaddata("absolute.json")
 
     def test_path_containing_dots(self):
         management.call_command(
