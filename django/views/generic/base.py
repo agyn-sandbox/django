@@ -148,9 +148,23 @@ class View:
             request.path,
             extra={"status_code": 405, "request": request},
         )
-        return HttpResponseNotAllowed(self._allowed_methods())
+        response = HttpResponseNotAllowed(self._allowed_methods())
 
-    def options(self, request, *args, **kwargs):
+        # If the view has async handlers, the callback returned by as_view()
+        # is marked as a coroutine and will be awaited. Ensure the response is
+        # delivered as an awaitable in that case, mirroring the behavior in
+        # options(). This avoids TypeError when dispatching to the sync
+        # http_method_not_allowed from an async view.
+        if self.view_is_async:
+
+            async def func():
+                return response
+
+            return func()
+        else:
+            return response
+
+    def options(self, request, *args, **kwargs):self, request, *args, **kwargs):
         """Handle responding to requests for the OPTIONS HTTP verb."""
         response = HttpResponse()
         response.headers["Allow"] = ", ".join(self._allowed_methods())
