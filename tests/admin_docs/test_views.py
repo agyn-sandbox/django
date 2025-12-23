@@ -566,3 +566,21 @@ class AdminDocViewFunctionsTests(SimpleTestCase):
         for pattern, output in tests:
             with self.subTest(pattern=pattern):
                 self.assertEqual(simplify_regex(pattern), output)
+
+    def test_simplify_regex_trailing_optional_non_capturing(self):
+        self.assertEqual(
+            simplify_regex(r"^x/(\w+)/y/(\d+)/(?:z)?$"),
+            "/x/<var>/y/<var>/z",
+        )
+
+    def test_simplify_regex_named_and_unnamed_trailing(self):
+        self.assertEqual(
+            simplify_regex(r"^(?P<slug>\w+)/items/(\d+)/(?:detail)?$"),
+            "/<slug>/items/<var>/detail",
+        )
+
+    def test_simplify_regex_repeated_named_groups_no_overreplace(self):
+        self.assertEqual(
+            simplify_regex(r"^(?P<id>\d+)-(?P<id>\d+)/(\w+)$"),
+            "/<id>-<id>/<var>",
+        )

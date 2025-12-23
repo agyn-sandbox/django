@@ -198,6 +198,14 @@ class URLTranslationTests(URLTestCaseBase):
             self.assertEqual(translate_url("/nl/gebruikers/", "en"), "/en/users/")
             self.assertEqual(translation.get_language(), "nl")
 
+    @override_settings(ROOT_URLCONF="i18n.patterns.urls.optional_group")
+    def test_translate_url_optional_trailing_group(self):
+        with translation.override("en"):
+            self.assertEqual(
+                translate_url("/en/account/john/", "nl"),
+                "/nl/account/john/",
+            )
+
     def test_reverse_translated_with_captured_kwargs(self):
         with translation.override("en"):
             match = resolve("/translated/apo/")
