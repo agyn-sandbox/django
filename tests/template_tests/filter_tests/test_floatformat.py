@@ -112,6 +112,16 @@ class FunctionTests(SimpleTestCase):
             floatformat(0.000000000000000000015, 20), "0.00000000000000000002"
         )
 
+    def test_zero_precision_zero(self):
+        self.assertEqual(floatformat("0.00", 0), "0")
+        self.assertEqual(floatformat(Decimal("0.00"), 0), "0")
+        self.assertEqual(floatformat("-0.00", 0), "0")
+        self.assertEqual(floatformat(Decimal("-0.00"), 0), "0")
+        self.assertEqual(floatformat("0.00", "0g"), "0")
+        self.assertEqual(floatformat("0.00", "0u"), "0")
+        self.assertEqual(floatformat(0.5, 0), "1")
+        self.assertEqual(floatformat(-0.5, 0), "-1")
+
     def test_negative_zero_values(self):
         tests = [
             (-0.01, -1, "0.0"),
