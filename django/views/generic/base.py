@@ -164,7 +164,7 @@ class View:
         else:
             return response
 
-    def options(self, request, *args, **kwargs):self, request, *args, **kwargs):
+    def options(self, request, *args, **kwargs):
         """Handle responding to requests for the OPTIONS HTTP verb."""
         response = HttpResponse()
         response.headers["Allow"] = ", ".join(self._allowed_methods())

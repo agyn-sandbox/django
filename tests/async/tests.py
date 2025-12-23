@@ -73,6 +73,7 @@ class AsyncView(View):
     async def get(self, request, *args, **kwargs):
         return HttpResponse("Hello (async) world!")
 
+
 class AsyncPostOnlyView(View):
     async def post(self, request, *args, **kwargs):
         return HttpResponse("ok")
@@ -125,7 +126,7 @@ class ViewTests(SimpleTestCase):
 
     def test_http_method_not_allowed_responds_correctly(self):
         tests = [
-            (SyncView, False, "GET"),
+            (SyncView, False, "POST"),
             (AsyncPostOnlyView, True, "GET"),
         ]
         rf = RequestFactory()
