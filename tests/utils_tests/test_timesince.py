@@ -143,27 +143,29 @@ class TimesinceTests(TestCase):
     @requires_tz_support
     @override_settings(USE_TZ=True)
     def test_month_boundary_with_use_tz(self):
+        aware_now = datetime.datetime(2024, 7, 1, 12, 0, tzinfo=datetime.timezone.utc)
         self.assertEqual(
-            timesince(timezone.now() - datetime.timedelta(days=31)),
+            timesince(aware_now - datetime.timedelta(days=31), aware_now),
             "1\xa0month",
         )
 
     @override_settings(USE_TZ=False)
     def test_month_boundary_without_use_tz(self):
+        now = datetime.datetime(2024, 7, 1, 12, 0)
         self.assertEqual(
-            timesince(datetime.datetime.now() - datetime.timedelta(days=31)),
+            timesince(now - datetime.timedelta(days=31), now),
             "1\xa0month",
         )
 
     @requires_tz_support
     @override_settings(USE_TZ=True)
     def test_month_boundary_with_different_timezones(self):
-        now_utc = timezone.now()
         other_tz = timezone.get_fixed_timezone(120)
-        now_other = timezone.localtime(now_utc, other_tz)
-        past_other = now_other - datetime.timedelta(days=31)
+        aware_other = datetime.datetime(2024, 7, 1, 9, 0, tzinfo=other_tz)
+        aware_utc = aware_other.astimezone(datetime.timezone.utc)
+        past_other = aware_other - datetime.timedelta(days=31)
 
-        self.assertEqual(timesince(past_other), "1\xa0month")
+        self.assertEqual(timesince(past_other, aware_utc), "1\xa0month")
 
     def test_date_objects(self):
         """Both timesince and timeuntil should work on date objects (#17937)."""
