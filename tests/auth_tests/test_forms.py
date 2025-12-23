@@ -14,7 +14,7 @@ from django.contrib.auth.forms import (
     UserChangeForm,
     UserCreationForm,
 )
-from django.contrib.auth.models import User
+from django.contrib.auth.models import Group, User
 from django.contrib.auth.signals import user_login_failed
 from django.contrib.sites.models import Site
 from django.core import mail
@@ -109,6 +109,29 @@ class UserCreationFormTest(TestDataMixin, TestCase):
         self.assertFalse(form.is_valid())
         self.assertEqual(form["password1"].errors, required_error)
         self.assertEqual(form["password2"].errors, [])
+
+    def test_save_commit_true_persists_many_to_many(self):
+        class UserCreationFormWithGroups(UserCreationForm):
+            class Meta(UserCreationForm.Meta):
+                fields = UserCreationForm.Meta.fields + ("groups",)
+
+        group = Group.objects.create(name="testers")
+        data = {
+            "username": "assign-m2m",
+            "password1": "test12345",
+            "password2": "test12345",
+            "groups": [group.pk],
+        }
+        form = UserCreationFormWithGroups(data)
+        self.assertTrue(form.is_valid())
+
+        user = form.save(commit=True)
+        user.refresh_from_db()
+
+        self.assertEqual(
+            list(user.groups.order_by("pk").values_list("name", flat=True)),
+            ["testers"],
+        )
 
     @mock.patch("django.contrib.auth.password_validation.password_changed")
     def test_success(self, password_changed):
