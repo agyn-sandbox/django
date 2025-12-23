@@ -199,6 +199,14 @@ class NowTestModel(models.Model):
     when = models.DateTimeField(null=True, default=None)
 
 
+class MixedCaseColumns(PostgreSQLModel):
+    blacklistid = models.IntegerField(db_column="BlacklistID", primary_key=True)
+    sectorid = models.IntegerField(db_column="SectorID")
+
+    class Meta:
+        db_table = "MixedCaseUpsert"
+
+
 class UUIDTestModel(models.Model):
     uuid = models.UUIDField(default=None, null=True)
 

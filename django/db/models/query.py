@@ -794,6 +794,10 @@ class QuerySet(AltersData):
             update_fields,
             unique_fields,
         )
+        if update_fields:
+            update_fields = [opts.get_field(name) for name in update_fields]
+        if unique_fields:
+            unique_fields = [opts.get_field(name) for name in unique_fields]
         self._for_write = True
         fields = opts.concrete_fields
         objs = list(objs)
