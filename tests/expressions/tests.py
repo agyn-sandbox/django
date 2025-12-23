@@ -2429,6 +2429,44 @@ class CombinedExpressionTests(SimpleTestCase):
                     )
                     self.assertIsInstance(expr.output_field, combined)
 
+    def test_resolve_output_field_modulo(self):
+        def build_expression(component):
+            value = component() if callable(component) else component
+            if hasattr(value, "resolve_expression"):
+                return value
+            return Expression(value)
+
+        def null():
+            return Value(None)
+
+        numeric_tests = [
+            (DecimalField, IntegerField, DecimalField),
+            (IntegerField, DecimalField, DecimalField),
+            (IntegerField, IntegerField, IntegerField),
+            (FloatField, IntegerField, FloatField),
+        ]
+        for lhs, rhs, combined in numeric_tests:
+            with self.subTest(lhs=lhs, rhs=rhs, combined=combined):
+                expr = CombinedExpression(
+                    build_expression(lhs),
+                    Combinable.MOD,
+                    build_expression(rhs),
+                )
+                self.assertIsInstance(expr.output_field, combined)
+
+        null_tests = [
+            (DecimalField, null, DecimalField),
+            (null, DecimalField, DecimalField),
+        ]
+        for lhs, rhs, combined in null_tests:
+            with self.subTest(lhs=lhs, rhs=rhs, combined=combined):
+                expr = CombinedExpression(
+                    build_expression(lhs),
+                    Combinable.MOD,
+                    build_expression(rhs),
+                )
+                self.assertIsInstance(expr.output_field, combined)
+
     def test_resolve_output_field_with_null(self):
         def null():
             return Value(None)
