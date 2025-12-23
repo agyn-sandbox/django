@@ -4,6 +4,7 @@ from django.contrib.auth.checks import (
 from django.contrib.auth.models import AbstractBaseUser
 from django.core import checks
 from django.db import models
+from django.db.models import Q
 from django.test import (
     SimpleTestCase, override_settings, override_system_checks,
 )
@@ -84,6 +85,58 @@ class UserModelChecksTests(SimpleTestCase):
                     id='auth.W004',
                 ),
             ])
+
+    @override_settings(AUTH_USER_MODEL='auth_tests.CustomUserUsernameConstraint')
+    def test_username_unique_constraint(self):
+        class CustomUserUsernameConstraint(AbstractBaseUser):
+            username = models.CharField(max_length=30)
+
+            USERNAME_FIELD = 'username'
+
+            class Meta:
+                constraints = [
+                    models.UniqueConstraint(fields=['username'], name='unique_username'),
+                ]
+
+        errors = checks.run_checks(app_configs=self.apps.get_app_configs())
+        self.assertEqual(errors, [])
+
+    @override_settings(AUTH_USER_MODEL='auth_tests.CustomUserPartialUniqueConstraint')
+    def test_username_partial_unique_constraint(self):
+        class CustomUserPartialUniqueConstraint(AbstractBaseUser):
+            username = models.CharField(max_length=30)
+            is_active = models.BooleanField(default=True)
+
+            USERNAME_FIELD = 'username'
+
+            class Meta:
+                constraints = [
+                    models.UniqueConstraint(
+                        fields=['username'],
+                        condition=Q(is_active=True),
+                        name='unique_active_username',
+                    ),
+                ]
+
+        errors = checks.run_checks(app_configs=self.apps.get_app_configs())
+        self.assertEqual(errors, [
+            checks.Error(
+                "'CustomUserPartialUniqueConstraint.username' must be "
+                "unique because it is named as the 'USERNAME_FIELD'.",
+                obj=CustomUserPartialUniqueConstraint,
+                id='auth.E003',
+            ),
+        ])
+
+    @override_settings(AUTH_USER_MODEL='auth_tests.CustomUserUniqueUsername')
+    def test_username_unique_flag(self):
+        class CustomUserUniqueUsername(AbstractBaseUser):
+            username = models.CharField(max_length=30, unique=True)
+
+            USERNAME_FIELD = 'username'
+
+        errors = checks.run_checks(app_configs=self.apps.get_app_configs())
+        self.assertEqual(errors, [])
 
     @override_settings(AUTH_USER_MODEL='auth_tests.BadUser')
     def test_is_anonymous_authenticated_methods(self):
