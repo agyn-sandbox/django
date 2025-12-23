@@ -401,6 +401,26 @@ class FormfieldCallbackTests(TestCase):
         modelformset_factory(UserSite, form=UserSiteForm, formfield_callback=callback)
         self.assertCallbackCalled(callback)
 
+    def test_modelformset_factory_explicit_none_suppresses_meta_callback(self):
+        callback_calls = []
+
+        def meta_callback(db_field, **kwargs):
+            formfield = db_field.formfield(**kwargs)
+            if formfield is not None:
+                callback_calls.append(db_field.name)
+            return formfield
+
+        class MetaCallbackForm(UserSiteForm):
+            class Meta(UserSiteForm.Meta):
+                formfield_callback = staticmethod(meta_callback)
+
+        modelformset_factory(
+            UserSite,
+            form=MetaCallbackForm,
+            formfield_callback=None,
+        )
+        self.assertEqual(callback_calls, [])
+
 
 class BaseCustomDeleteFormSet(BaseFormSet):
     """

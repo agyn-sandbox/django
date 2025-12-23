@@ -41,6 +41,8 @@ __all__ = (
 
 ALL_FIELDS = "__all__"
 
+_DEFAULT = object()
+
 
 def construct_instance(form, instance, fields=None, exclude=None):
     """
@@ -565,7 +567,7 @@ def modelform_factory(
     form=ModelForm,
     fields=None,
     exclude=None,
-    formfield_callback=None,
+    formfield_callback=_DEFAULT,
     widgets=None,
     localized_fields=None,
     labels=None,
@@ -630,14 +632,14 @@ def modelform_factory(
     # creating needs to inherit from the parent's inner meta.
     bases = (form.Meta,) if hasattr(form, "Meta") else ()
     Meta = type("Meta", bases, attrs)
-    if formfield_callback is not None:
+    if callable(formfield_callback):
         Meta.formfield_callback = staticmethod(formfield_callback)
     # Give this new form class a reasonable name.
     class_name = model.__name__ + "Form"
 
     # Class attributes for the new form class.
     form_class_attrs = {"Meta": Meta}
-    if formfield_callback is not None:
+    if formfield_callback is not _DEFAULT:
         form_class_attrs["formfield_callback"] = formfield_callback
 
     if getattr(Meta, "fields", None) is None and getattr(Meta, "exclude", None) is None:
@@ -1008,7 +1010,7 @@ class BaseModelFormSet(BaseFormSet):
 def modelformset_factory(
     model,
     form=ModelForm,
-    formfield_callback=None,
+    formfield_callback=_DEFAULT,
     formset=BaseModelFormSet,
     extra=1,
     can_delete=False,
@@ -1278,7 +1280,7 @@ def inlineformset_factory(
     can_order=False,
     can_delete=True,
     max_num=None,
-    formfield_callback=None,
+    formfield_callback=_DEFAULT,
     widgets=None,
     validate_max=False,
     localized_fields=None,

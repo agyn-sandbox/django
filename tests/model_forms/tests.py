@@ -3564,6 +3564,32 @@ class FormFieldCallbackTests(SimpleTestCase):
         FactoryForm = modelform_factory(Document, form=NoCallbackForm)
         self.assertFalse(FactoryForm.base_fields["myfile"].required)
 
+    def test_modelform_factory_explicit_none_suppresses_meta_callback(self):
+        meta_calls = []
+
+        def meta_callback(db_field, **kwargs):
+            formfield = db_field.formfield(**kwargs)
+            if formfield is not None:
+                meta_calls.append(db_field.name)
+                formfield.required = True
+            return formfield
+
+        class MetaCallbackForm(forms.ModelForm):
+            class Meta:
+                model = Document
+                fields = "__all__"
+                formfield_callback = staticmethod(meta_callback)
+
+        meta_calls.clear()
+
+        FactoryForm = modelform_factory(
+            Document,
+            form=MetaCallbackForm,
+            formfield_callback=None,
+        )
+        self.assertEqual(meta_calls, [])
+        self.assertFalse(FactoryForm.base_fields["myfile"].required)
+
     @isolate_apps("model_forms")
     def test_formfield_callback_invocation_count_blank_null_fields(self):
         callback_calls = []

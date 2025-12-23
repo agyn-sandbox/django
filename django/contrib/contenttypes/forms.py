@@ -1,7 +1,7 @@
 from django.contrib.contenttypes.models import ContentType
 from django.db import models
 from django.forms import ModelForm, modelformset_factory
-from django.forms.models import BaseModelFormSet
+from django.forms.models import BaseModelFormSet, _DEFAULT
 
 
 class BaseGenericInlineFormSet(BaseModelFormSet):
@@ -86,7 +86,7 @@ def generic_inlineformset_factory(
     can_order=False,
     can_delete=True,
     max_num=None,
-    formfield_callback=None,
+    formfield_callback=_DEFAULT,
     validate_max=False,
     for_concrete_model=True,
     min_num=None,
