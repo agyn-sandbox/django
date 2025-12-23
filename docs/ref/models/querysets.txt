@@ -1116,6 +1116,14 @@ must be restricted to a homogeneous set of results. For example, prefetching
 objects referenced by a ``GenericForeignKey`` is only supported if the query
 is restricted to one ``ContentType``.
 
+.. warning::
+
+    Prefetch querysets cannot be sliced (limit/offset). Use an unsliced
+    queryset and apply limits via window functions,
+    :class:`~django.db.models.Subquery`/:class:`~django.db.models.OuterRef`
+    per parent, or slice in-memory via :class:`~django.db.models.Prefetch`'s
+    ``to_attr``.
+
 For example, suppose you have these models::
 
     from django.db import models
@@ -4006,6 +4014,14 @@ relation, hence reducing the number of queries even further:
     >>> prefetch = Prefetch('choice_set', queryset=voted_choices)
     >>> Question.objects.prefetch_related(prefetch).get().choice_set.all()
     <QuerySet [<Choice: The sky>]>
+
+.. warning::
+
+    Prefetch querysets cannot be sliced (limit/offset). Use an unsliced
+    queryset and apply limits via window functions,
+    :class:`~django.db.models.Subquery`/:class:`~django.db.models.OuterRef`
+    per parent, or slice in-memory via :class:`~django.db.models.Prefetch`'s
+    ``to_attr``.
 
 The ``to_attr`` argument sets the result of the prefetch operation to a custom
 attribute:
