@@ -98,6 +98,16 @@ class CallableLastmodPartialSitemap(Sitemap):
         return obj.lastmod
 
 
+class CallableLastmodEmptySitemap(Sitemap):
+    location = "/location/"
+
+    def items(self):
+        return []
+
+    def lastmod(self, obj):
+        return datetime(2013, 3, 13, 10, 0, 0)
+
+
 class CallableLastmodFullSitemap(Sitemap):
     """All items have `lastmod`."""
 
@@ -227,6 +237,10 @@ generic_sitemaps_lastmod = {
 
 callable_lastmod_partial_sitemap = {
     "callable-lastmod": CallableLastmodPartialSitemap,
+}
+
+callable_lastmod_empty_sitemap = {
+    "callable-lastmod-empty": CallableLastmodEmptySitemap,
 }
 
 callable_lastmod_full_sitemap = {
@@ -406,6 +420,16 @@ urlpatterns = [
         "callable-lastmod-partial/sitemap.xml",
         views.sitemap,
         {"sitemaps": callable_lastmod_partial_sitemap},
+    ),
+    path(
+        "callable-lastmod-empty/index.xml",
+        views.index,
+        {"sitemaps": callable_lastmod_empty_sitemap},
+    ),
+    path(
+        "callable-lastmod-empty/sitemap.xml",
+        views.sitemap,
+        {"sitemaps": callable_lastmod_empty_sitemap},
     ),
     path(
         "callable-lastmod-full/index.xml",
