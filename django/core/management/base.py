@@ -71,6 +71,26 @@ class CommandParser(ArgumentParser):
         else:
             raise CommandError("Error: %s" % message)
 
+    def add_subparsers(self, **kwargs):
+        kwargs.setdefault("parser_class", CommandParser)
+        default_parser_class = kwargs["parser_class"]
+        action = super().add_subparsers(**kwargs)
+        parent_called = self.called_from_command_line
+        parent_formatter = self.formatter_class
+        original_add_parser = action.add_parser
+
+        def add_parser(name, **parser_kwargs):
+            parser_class = parser_kwargs.get("parser_class", default_parser_class)
+            if parser_class and issubclass(parser_class, CommandParser):
+                parser_kwargs.setdefault(
+                    "called_from_command_line", parent_called
+                )
+                parser_kwargs.setdefault("formatter_class", parent_formatter)
+            return original_add_parser(name, **parser_kwargs)
+
+        action.add_parser = add_parser
+        return action
+
 
 def handle_default_options(options):
     """

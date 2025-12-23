@@ -51,6 +51,7 @@ class AdminScriptTestCase(SimpleTestCase):
         # where `/var` is a symlink to `/private/var`.
         self.test_dir = os.path.realpath(os.path.join(tmpdir.name, "test_project"))
         os.mkdir(self.test_dir)
+        self.last_returncode = None
 
     def write_settings(self, filename, apps=None, is_dir=False, sdict=None, extra=None):
         if is_dir:
@@ -137,6 +138,7 @@ class AdminScriptTestCase(SimpleTestCase):
             text=True,
             umask=umask,
         )
+        self.last_returncode = p.returncode
         return p.stdout, p.stderr
 
     def run_django_admin(self, args, settings_file=None, umask=-1):
