@@ -13,7 +13,7 @@ from django.db.models.fields import (
 )
 from django.db.models.query_utils import RegisterLookupMixin
 from django.utils.datastructures import OrderedSet
-from django.utils.functional import LazyObject, cached_property
+from django.utils.functional import LazyObject, cached_property, empty
 from django.utils.hashable import make_hashable
 
 
@@ -82,8 +82,9 @@ class Lookup(Expression):
             return self.rhs
         rhs = self.rhs
         if isinstance(rhs, LazyObject):
-            rhs._setup()
-            rhs = getattr(rhs, "_wrapped", rhs)
+            if getattr(rhs, "_wrapped", empty) is empty:
+                rhs._setup()
+            rhs = rhs._wrapped
         try:
             from django.db.models import Model
         except ImportError:  # pragma: no cover - defensive during app loading
