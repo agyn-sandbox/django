@@ -1507,6 +1507,21 @@ class FormsFormsetTestCase(SimpleTestCase):
         self.assertIs(formset._should_delete_form(formset.forms[1]), False)
         self.assertIs(formset._should_delete_form(formset.forms[2]), False)
 
+    def test_empty_form_delete_field_respects_can_delete_extra(self):
+        for can_delete_extra, assertion in (
+            (False, self.assertNotIn),
+            (True, self.assertIn),
+        ):
+            with self.subTest(can_delete_extra=can_delete_extra):
+                choice_formset = formset_factory(
+                    Choice,
+                    can_delete=True,
+                    can_delete_extra=can_delete_extra,
+                    extra=2,
+                )
+                empty_form = choice_formset().empty_form
+                assertion("DELETE", empty_form.fields)
+
     def test_template_name_uses_renderer_value(self):
         class CustomRenderer(TemplatesSetting):
             formset_template_name = "a/custom/formset/template.html"
