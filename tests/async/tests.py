@@ -7,7 +7,7 @@ from asgiref.sync import async_to_sync
 from django.core.cache import DEFAULT_CACHE_ALIAS, caches
 from django.core.exceptions import ImproperlyConfigured, SynchronousOnlyOperation
 from django.http import HttpResponse
-from django.test import SimpleTestCase
+from django.test import SimpleTestCase, RequestFactory
 from django.utils.asyncio import async_unsafe
 from django.views.generic.base import View
 
@@ -73,6 +73,10 @@ class AsyncView(View):
     async def get(self, request, *args, **kwargs):
         return HttpResponse("Hello (async) world!")
 
+class AsyncPostOnlyView(View):
+    async def post(self, request, *args, **kwargs):
+        return HttpResponse("ok")
+
 
 class ViewTests(SimpleTestCase):
     def test_views_are_correctly_marked(self):
@@ -118,6 +122,22 @@ class ViewTests(SimpleTestCase):
                     response = asyncio.run(response)
 
                 self.assertIsInstance(response, HttpResponse)
+
+    def test_http_method_not_allowed_responds_correctly(self):
+        tests = [
+            (SyncView, False, "GET"),
+            (AsyncPostOnlyView, True, "GET"),
+        ]
+        rf = RequestFactory()
+        for view_cls, is_coroutine, method in tests:
+            with self.subTest(view_cls=view_cls, is_coroutine=is_coroutine):
+                instance = view_cls()
+                request = getattr(rf, method.lower())("/demo")
+                response = instance.dispatch(request)
+                self.assertIs(asyncio.iscoroutine(response), is_coroutine)
+                if is_coroutine:
+                    response = asyncio.run(response)
+                self.assertEqual(response.status_code, 405)
 
     def test_base_view_class_is_sync(self):
         """
