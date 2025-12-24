@@ -1607,13 +1607,27 @@ class MiscTests(SimpleTestCase):
         self.assertIsNone(g('/xyz/'))
         self.assertEqual(g('/en/'), 'en')
         self.assertEqual(g('/en-gb/'), 'en')
+        self.assertIsNone(g('/en-gb/', strict=True))
         self.assertEqual(g('/en-latn-us/'), 'en-latn-us')
+        self.assertEqual(g('/en-latn-us/', strict=True), 'en-latn-us')
         self.assertEqual(g('/en-Latn-US/'), 'en-Latn-US')
+        self.assertEqual(g('/en-Latn-US/', strict=True), 'en-Latn-US')
         self.assertEqual(g('/de/'), 'de')
         self.assertEqual(g('/de-at/'), 'de-at')
         self.assertEqual(g('/de-ch/'), 'de')
         self.assertIsNone(g('/de-simple-page/'))
         self.assertIsNone(g('/en-Latn-GB/'))
+
+    @override_settings(
+        LANGUAGES=[
+            ('en', 'English'),
+            ('en-us', 'English (US)'),
+        ],
+    )
+    def test_script_region_requires_configured_variant(self):
+        g = trans_real.get_language_from_path
+        self.assertIsNone(g('/en-Latn-US/'))
+        self.assertIsNone(g('/en-Latn-US/', strict=True))
 
     def test_get_language_from_path_null(self):
         g = trans_null.get_language_from_path

@@ -387,6 +387,16 @@ class ScriptRegionURLTests(URLTestCaseBase):
         response = self.client.get('/en-Latn-GB/prefixed/')
         self.assertEqual(response.status_code, 404)
 
+    @override_settings(
+        LANGUAGES=[
+            ('en', 'English'),
+            ('en-us', 'English (US)'),
+        ]
+    )
+    def test_script_region_prefix_not_configured(self):
+        response = self.client.get('/en-Latn-US/prefixed/')
+        self.assertEqual(response.status_code, 404)
+
 
 class URLTagTests(URLTestCaseBase):
     """

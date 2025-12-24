@@ -511,40 +511,78 @@ def get_language_from_path(path, strict=False):
     if not language_code_re.match(segment):
         return None
     subtags = segment.split('-')
-    if len(subtags) > 3:
-        return None
-    if len(subtags) == 3:
-        first, second = subtags[1], subtags[2]
-        script_region_pattern = (
-            len(first) == 4 and first.isalpha() and
-            ((len(second) == 2 and second.isalpha()) or (len(second) == 3 and second.isdigit()))
-        )
-        region_variant_pattern = (
-            ((len(first) == 2 and first.isalpha()) or (len(first) == 3 and first.isdigit())) and
-            (4 <= len(second) <= 8) and second.isalnum()
-        )
-        if not (script_region_pattern or region_variant_pattern):
-            return None
-    elif len(subtags) == 2:
-        subtag = subtags[1]
-        if not (
+
+    def is_script(subtag):
+        return len(subtag) == 4 and subtag.isalpha()
+
+    def is_region(subtag):
+        return (
             (len(subtag) == 2 and subtag.isalpha()) or
-            (len(subtag) == 3 and subtag.isdigit()) or
-            (len(subtag) == 4 and subtag.isalpha()) or
-            (4 <= len(subtag) <= 8 and subtag.isalnum())
-        ):
+            (len(subtag) == 3 and subtag.isdigit())
+        )
+
+    def normalize_bcp47(code):
+        parts = code.split('-')
+        if not parts:
+            return code
+        normalized = [parts[0].lower()]
+        for part in parts[1:]:
+            if len(part) == 4 and part.isalpha():
+                normalized.append(part.title())
+            elif len(part) == 2 and part.isalpha():
+                normalized.append(part.upper())
+            elif len(part) == 3 and part.isdigit():
+                normalized.append(part)
+            else:
+                normalized.append(part.lower())
+        return '-'.join(normalized)
+
+    supported_languages = get_languages()
+    compare_map = {}
+    for code in supported_languages:
+        key = normalize_bcp47(code).casefold()
+        compare_map.setdefault(key, []).append(code)
+
+    def find_configured_variant(original_segment):
+        key = normalize_bcp47(original_segment).casefold()
+        candidates = compare_map.get(key)
+        if not candidates:
             return None
+        for code in candidates:
+            if code == original_segment:
+                return code
+        for code in candidates:
+            if code.casefold() == original_segment.casefold():
+                return code
+        return candidates[0]
+
+    is_script_region = (
+        len(subtags) >= 3 and is_script(subtags[1]) and is_region(subtags[2])
+    )
+    if is_script_region:
+        return find_configured_variant(segment)
+
+    if len(subtags) == 2 and is_region(subtags[1]):
+        configured = find_configured_variant(segment)
+        if configured:
+            return configured
+        if strict:
+            return None
+        try:
+            return get_supported_language_variant(segment.lower(), strict=False)
+        except LookupError:
+            return None
+
+    configured = find_configured_variant(segment)
+    if configured:
+        return configured
     try:
         matched_code = get_supported_language_variant(segment.lower(), strict=strict)
     except LookupError:
         return None
     if len(subtags) > 2 and '-' not in matched_code:
         return None
-    supported_languages = get_languages()
-    if segment in supported_languages:
-        return segment
-    lower_map = {code.lower(): code for code in supported_languages}
-    return lower_map.get(matched_code.lower(), matched_code)
+    return matched_code
 
 
 def get_language_from_request(request, check_path=False):
