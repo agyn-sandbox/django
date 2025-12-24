@@ -7,6 +7,7 @@ from django.apps import apps
 from django.conf import settings
 from django.core import serializers
 from django.db import router
+from django.db.migrations.exceptions import MigrationRecorderNotAllowed
 from django.db.transaction import atomic
 from django.utils.module_loading import import_string
 
@@ -71,13 +72,16 @@ class BaseDatabaseCreation:
             # We report migrate messages at one level lower than that
             # requested. This ensures we don't get flooded with messages during
             # testing (unless you really ask to be flooded).
-            call_command(
-                'migrate',
-                verbosity=max(verbosity - 1, 0),
-                interactive=False,
-                database=self.connection.alias,
-                run_syncdb=True,
-            )
+            try:
+                call_command(
+                    'migrate',
+                    verbosity=max(verbosity - 1, 0),
+                    interactive=False,
+                    database=self.connection.alias,
+                    run_syncdb=True,
+                )
+            except MigrationRecorderNotAllowed as e:
+                self.log("Skipping migrations for database '%s': %s" % (self.connection.alias, e))
         finally:
             if self.connection.settings_dict['TEST']['MIGRATE'] is False:
                 settings.MIGRATION_MODULES = old_migration_modules

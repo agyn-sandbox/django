@@ -50,5 +50,10 @@ class MigrationSchemaMissing(DatabaseError):
     pass
 
 
+class MigrationRecorderNotAllowed(DatabaseError):
+    """Migrations are disallowed for recorder per router."""
+    pass
+
+
 class InvalidMigrationPlan(ValueError):
     pass

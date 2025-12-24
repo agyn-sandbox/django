@@ -12,6 +12,7 @@ from django.core.management.sql import (
 from django.db import DEFAULT_DB_ALIAS, connections, router
 from django.db.migrations.autodetector import MigrationAutodetector
 from django.db.migrations.executor import MigrationExecutor
+from django.db.migrations.exceptions import MigrationRecorderNotAllowed
 from django.db.migrations.loader import AmbiguityError
 from django.db.migrations.state import ModelState, ProjectState
 from django.utils.module_loading import module_has_submodule
@@ -250,10 +251,18 @@ class Command(BaseCommand):
         else:
             fake = options['fake']
             fake_initial = options['fake_initial']
-        post_migrate_state = executor.migrate(
-            targets, plan=plan, state=pre_migrate_state.clone(), fake=fake,
-            fake_initial=fake_initial,
-        )
+        try:
+            post_migrate_state = executor.migrate(
+                targets, plan=plan, state=pre_migrate_state.clone(), fake=fake,
+                fake_initial=fake_initial,
+            )
+        except MigrationRecorderNotAllowed as e:
+            message = "Skipping migrations for database '%s': %s" % (connection.alias, e)
+            if run_syncdb:
+                self.stdout.write(self.style.WARNING(message))
+                post_migrate_state = pre_migrate_state.clone()
+            else:
+                raise CommandError(str(e))
         # post_migrate signals have access to all models. Ensure that all models
         # are reloaded in case any are delayed.
         post_migrate_state.clear_delayed_apps_cache()
