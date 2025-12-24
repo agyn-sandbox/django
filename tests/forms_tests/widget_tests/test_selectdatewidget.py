@@ -621,6 +621,30 @@ class SelectDateWidgetTest(WidgetTest):
                     self.widget.value_from_datadict(data, {}, "field"), expected
                 )
 
+    def test_value_from_datadict_overflow_returns_pseudo_iso(self):
+        data = {"field_year": "100000", "field_month": "12", "field_day": "1"}
+        self.assertEqual(
+            self.widget.value_from_datadict(data, {}, "field"), "100000-12-1"
+        )
+
+    def test_value_from_datadict_negative_or_zero_component(self):
+        data = {"field_year": "-1", "field_month": "0", "field_day": "1"}
+        self.assertEqual(
+            self.widget.value_from_datadict(data, {}, "field"), "-1-0-1"
+        )
+
+    def test_value_from_datadict_non_numeric_inputs(self):
+        data = {"field_year": "year", "field_month": "two", "field_day": "x"}
+        self.assertEqual(
+            self.widget.value_from_datadict(data, {}, "field"), "year-two-x"
+        )
+
+    def test_value_from_datadict_valid_date_normalized(self):
+        data = {"field_year": "2000", "field_month": "12", "field_day": "1"}
+        self.assertEqual(
+            self.widget.value_from_datadict(data, {}, "field"), "2000-12-01"
+        )
+
     def test_value_omitted_from_data(self):
         self.assertIs(self.widget.value_omitted_from_data({}, {}, "field"), True)
         self.assertIs(
