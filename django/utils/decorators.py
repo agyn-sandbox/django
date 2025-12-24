@@ -1,6 +1,6 @@
 "Functions that help with dynamically creating decorators for views."
 
-from functools import partial, update_wrapper, wraps
+from functools import update_wrapper, wraps
 
 
 class classonlymethod(classmethod):
@@ -37,7 +37,10 @@ def _multi_decorate(decorators, method):
         # 'self' argument, but it's a closure over self so it can call
         # 'func'. Also, wrap method.__get__() in a function because new
         # attributes can't be set on bound method objects, only on functions.
-        bound_method = partial(method.__get__(self, type(self)))
+        def bound_method(*inner_args, **inner_kwargs):
+            return method.__get__(self, type(self))(*inner_args, **inner_kwargs)
+
+        bound_method = update_wrapper(bound_method, method)
         for dec in decorators:
             bound_method = dec(bound_method)
         return bound_method(*args, **kwargs)
