@@ -128,15 +128,17 @@ class WhereNode(tree.Node):
         if self.connector == XOR and not connection.features.supports_logical_xor:
             # Convert if the database doesn't support XOR:
             #   a XOR b XOR c XOR ...
-            # to:
-            #   (a OR b OR c OR ...) AND (a + b + c + ...) == 1
-            lhs = self.__class__(self.children, OR)
+            # to parity semantics (true iff an odd number of arguments are true):
+            #   (a + b + c + ...) % 2 == 1
+            # Represent each condition as 1 when true, 0 otherwise, sum them,
+            # then compare the modulo of 2 to 1.
             rhs_sum = reduce(
                 operator.add,
                 (Case(When(c, then=1), default=0) for c in self.children),
             )
-            rhs = Exact(1, rhs_sum)
-            return self.__class__([lhs, rhs], AND, self.negated).as_sql(
+            rhs_mod2 = rhs_sum % 2
+            rhs = Exact(1, rhs_mod2)
+            return self.__class__([rhs], AND, self.negated).as_sql(
                 compiler, connection
             )
 
