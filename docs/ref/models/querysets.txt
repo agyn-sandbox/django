@@ -2231,6 +2231,8 @@ instances, generally with one query::
     >>> objs[1].headline = 'This is entry 2'
     >>> Entry.objects.bulk_update(objs, ['headline'])
 
+The method returns the number of rows matched as an :class:`int`.
+
 :meth:`.QuerySet.update` is used to save the changes, so this is more efficient
 than iterating through the list of models and calling ``save()`` on each of
 them, but it has a few caveats:
@@ -2245,7 +2247,8 @@ them, but it has a few caveats:
 * Updating fields defined on multi-table inheritance ancestors will incur an
   extra query per ancestor.
 * When an individual batch contains duplicates, only the first instance in that
-  batch will result in an update.
+  batch will result in an update. If the same primary key occurs in a later
+  batch, it will be updated again and counted each time it appears.
 
 The ``batch_size`` parameter controls how many objects are saved in a single
 query. The default is to update all objects in one batch, except for SQLite
