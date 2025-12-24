@@ -1832,13 +1832,23 @@ If ``value`` is the list ``['a', 'b', 'c']``, the output will be the string
 Safely outputs a Python object as JSON, wrapped in a ``<script>`` tag, ready
 for use with JavaScript.
 
-**Argument:** HTML "id" of the ``<script>`` tag.
+**Argument:** Optional HTML "id" of the ``<script>`` tag.
 
-For example::
+For example, without an ``id`` attribute::
+
+    {{ value|json_script }}
+
+If ``value`` is the dictionary ``{'hello': 'world'}``, the output will be:
+
+.. code-block:: html
+
+    <script type="application/json">{"hello": "world"}</script>
+
+Providing an ``id`` allows referencing the element later::
 
     {{ value|json_script:"hello-data" }}
 
-If ``value`` is the dictionary ``{'hello': 'world'}``, the output will be:
+Which renders as:
 
 .. code-block:: html
 

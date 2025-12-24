@@ -210,7 +210,9 @@ Signals
 Templates
 ~~~~~~~~~
 
-* ...
+* The :tfilter:`json_script` template filter now accepts an optional
+  element ``id``. When omitted or ``None``, the rendered ``<script>`` tag has
+  no ``id`` attribute.
 
 Tests
 ~~~~~
