@@ -229,6 +229,11 @@ TEST_DATA = [
     # Trailing newlines not accepted
     (URLValidator(), 'http://www.djangoproject.com/\n', ValidationError),
     (URLValidator(), 'http://[::ffff:192.9.5.5]\n', ValidationError),
+    # Trailing carriage returns and tabs not accepted
+    (URLValidator(), 'http://www.djangoproject.com/\r', ValidationError),
+    (URLValidator(), 'http://[::ffff:192.9.5.5]\r', ValidationError),
+    (URLValidator(), 'http://www.djangoproject.com/\t', ValidationError),
+    (URLValidator(), 'http://[::ffff:192.9.5.5]\t', ValidationError),
     # Trailing junk does not take forever to reject
     (URLValidator(), 'http://www.asdasdasdasdsadfm.com.br ', ValidationError),
     (URLValidator(), 'http://www.asdasdasdasdsadfm.com.br z', ValidationError),

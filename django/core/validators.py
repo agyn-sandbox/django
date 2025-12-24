@@ -101,12 +101,15 @@ class URLValidator(RegexValidator):
     def __call__(self, value):
         if not isinstance(value, str):
             raise ValidationError(self.message, code=self.code, params={'value': value})
+        if any(char in value for char in ('\r', '\n', '\t')):
+            raise ValidationError(self.message, code=self.code, params={'value': value})
         # Check if the scheme is valid.
         scheme = value.split('://')[0].lower()
         if scheme not in self.schemes:
             raise ValidationError(self.message, code=self.code, params={'value': value})
 
         # Then check full URL
+        split_result = None
         try:
             super().__call__(value)
         except ValidationError as e:
@@ -126,7 +129,11 @@ class URLValidator(RegexValidator):
                 raise
         else:
             # Now verify IPv6 in the netloc part
-            host_match = re.search(r'^\[(.+)\](?::\d{2,5})?$', urlsplit(value).netloc)
+            try:
+                split_result = urlsplit(value)
+            except ValueError:
+                raise ValidationError(self.message, code=self.code, params={'value': value})
+            host_match = re.search(r'^\[(.+)\](?::\d{2,5})?$', split_result.netloc)
             if host_match:
                 potential_ip = host_match[1]
                 try:
@@ -138,7 +145,15 @@ class URLValidator(RegexValidator):
         # section 3.1. It's defined to be 255 bytes or less, but this includes
         # one byte for the length of the name and one byte for the trailing dot
         # that's used to indicate absolute names in DNS.
-        if len(urlsplit(value).hostname) > 253:
+        if split_result is None:
+            try:
+                split_result = urlsplit(value)
+            except ValueError:
+                raise ValidationError(self.message, code=self.code, params={'value': value})
+        hostname = split_result.hostname
+        if hostname is None:
+            raise ValidationError(self.message, code=self.code, params={'value': value})
+        if len(hostname) > 253:
             raise ValidationError(self.message, code=self.code, params={'value': value})
 
 
