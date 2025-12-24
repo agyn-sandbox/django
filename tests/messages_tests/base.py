@@ -381,3 +381,23 @@ class BaseTests:
         add_level_messages(storage)
         tags = [msg.tags for msg in storage]
         self.assertEqual(tags, ['info', 'custom', 'extra-tag', '', 'bad', 'success'])
+
+    @override_settings(MESSAGE_TAGS={29: 'custom'})
+    def test_message_tags_update_on_override_settings(self):
+        storage = self.get_storage()
+        storage.level = 0
+        storage.add(29, 'Some custom level')
+        tags = [msg.level_tag for msg in storage]
+        self.assertEqual(tags, ['custom'])
+
+    @override_settings(MESSAGE_TAGS={
+        constants.INFO: 'information',
+        29: 'custom',
+    })
+    def test_message_tags_update_on_override_settings_multiple_values(self):
+        storage = self.get_storage()
+        storage.level = 0
+        storage.add(constants.INFO, 'Info message')
+        storage.add(29, 'Some custom level')
+        tags = [msg.level_tag for msg in storage]
+        self.assertEqual(tags, ['information', 'custom'])
