@@ -173,10 +173,34 @@ class MigrationWriter:
         else:
             imports.add("from django.db import migrations")
 
-        # Sort imports by the package / module to be imported (the part after
-        # "from" in "from ... import ..." or after "import" in "import ...").
-        sorted_imports = sorted(imports, key=lambda i: i.split()[1])
-        items["imports"] = "\n".join(sorted_imports) + "\n" if imports else ""
+        def _import_names(statement):
+            return statement.split("import", 1)[1].strip()
+
+        def _plain_import_key(statement):
+            names = _import_names(statement)
+            return names.split(",", 1)[0].split(" as ", 1)[0]
+
+        def _from_import_key(statement):
+            return statement.split()[1]
+
+        future_imports = sorted(
+            (i for i in imports if i.startswith("from __future__ import")),
+            key=_import_names,
+        )
+        plain_imports = sorted(
+            (i for i in imports if i.startswith("import ")),
+            key=_plain_import_key,
+        )
+        from_imports = sorted(
+            (
+                i
+                for i in imports
+                if i.startswith("from ") and not i.startswith("from __future__ import")
+            ),
+            key=_from_import_key,
+        )
+        grouped_imports = [*future_imports, *plain_imports, *from_imports]
+        items["imports"] = "\n".join(grouped_imports) + "\n" if grouped_imports else ""
         if migration_imports:
             items["imports"] += (
                 "\n\n# Functions from the following migrations need manual "
