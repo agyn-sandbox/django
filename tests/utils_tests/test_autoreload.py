@@ -9,6 +9,7 @@ import time
 import types
 import weakref
 import zipfile
+from collections import OrderedDict
 from importlib import import_module
 from pathlib import Path
 from subprocess import CompletedProcess
@@ -204,6 +205,82 @@ class TestChildArguments(SimpleTestCase):
         )
 
     @mock.patch('__main__.__spec__', None)
+    @mock.patch('sys.argv', [__file__, 'runserver'])
+    @mock.patch('sys.warnoptions', [])
+    def test_cpython_xoptions_flags(self):
+        options = OrderedDict([
+            ('utf8', True),
+            ('dev', True),
+            ('faulthandler', True),
+            ('warn_default_encoding', True),
+        ])
+        with mock.patch.object(autoreload.sys.implementation, 'name', 'cpython'):
+            with mock.patch('django.utils.autoreload.sys._xoptions', options):
+                self.assertEqual(
+                    autoreload.get_child_arguments(),
+                    [
+                        sys.executable,
+                        '-X', 'utf8',
+                        '-X', 'dev',
+                        '-X', 'faulthandler',
+                        '-X', 'warn_default_encoding',
+                        __file__,
+                        'runserver',
+                    ],
+                )
+
+    @mock.patch('__main__.__spec__', None)
+    @mock.patch('sys.argv', [__file__, 'runserver'])
+    @mock.patch('sys.warnoptions', [])
+    def test_cpython_xoptions_key_value(self):
+        options = OrderedDict([
+            ('pycache_prefix', '/tmp/py cache'),
+            ('tracemalloc', 5),
+        ])
+        with mock.patch.object(autoreload.sys.implementation, 'name', 'cpython'):
+            with mock.patch('django.utils.autoreload.sys._xoptions', options):
+                self.assertEqual(
+                    autoreload.get_child_arguments(),
+                    [
+                        sys.executable,
+                        '-X', 'pycache_prefix=/tmp/py cache',
+                        '-X', 'tracemalloc=5',
+                        __file__,
+                        'runserver',
+                    ],
+                )
+
+    @mock.patch('__main__.__spec__', None)
+    @mock.patch('sys.argv', [__file__, 'runserver'])
+    @mock.patch('sys.warnoptions', [])
+    def test_non_cpython_ignores_xoptions(self):
+        options = OrderedDict([('dev', True)])
+        with mock.patch.object(autoreload.sys.implementation, 'name', 'pypy'):
+            with mock.patch('django.utils.autoreload.sys._xoptions', options):
+                self.assertEqual(
+                    autoreload.get_child_arguments(),
+                    [sys.executable, __file__, 'runserver']
+                )
+
+    @mock.patch('__main__.__spec__', None)
+    @mock.patch('sys.argv', [__file__, 'runserver'])
+    @mock.patch('sys.warnoptions', ['error'])
+    def test_warnoptions_before_xoptions(self):
+        options = OrderedDict([('dev', True)])
+        with mock.patch.object(autoreload.sys.implementation, 'name', 'cpython'):
+            with mock.patch('django.utils.autoreload.sys._xoptions', options):
+                self.assertEqual(
+                    autoreload.get_child_arguments(),
+                    [
+                        sys.executable,
+                        '-Werror',
+                        '-X', 'dev',
+                        __file__,
+                        'runserver',
+                    ],
+                )
+
+    @mock.patch('__main__.__spec__', None)
     @mock.patch('sys.warnoptions', [])
     def test_exe_fallback(self):
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -214,6 +291,21 @@ class TestChildArguments(SimpleTestCase):
                     autoreload.get_child_arguments(),
                     [exe_path, 'runserver']
                 )
+
+    @mock.patch('__main__.__spec__', None)
+    @mock.patch('sys.warnoptions', [])
+    def test_exe_fallback_ignores_xoptions(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            exe_path = Path(tmpdir) / 'django-admin.exe'
+            exe_path.touch()
+            options = OrderedDict([('dev', True)])
+            with mock.patch('sys.argv', [exe_path.with_suffix(''), 'runserver']):
+                with mock.patch.object(autoreload.sys.implementation, 'name', 'cpython'):
+                    with mock.patch('django.utils.autoreload.sys._xoptions', options):
+                        self.assertEqual(
+                            autoreload.get_child_arguments(),
+                            [exe_path, 'runserver']
+                        )
 
     @mock.patch('__main__.__spec__', None)
     @mock.patch('sys.warnoptions', [])
