@@ -339,7 +339,7 @@ class DatabaseSchemaEditor(BaseDatabaseSchemaEditor):
                 # non-unique index while adding the column, preserving inline
                 # REFERENCES behavior.
                 non_unique = field.clone()
-                non_unique.unique = False
+                non_unique._unique = False
                 if getattr(non_unique, "db_index", False):
                     non_unique.db_index = False
 
