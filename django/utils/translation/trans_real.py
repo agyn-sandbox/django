@@ -43,8 +43,6 @@ language_code_re = _lazy_re_compile(
     re.IGNORECASE
 )
 
-language_code_prefix_re = _lazy_re_compile(r'^/(\w+([@-]\w+)?)(/|$)')
-
 
 @receiver(setting_changed)
 def reset_cache(**kwargs):
@@ -505,14 +503,48 @@ def get_language_from_path(path, strict=False):
     If `strict` is False (the default), look for a country-specific variant
     when neither the language code nor its generic variant is found.
     """
-    regex_match = language_code_prefix_re.match(path)
-    if not regex_match:
+    if not path:
         return None
-    lang_code = regex_match[1]
+    segment = path.lstrip('/').split('/', 1)[0]
+    if not segment:
+        return None
+    if not language_code_re.match(segment):
+        return None
+    subtags = segment.split('-')
+    if len(subtags) > 3:
+        return None
+    if len(subtags) == 3:
+        first, second = subtags[1], subtags[2]
+        script_region_pattern = (
+            len(first) == 4 and first.isalpha() and
+            ((len(second) == 2 and second.isalpha()) or (len(second) == 3 and second.isdigit()))
+        )
+        region_variant_pattern = (
+            ((len(first) == 2 and first.isalpha()) or (len(first) == 3 and first.isdigit())) and
+            (4 <= len(second) <= 8) and second.isalnum()
+        )
+        if not (script_region_pattern or region_variant_pattern):
+            return None
+    elif len(subtags) == 2:
+        subtag = subtags[1]
+        if not (
+            (len(subtag) == 2 and subtag.isalpha()) or
+            (len(subtag) == 3 and subtag.isdigit()) or
+            (len(subtag) == 4 and subtag.isalpha()) or
+            (4 <= len(subtag) <= 8 and subtag.isalnum())
+        ):
+            return None
     try:
-        return get_supported_language_variant(lang_code, strict=strict)
+        matched_code = get_supported_language_variant(segment.lower(), strict=strict)
     except LookupError:
         return None
+    if len(subtags) > 2 and '-' not in matched_code:
+        return None
+    supported_languages = get_languages()
+    if segment in supported_languages:
+        return segment
+    lower_map = {code.lower(): code for code in supported_languages}
+    return lower_map.get(matched_code.lower(), matched_code)
 
 
 def get_language_from_request(request, check_path=False):

@@ -1593,6 +1593,8 @@ class MiscTests(SimpleTestCase):
     @override_settings(
         LANGUAGES=[
             ('en', 'English'),
+            ('en-latn-us', 'English (Latin US lower)'),
+            ('en-Latn-US', 'English (Latin US)'),
             ('de', 'German'),
             ('de-at', 'Austrian German'),
             ('pl', 'Polish'),
@@ -1605,10 +1607,13 @@ class MiscTests(SimpleTestCase):
         self.assertIsNone(g('/xyz/'))
         self.assertEqual(g('/en/'), 'en')
         self.assertEqual(g('/en-gb/'), 'en')
+        self.assertEqual(g('/en-latn-us/'), 'en-latn-us')
+        self.assertEqual(g('/en-Latn-US/'), 'en-Latn-US')
         self.assertEqual(g('/de/'), 'de')
         self.assertEqual(g('/de-at/'), 'de-at')
         self.assertEqual(g('/de-ch/'), 'de')
         self.assertIsNone(g('/de-simple-page/'))
+        self.assertIsNone(g('/en-Latn-GB/'))
 
     def test_get_language_from_path_null(self):
         g = trans_null.get_language_from_path
