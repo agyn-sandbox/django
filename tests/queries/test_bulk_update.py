@@ -240,3 +240,78 @@ class BulkUpdateTests(TestCase):
             obj.json_field = {'c': obj.json_field['a'] + 1}
         JSONFieldNullable.objects.bulk_update(objs, ['json_field'])
         self.assertCountEqual(JSONFieldNullable.objects.filter(json_field__has_key='c'), objs)
+
+
+class BulkUpdateReturnValueTests(TestCase):
+    def test_returns_int_single_object(self):
+        note = Note.objects.create(note='a', misc='a')
+        note.note = 'updated'
+
+        count = Note.objects.bulk_update([note], ['note'])
+
+        self.assertIsInstance(count, int)
+        self.assertEqual(count, 1)
+        note.refresh_from_db()
+        self.assertEqual(note.note, 'updated')
+
+    def test_returns_int_multiple_objects(self):
+        notes = [Note.objects.create(note=str(i), misc=str(i)) for i in range(3)]
+        for index, note in enumerate(notes):
+            note.note = f'updated-{index}'
+
+        count = Note.objects.bulk_update(notes, ['note'])
+
+        self.assertIsInstance(count, int)
+        self.assertEqual(count, len(notes))
+        self.assertCountEqual(
+            Note.objects.values_list('note', flat=True),
+            [note.note for note in notes],
+        )
+
+    def test_returns_int_with_batching(self):
+        notes = [Note.objects.create(note=str(i), misc=str(i)) for i in range(3)]
+        for index, note in enumerate(notes):
+            note.note = f'batched-{index}'
+
+        count = Note.objects.bulk_update(notes, ['note'], batch_size=1)
+
+        self.assertEqual(count, len(notes))
+        self.assertCountEqual(
+            Note.objects.values_list('note', flat=True),
+            [note.note for note in notes],
+        )
+
+    def test_returns_zero_for_no_matches(self):
+        note = Note(pk=999999, note='missing', misc='missing')
+
+        count = Note.objects.bulk_update([note], ['note'])
+
+        self.assertEqual(count, 0)
+        self.assertFalse(Note.objects.filter(pk=note.pk).exists())
+
+    def test_returns_zero_for_empty_input(self):
+        count = Note.objects.bulk_update([], ['note'])
+
+        self.assertEqual(count, 0)
+
+    def test_duplicates_within_same_batch_first_wins(self):
+        saved = Note.objects.create(note='original', misc='m')
+        first = Note(pk=saved.pk, note='first', misc='m')
+        second = Note(pk=saved.pk, note='second', misc='m')
+
+        count = Note.objects.bulk_update([first, second], ['note'])
+
+        self.assertEqual(count, 1)
+        saved.refresh_from_db()
+        self.assertEqual(saved.note, 'first')
+
+    def test_duplicates_across_batches_double_counts(self):
+        saved = Note.objects.create(note='original', misc='m')
+        first = Note(pk=saved.pk, note='first', misc='m')
+        second = Note(pk=saved.pk, note='second', misc='m')
+
+        count = Note.objects.bulk_update([first, second], ['note'], batch_size=1)
+
+        self.assertEqual(count, 2)
+        saved.refresh_from_db()
+        self.assertEqual(saved.note, 'second')
