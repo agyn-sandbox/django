@@ -283,6 +283,18 @@ class TestUtilsHtml(SimpleTestCase):
                 '(see google.com/?q=1&lt!)',
                 '(see <a href="http://google.com/?q=1%3C">google.com/?q=1&lt</a>!)'
             ),
+            (
+                'Search for google.com/?q=1&#33; and see.',
+                'Search for <a href="http://google.com/?q=1">google.com/?q=1</a>&#33; and see.'
+            ),
+            (
+                'Search for google.com/?q=1&#x21;! and see.',
+                'Search for <a href="http://google.com/?q=1">google.com/?q=1</a>&#x21;! and see.'
+            ),
+            (
+                'See google.com/?q=1&#33;&#33;',
+                'See <a href="http://google.com/?q=1">google.com/?q=1</a>&#33;&#33;'
+            ),
         )
         for value, output in tests:
             with self.subTest(value=value):

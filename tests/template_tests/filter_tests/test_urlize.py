@@ -99,6 +99,26 @@ class UrlizeTests(SimpleTestCase):
             '(see <a href="http://google.com/?q=1%3C" rel="nofollow">google.com/?q=1&amp;lt</a>!)',
         )
 
+    @setup({'urlize12': '{{ text|urlize }}'})
+    def test_urlize_entity_trailing_numeric_reference(self):
+        output = self.engine.render_to_string('urlize12', {
+            'text': 'Search for google.com/?q=1&#33; and see.',
+        })
+        self.assertEqual(
+            output,
+            'Search for <a href="http://google.com/?q=1" rel="nofollow">google.com/?q=1</a>&amp;#33; and see.',
+        )
+
+    @setup({'urlize13': '{{ text|urlize }}'})
+    def test_urlize_entity_trailing_hex_reference(self):
+        output = self.engine.render_to_string('urlize13', {
+            'text': 'Search for google.com/?q=1&#x21;! and see.',
+        })
+        self.assertEqual(
+            output,
+            'Search for <a href="http://google.com/?q=1" rel="nofollow">google.com/?q=1</a>&amp;#x21;! and see.',
+        )
+
 
 class FunctionTests(SimpleTestCase):
 
