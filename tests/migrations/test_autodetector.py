@@ -2106,6 +2106,36 @@ class AutodetectorTests(TestCase):
         self.assertNumberMigrations(changes, 'testapp', 1)
         self.assertOperationTypes(changes, 'testapp', 0, ["CreateModel"])
 
+    def test_custom_fk_deconstruct_removes_to_no_keyerror(self):
+        class CustomFKField(models.ForeignKey):
+            def __init__(self, *args, **kwargs):
+                kwargs['to'] = 'testapp.Publisher'
+                kwargs.setdefault('on_delete', models.CASCADE)
+                super().__init__(*args, **kwargs)
+
+            def deconstruct(self):
+                name, path, args, kwargs = super().deconstruct()
+                kwargs.pop('to', None)
+                return name, path, args, kwargs
+
+        test_model = ModelState(
+            'testapp',
+            'TestModel',
+            [
+                ('id', models.AutoField(primary_key=True)),
+                ('custom_fk', CustomFKField()),
+            ],
+        )
+        before = self.make_project_state([self.publisher])
+        after = self.make_project_state([self.publisher, test_model])
+
+        changes = MigrationAutodetector(before, after)._detect_changes()
+
+        self.assertIn('testapp', changes)
+        self.assertEqual(len(changes['testapp']), 1)
+        self.assertOperationTypes(changes, 'testapp', 0, ['CreateModel'])
+        self.assertOperationAttributes(changes, 'testapp', 0, 0, name='TestModel')
+
     def test_replace_string_with_foreignkey(self):
         """
         #22300 - Adding an FK in the same "spot" as a deleted CharField should
