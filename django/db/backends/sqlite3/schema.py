@@ -338,7 +338,7 @@ class DatabaseSchemaEditor(BaseDatabaseSchemaEditor):
                 # Clone the field to suppress inline UNIQUE and any implicit
                 # non-unique index while adding the column, preserving inline
                 # REFERENCES behavior.
-                non_unique = field.clone()
+                non_unique = copy.copy(field)
                 non_unique._unique = False
                 if getattr(non_unique, "db_index", False):
                     non_unique.db_index = False
