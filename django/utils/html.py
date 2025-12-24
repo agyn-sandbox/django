@@ -18,6 +18,7 @@ from django.utils.text import normalize_newlines
 # Configuration for urlize() function.
 TRAILING_PUNCTUATION_CHARS = '.,:;!'
 WRAPPING_PUNCTUATION = [('(', ')'), ('[', ']')]
+HTML_ENTITY_RE = re.compile(r'&(?:#\d+|#x[0-9A-Fa-f]+|\w+);')
 
 # List of possible strings used for bullets in bulleted lists.
 DOTS = ['&middot;', '*', '\u2022', '&#149;', '&bull;', '&#8226;']
@@ -283,8 +284,25 @@ def urlize(text, trim_url_limit=None, nofollow=False, autoescape=False):
             middle_unescaped = html.unescape(middle)
             stripped = middle_unescaped.rstrip(TRAILING_PUNCTUATION_CHARS)
             if middle_unescaped != stripped:
-                trail = middle[len(stripped):] + trail
-                middle = middle[:len(stripped) - len(middle_unescaped)]
+                trailing_count = len(middle_unescaped) - len(stripped)
+                idx = len(middle)
+                units_remaining = trailing_count
+                while units_remaining > 0 and idx > 0:
+                    if middle[idx - 1] == ';':
+                        amp_idx = middle.rfind('&', 0, idx)
+                        if amp_idx != -1:
+                            entity = middle[amp_idx:idx]
+                            if HTML_ENTITY_RE.fullmatch(entity):
+                                decoded = html.unescape(entity)
+                                if (len(decoded) == 1 and
+                                        decoded in TRAILING_PUNCTUATION_CHARS):
+                                    idx = amp_idx
+                                    units_remaining -= 1
+                                    continue
+                    idx -= 1
+                    units_remaining -= 1
+                trail = middle[idx:] + trail
+                middle = middle[:idx]
                 trimmed_something = True
         return lead, middle, trail
 

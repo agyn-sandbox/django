@@ -255,6 +255,46 @@ class TestUtilsHtml(SimpleTestCase):
                 'Search for <a href="http://google.com/?q=">google.com/?q=</a>!'
             ),
             ('foo@example.com', '<a href="mailto:foo@example.com">foo@example.com</a>'),
+            (
+                'Search for google.com/?q=1&lt! and see.',
+                'Search for <a href="http://google.com/?q=1%3C">google.com/?q=1&lt</a>! and see.'
+            ),
+            (
+                'Search for google.com/?q=1&lt;! and see.',
+                'Search for <a href="http://google.com/?q=1%3C">google.com/?q=1&lt;</a>! and see.'
+            ),
+            (
+                'Search for google.com/?q=&#60! and see.',
+                'Search for <a href="http://google.com/?q=%3C">google.com/?q=&#60</a>! and see.'
+            ),
+            (
+                'Search for google.com/?q=&#60;! and see.',
+                'Search for <a href="http://google.com/?q=%3C">google.com/?q=&#60;</a>! and see.'
+            ),
+            (
+                'Search for google.com/?q=1&lt!!! and see.',
+                'Search for <a href="http://google.com/?q=1%3C">google.com/?q=1&lt</a>!!! and see.'
+            ),
+            (
+                'Check example.com/a&lt! now.',
+                'Check <a href="http://example.com/a%3C">example.com/a&lt</a>! now.'
+            ),
+            (
+                '(see google.com/?q=1&lt!)',
+                '(see <a href="http://google.com/?q=1%3C">google.com/?q=1&lt</a>!)'
+            ),
+            (
+                'Search for google.com/?q=1&#33; and see.',
+                'Search for <a href="http://google.com/?q=1">google.com/?q=1</a>&#33; and see.'
+            ),
+            (
+                'Search for google.com/?q=1&#x21;! and see.',
+                'Search for <a href="http://google.com/?q=1">google.com/?q=1</a>&#x21;! and see.'
+            ),
+            (
+                'See google.com/?q=1&#33;&#33;',
+                'See <a href="http://google.com/?q=1">google.com/?q=1</a>&#33;&#33;'
+            ),
         )
         for value, output in tests:
             with self.subTest(value=value):
