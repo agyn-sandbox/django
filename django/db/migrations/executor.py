@@ -1,7 +1,7 @@
 from django.apps.registry import apps as global_apps
 from django.db import migrations, router
 
-from .exceptions import InvalidMigrationPlan
+from .exceptions import InvalidMigrationPlan, MigrationRecorderNotAllowed
 from .loader import MigrationLoader
 from .recorder import MigrationRecorder
 from .state import ProjectState
@@ -95,6 +95,8 @@ class MigrationExecutor:
         Django first needs to create all project states before a migration is
         (un)applied and in a second step run all the database operations.
         """
+        if not router.allow_migrate_model(self.connection.alias, self.recorder.Migration):
+            raise MigrationRecorderNotAllowed("Migrations are disallowed for recorder per router.")
         # The django_migrations table must be present to record applied
         # migrations.
         self.recorder.ensure_schema()

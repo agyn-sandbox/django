@@ -1,9 +1,9 @@
 from django.apps.registry import Apps
-from django.db import DatabaseError, models
+from django.db import DatabaseError, models, router
 from django.utils.functional import classproperty
 from django.utils.timezone import now
 
-from .exceptions import MigrationSchemaMissing
+from .exceptions import MigrationRecorderNotAllowed, MigrationSchemaMissing
 
 
 class MigrationRecorder:
@@ -50,8 +50,13 @@ class MigrationRecorder:
     def migration_qs(self):
         return self.Migration.objects.using(self.connection.alias)
 
+    def _is_allowed(self):
+        return router.allow_migrate_model(self.connection.alias, self.Migration)
+
     def has_table(self):
         """Return True if the django_migrations table exists."""
+        if not self._is_allowed():
+            return False
         with self.connection.cursor() as cursor:
             tables = self.connection.introspection.table_names(cursor)
         return self.Migration._meta.db_table in tables
@@ -60,6 +65,8 @@ class MigrationRecorder:
         """Ensure the table exists and has the correct schema."""
         # If the table's there, that's fine - we've never changed its schema
         # in the codebase.
+        if not self._is_allowed():
+            raise MigrationRecorderNotAllowed("Migrations are disallowed for recorder per router.")
         if self.has_table():
             return
         # Make the table
@@ -83,14 +90,20 @@ class MigrationRecorder:
 
     def record_applied(self, app, name):
         """Record that a migration was applied."""
+        if not self._is_allowed():
+            raise MigrationRecorderNotAllowed("Migrations are disallowed for recorder per router.")
         self.ensure_schema()
         self.migration_qs.create(app=app, name=name)
 
     def record_unapplied(self, app, name):
         """Record that a migration was unapplied."""
+        if not self._is_allowed():
+            raise MigrationRecorderNotAllowed("Migrations are disallowed for recorder per router.")
         self.ensure_schema()
         self.migration_qs.filter(app=app, name=name).delete()
 
     def flush(self):
         """Delete all migration records. Useful for testing migrations."""
+        if not self._is_allowed():
+            raise MigrationRecorderNotAllowed("Migrations are disallowed for recorder per router.")
         self.migration_qs.all().delete()
