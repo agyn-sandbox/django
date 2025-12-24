@@ -699,6 +699,41 @@ class ModelAdminTests(TestCase):
             ["extra", "transport", "id", "DELETE", "main_band"],
         )
 
+    def test_radio_fields_foreignkey_respects_empty_label_string(self):
+        class ConcertAdmin(ModelAdmin):
+            radio_fields = {"opening_band": VERTICAL}
+
+            def formfield_for_foreignkey(self, db_field, request, **kwargs):
+                if db_field.name == "opening_band":
+                    kwargs["empty_label"] = "—Select—"
+                return super().formfield_for_foreignkey(db_field, request, **kwargs)
+
+        admin_form = ConcertAdmin(Concert, self.site).get_form(request)
+        opening_band_field = admin_form.base_fields["opening_band"]
+
+        self.assertIsInstance(opening_band_field.widget.widget, AdminRadioSelect)
+        self.assertEqual(
+            list(opening_band_field.widget.choices)[0], ("", "—Select—")
+        )
+
+    def test_radio_fields_foreignkey_respects_empty_label_none(self):
+        class ConcertAdmin(ModelAdmin):
+            radio_fields = {"opening_band": VERTICAL}
+
+            def formfield_for_foreignkey(self, db_field, request, **kwargs):
+                if db_field.name == "opening_band":
+                    kwargs["empty_label"] = None
+                return super().formfield_for_foreignkey(db_field, request, **kwargs)
+
+        admin_form = ConcertAdmin(Concert, self.site).get_form(request)
+        opening_band_field = admin_form.base_fields["opening_band"]
+
+        self.assertIsInstance(opening_band_field.widget.widget, AdminRadioSelect)
+        self.assertEqual(
+            list(opening_band_field.widget.choices),
+            [(self.band.id, "The Doors")],
+        )
+
     def test_log_actions(self):
         ma = ModelAdmin(Band, self.site)
         mock_request = MockRequest()
