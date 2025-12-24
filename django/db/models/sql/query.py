@@ -572,6 +572,10 @@ class Query(BaseExpression):
         if self.distinct_fields != rhs.distinct_fields:
             raise TypeError('Cannot combine queries with different distinct fields.')
 
+        if connector == OR:
+            rhs = rhs.clone()
+            rhs.bump_prefix(self, preserve_base=True)
+
         # Work out how to relabel the rhs aliases, if necessary.
         change_map = {}
         conjunction = (connector == AND)
@@ -879,7 +883,7 @@ class Query(BaseExpression):
             for alias, aliased in self.external_aliases.items()
         }
 
-    def bump_prefix(self, outer_query):
+    def bump_prefix(self, outer_query, preserve_base=False):
         """
         Change the alias prefix to the next letter in the alphabet in a way
         that the outer query's aliases and this query's aliases will not
@@ -923,10 +927,14 @@ class Query(BaseExpression):
                 )
         self.subq_aliases = self.subq_aliases.union([self.alias_prefix])
         outer_query.subq_aliases = outer_query.subq_aliases.union(self.subq_aliases)
-        self.change_aliases({
+        base_alias = self.base_table if preserve_base else None
+        change_map = {
             alias: '%s%d' % (self.alias_prefix, pos)
             for pos, alias in enumerate(self.alias_map)
-        })
+            if alias != base_alias
+        }
+        if change_map:
+            self.change_aliases(change_map)
 
     def get_initial_alias(self):
         """
