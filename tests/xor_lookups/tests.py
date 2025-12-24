@@ -65,3 +65,14 @@ class XorLookupsTests(TestCase):
             Number.objects.filter(Q(pk__in=[]) ^ Q(num__gte=5)),
             self.numbers[5:],
         )
+
+    def test_xor_parity_multiple_arguments_with_duplicates(self):
+        # On backends without native XOR, ensure parity (odd number of truths)
+        # semantics for chained XOR with duplicate conditions.
+        target = self.numbers[3]
+        q = Q(pk=target.pk)
+        self.assertCountEqual(Number.objects.filter(q), [target])
+        self.assertCountEqual(Number.objects.filter(q ^ q), [])
+        self.assertCountEqual(Number.objects.filter(q ^ q ^ q), [target])
+        self.assertCountEqual(Number.objects.filter(q ^ q ^ q ^ q), [])
+        self.assertCountEqual(Number.objects.filter(q ^ q ^ q ^ q ^ q), [target])
