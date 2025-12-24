@@ -27,6 +27,7 @@ from django.db.models import (
     TimeField,
     Value,
     Variance,
+    Window,
     When,
 )
 from django.db.models.expressions import Func, RawSQL
@@ -39,6 +40,7 @@ from django.db.models.functions import (
     Mod,
     Now,
     Pi,
+    RowNumber,
     TruncDate,
     TruncHour,
 )
@@ -2114,6 +2116,26 @@ class AggregateTestCase(TestCase):
                 "coalesced_total_books": 10,
             },
         )
+
+    @skipUnlessDBFeature("supports_over_clause")
+    def test_aggregate_over_window_annotation(self):
+        total_books = Book.objects.count()
+        queryset = Book.objects.annotate(
+            row_number=Window(
+                expression=RowNumber(),
+                order_by=[F("pk").asc()],
+            )
+        )
+        with CaptureQueriesContext(connection) as ctx:
+            result = queryset.aggregate(total=Sum("row_number"))
+        self.assertEqual(
+            result,
+            {"total": sum(range(1, total_books + 1))},
+        )
+        self.assertEqual(len(ctx.captured_queries), 1)
+        sql = ctx.captured_queries[0]["sql"].lower()
+        self.assertEqual(sql.count("select"), 2, "Subquery wrapping required")
+        self.assertIn("from (select", sql)
 
 
 class AggregateAnnotationPruningTests(TestCase):
