@@ -1128,6 +1128,34 @@ class AutodetectorTests(TestCase):
         self.assertOperationTypes(changes, 'otherapp', 0, ["RenameField"])
         self.assertOperationAttributes(changes, 'otherapp', 0, 0, old_name="author", new_name="writer")
 
+    def test_rename_model_with_renamed_field_same_model(self):
+        before = [
+            ModelState('test_one', 'MyModel', [
+                ('id', models.AutoField(primary_key=True)),
+                ('name', models.CharField(max_length=255)),
+            ]),
+        ]
+        after = [
+            ModelState('test_one', 'MyRenamedModel', [
+                ('id', models.AutoField(primary_key=True)),
+                ('new_name', models.CharField(max_length=255)),
+            ]),
+        ]
+        changes = self.get_changes(
+            before,
+            after,
+            MigrationQuestioner({'ask_rename_model': True, 'ask_rename': True}),
+        )
+        self.assertNumberMigrations(changes, 'test_one', 1)
+        self.assertOperationTypes(changes, 'test_one', 0, ['RenameModel', 'RenameField'])
+        self.assertOperationAttributes(
+            changes, 'test_one', 0, 0, old_name='MyModel', new_name='MyRenamedModel',
+        )
+        self.assertOperationAttributes(
+            changes, 'test_one', 0, 1,
+            model_name='myrenamedmodel', old_name='name', new_name='new_name',
+        )
+
     def test_rename_model_with_fks_in_different_position(self):
         """
         #24537 - The order of fields in a model does not influence
