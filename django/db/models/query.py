@@ -1762,7 +1762,58 @@ def prefetch_related_objects(model_instances, *related_lookups):
 
             obj_to_fetch = None
             if prefetcher is not None:
-                obj_to_fetch = [obj for obj in obj_list if not is_fetched(obj)]
+                if (level == len(through_attrs) - 1) and (lookup.queryset is not None):
+                    lookup_sig = str(lookup.queryset.query)
+                    required_field_map = lookup.queryset.query.get_loaded_field_names()
+                    to_attr, as_attr = lookup.get_current_to_attr(level)
+
+                    def relation_requires_override(instance):
+                        attr_name = to_attr if as_attr else through_attr
+                        try:
+                            related = getattr(instance, attr_name)
+                        except AttributeError:
+                            return False
+                        if related is None:
+                            return False
+                        if isinstance(related, list):
+                            related_iterable = related
+                        elif hasattr(related, '_meta'):
+                            related_iterable = [related]
+                        else:
+                            cache = getattr(instance, '_prefetched_objects_cache', {})
+                            cached_qs = cache.get(attr_name)
+                            if cached_qs is None:
+                                cached_qs = cache.get(through_attr)
+                            if cached_qs is None or getattr(cached_qs, '_result_cache', None) is None:
+                                return False
+                            related_iterable = cached_qs._result_cache
+                        for rel_obj in related_iterable:
+                            required_fields = required_field_map.get(rel_obj.__class__, set())
+                            if not required_fields:
+                                continue
+                            if any(field in rel_obj.get_deferred_fields() for field in required_fields):
+                                return True
+                        return False
+
+                    fetched_objs = []
+                    unfetched_objs = []
+                    for obj in obj_list:
+                        if is_fetched(obj):
+                            signatures = getattr(obj, '_prefetched_queryset_signatures', {})
+                            signature = signatures.get(through_attr)
+                            sig_value = sig_marker = None
+                            if isinstance(signature, tuple):
+                                sig_value, sig_marker = signature
+                            elif signature is not None:
+                                sig_value = signature
+                            if sig_value == lookup_sig and sig_marker == through_attr and not relation_requires_override(obj):
+                                continue
+                            fetched_objs.append(obj)
+                        else:
+                            unfetched_objs.append(obj)
+                    obj_to_fetch = obj_list if fetched_objs else unfetched_objs
+                else:
+                    obj_to_fetch = [obj for obj in obj_list if not is_fetched(obj)]
 
             if obj_to_fetch:
                 obj_list, additional_lookups = prefetch_one_level(
@@ -1928,8 +1979,21 @@ def prefetch_one_level(instances, prefetcher, lookup, level):
             msg = 'to_attr={} conflicts with a field on the {} model.'
             raise ValueError(msg.format(to_attr, model.__name__))
 
-    # Whether or not we're prefetching the last part of the lookup.
-    leaf = len(lookup.prefetch_through.split(LOOKUP_SEP)) - 1 == level
+    through_attrs = lookup.prefetch_through.split(LOOKUP_SEP)
+    leaf = len(through_attrs) - 1 == level
+    current_through_attr = through_attrs[level]
+    lookup_sig = None
+    if leaf and lookup.queryset is not None:
+        lookup_sig = str(lookup.queryset.query)
+
+    def set_signature(target_obj):
+        if lookup_sig is None:
+            return
+        signatures = getattr(target_obj, '_prefetched_queryset_signatures', None)
+        if signatures is None:
+            signatures = {}
+            setattr(target_obj, '_prefetched_queryset_signatures', signatures)
+        signatures[current_through_attr] = (lookup_sig, current_through_attr)
 
     for obj in instances:
         instance_attr_val = instance_attr(obj)
@@ -1949,6 +2013,9 @@ def prefetch_one_level(instances, prefetcher, lookup, level):
                 # cache_name does not point to a descriptor. Store the value of
                 # the field in the object's field cache.
                 obj._state.fields_cache[cache_name] = val
+            if val is not None:
+                set_signature(val)
+            set_signature(obj)
         else:
             if as_attr:
                 setattr(obj, to_attr, vals)
@@ -1963,6 +2030,9 @@ def prefetch_one_level(instances, prefetcher, lookup, level):
                 # since we have merged this into the current work.
                 qs._prefetch_done = True
                 obj._prefetched_objects_cache[cache_name] = qs
+                if lookup_sig is not None:
+                    qs._prefetched_queryset_signature = (lookup_sig, current_through_attr)
+            set_signature(obj)
     return all_related_objects, additional_lookups
 
 
