@@ -168,6 +168,21 @@ class SchemaTests(TransactionTestCase):
             self.assertFalse(constraint_checks_enabled())
         self.assertTrue(constraint_checks_enabled())
 
+    def test_alter_field_choices_noop(self):
+        new_field = CharField(
+            max_length=255,
+            unique=True,
+            choices=[("A", "A"), ("B", "B")],
+        )
+        new_field.set_attributes_from_name("name")
+        with connection.schema_editor(collect_sql=True) as editor:
+            editor.alter_field(
+                Author,
+                Author._meta.get_field("name"),
+                new_field,
+            )
+        self.assertEqual(editor.collected_sql, [])
+
     @skipIfDBFeature("supports_atomic_references_rename")
     def test_field_rename_inside_atomic_block(self):
         """
