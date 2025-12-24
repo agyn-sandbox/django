@@ -1861,8 +1861,9 @@ class SQLUpdateCompiler(SQLCompiler):
             if self.query.related_updates:
                 for model in self.query.related_updates:
                     parent_link = self.query.get_meta().get_ancestor_link(model)
-                    if parent_link is None:
-                        continue
+                    assert (
+                        parent_link is not None
+                    ), "Related update requested for non-ancestor model"
                     parent_query = query.clone()
                     parent_query.select = []
                     parent_query.add_fields([parent_link.attname])
