@@ -564,16 +564,51 @@ class TestQuerying(TestCase):
                     [obj],
                 )
 
+    def test_has_key_numeric_string(self):
+        obj = NullableJSONModel.objects.create(value={"1111": "value"})
+        self.assertSequenceEqual(
+            NullableJSONModel.objects.filter(value__has_key="1111"),
+            [obj],
+        )
+
+    def test_has_key_numeric_string_nested(self):
+        obj = NullableJSONModel.objects.create(value={"a": {"1111": "value"}})
+        self.assertSequenceEqual(
+            NullableJSONModel.objects.filter(value__a__has_key="1111"),
+            [obj],
+        )
+
+    def test_has_key_numeric_string_after_array(self):
+        obj = NullableJSONModel.objects.create(value={"d": [{"1111": "value"}]})
+        self.assertSequenceEqual(
+            NullableJSONModel.objects.filter(value__d__0__has_key="1111"),
+            [obj],
+        )
+
     def test_has_keys(self):
         self.assertSequenceEqual(
             NullableJSONModel.objects.filter(value__has_keys=["a", "c", "h"]),
             [self.objs[4]],
         )
 
+    def test_has_keys_numeric_string(self):
+        obj = NullableJSONModel.objects.create(value={"a": 1, "1111": 2})
+        self.assertSequenceEqual(
+            NullableJSONModel.objects.filter(value__has_keys=["a", "1111"]),
+            [obj],
+        )
+
     def test_has_any_keys(self):
         self.assertSequenceEqual(
             NullableJSONModel.objects.filter(value__has_any_keys=["c", "l"]),
             [self.objs[3], self.objs[4], self.objs[6]],
+        )
+
+    def test_has_any_keys_numeric_string(self):
+        obj = NullableJSONModel.objects.create(value={"1111": "value"})
+        self.assertSequenceEqual(
+            NullableJSONModel.objects.filter(value__has_any_keys=["1111", "2222"]),
+            [obj],
         )
 
     @skipUnlessDBFeature("supports_json_field_contains")

@@ -188,18 +188,24 @@ class HasKeyLookup(PostgresOperatorLookup):
         rhs_params = []
         if not isinstance(rhs, (list, tuple)):
             rhs = [rhs]
+        treat_numeric_as_string = getattr(
+            self, "_treat_numeric_keys_as_strings", True
+        )
         for key in rhs:
             if isinstance(key, KeyTransform):
                 *_, rhs_key_transforms = key.preprocess_lhs(compiler, connection)
             else:
-                rhs_key_transforms = [key]
-            rhs_params.append(
-                "%s%s"
-                % (
-                    lhs_json_path,
-                    compile_json_path(rhs_key_transforms, include_root=False),
-                )
+                rhs_key_transforms = [str(key)]
+            prefix_transforms = rhs_key_transforms[:-1]
+            final_key = str(rhs_key_transforms[-1])
+            prefix_path = compile_json_path(prefix_transforms, include_root=False)
+            final_leg = self._compile_final_leg(
+                connection, final_key, treat_numeric_as_string
             )
+            json_path = f"{lhs_json_path}{prefix_path}{final_leg}"
+            if connection.vendor == "oracle":
+                json_path = self._escape_oracle_percent(json_path)
+            rhs_params.append(json_path)
         # Add condition for each key.
         if self.logical_operator:
             sql = "(%s)" % self.logical_operator.join([sql] * len(rhs_params))
@@ -230,6 +236,32 @@ class HasKeyLookup(PostgresOperatorLookup):
         return self.as_sql(
             compiler, connection, template="JSON_TYPE(%s, %%s) IS NOT NULL"
         )
+
+    def _compile_final_leg(self, connection, key, treat_numeric_as_string):
+        if not treat_numeric_as_string:
+            return compile_json_path([key], include_root=False)
+        if connection.vendor == "mysql":
+            return f"[{json.dumps(key)}]"
+        return ".%s" % json.dumps(key)
+
+    @staticmethod
+    def _escape_oracle_percent(path):
+        result = []
+        i = 0
+        length = len(path)
+        while i < length:
+            char = path[i]
+            if char == "%":
+                if i + 1 < length and path[i + 1] == "%":
+                    result.append("%%")
+                    i += 2
+                else:
+                    result.append("%%")
+                    i += 1
+                continue
+            result.append(char)
+            i += 1
+        return "".join(result)
 
 
 class HasKey(HasKeyLookup):
@@ -387,10 +419,12 @@ class KeyTransformTextLookupMixin:
 class KeyTransformIsNull(lookups.IsNull):
     # key__isnull=False is the same as has_key='key'
     def as_oracle(self, compiler, connection):
-        sql, params = HasKey(
+        lookup = HasKey(
             self.lhs.lhs,
             self.lhs.key_name,
-        ).as_oracle(compiler, connection)
+        )
+        lookup._treat_numeric_keys_as_strings = False
+        sql, params = lookup.as_oracle(compiler, connection)
         if not self.rhs:
             return sql, params
         # Column doesn't have a key or IS NULL.
@@ -401,7 +435,9 @@ class KeyTransformIsNull(lookups.IsNull):
         template = "JSON_TYPE(%s, %%s) IS NULL"
         if not self.rhs:
             template = "JSON_TYPE(%s, %%s) IS NOT NULL"
-        return HasKey(self.lhs.lhs, self.lhs.key_name).as_sql(
+        lookup = HasKey(self.lhs.lhs, self.lhs.key_name)
+        lookup._treat_numeric_keys_as_strings = False
+        return lookup.as_sql(
             compiler,
             connection,
             template=template,
