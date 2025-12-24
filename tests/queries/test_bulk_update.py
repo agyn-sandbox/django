@@ -289,6 +289,11 @@ class BulkUpdateReturnValueTests(TestCase):
         self.assertEqual(count, 0)
         self.assertFalse(Note.objects.filter(pk=note.pk).exists())
 
+    def test_returns_zero_for_empty_input(self):
+        count = Note.objects.bulk_update([], ['note'])
+
+        self.assertEqual(count, 0)
+
     def test_duplicates_within_same_batch_first_wins(self):
         saved = Note.objects.create(note='original', misc='m')
         first = Note(pk=saved.pk, note='first', misc='m')
