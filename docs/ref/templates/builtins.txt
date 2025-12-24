@@ -2375,6 +2375,30 @@ You couldn't use the :tfilter:`safe` filter directly in this case, as it would
 first convert the variable into a string, rather than working with the
 individual elements of the sequence.
 
+.. templatefilter:: escapeseq
+
+``escapeseq``
+-------------
+
+Escapes each item in a sequence and returns a list. This filter is the
+counterpart to :tfilter:`safeseq` and is useful when chaining with
+:tfilter:`join` or other sequence filters.
+
+When auto-escaping is on, the filter uses :func:`~django.utils.html.conditional_escape`
+so that values already marked safe remain unchanged while other values are
+escaped. When auto-escaping is off, each item is escaped explicitly which
+prevents raw HTML from appearing in the output.
+
+.. code-block:: html+django
+
+    {% autoescape off %}
+        {{ some_list|join:", " }}
+        {{ some_list|escapeseq|join:", " }}
+    {% endautoescape %}
+
+This results in the first ``join`` rendering the items without escaping, while
+the ``escapeseq`` call ensures the joined output is HTML-escaped.
+
 .. templatefilter:: slice
 
 ``slice``
