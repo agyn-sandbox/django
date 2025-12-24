@@ -329,6 +329,46 @@ class InspectDBTestCase(TestCase):
         # The error message depends on the backend
         self.assertIn("# The error was:", output)
 
+    def test_foreign_key_to_unique_column_uses_to_field(self):
+        out = StringIO()
+        call_command('inspectdb', 'inspectdb_foreignkeytounique', stdout=out)
+        output = out.getvalue()
+        self.assertIn(
+            "code_ref = models.ForeignKey('InspectdbNonpkuniquetarget', "
+            "models.DO_NOTHING, to_field='code')",
+            output,
+        )
+        self.assertIn(
+            "unique_code_ref = models.OneToOneField('InspectdbNonpkuniquetarget', "
+            "models.DO_NOTHING, to_field='code', blank=True, null=True)",
+            output,
+        )
+        self.assertIn(
+            "normalized_label_ref = models.ForeignKey('InspectdbNonpkuniquetarget', "
+            "models.DO_NOTHING, to_field='normalizedlabel')",
+            output,
+        )
+
+    def test_self_referential_unique_foreign_key_uses_to_field(self):
+        out = StringIO()
+        call_command('inspectdb', 'inspectdb_selfrefunique', stdout=out)
+        output = out.getvalue()
+        self.assertIn(
+            "token_ref = models.ForeignKey('self', models.DO_NOTHING, to_field='token', "
+            "blank=True, null=True)",
+            output,
+        )
+
+    def test_to_field_targets_normalized_column_name(self):
+        out = StringIO()
+        call_command('inspectdb', 'inspectdb_normalizedref', stdout=out)
+        output = out.getvalue()
+        self.assertIn(
+            "weird = models.ForeignKey('InspectdbNormalizedtarget', models.DO_NOTHING, "
+            "to_field='weirdcolumn')",
+            output,
+        )
+
 
 class InspectDBTransactionalTests(TransactionTestCase):
     available_apps = ['inspectdb']

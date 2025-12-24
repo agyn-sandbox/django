@@ -109,3 +109,47 @@ class UniqueTogether(models.Model):
             ('from_field', 'field1'),
             ('non_unique', 'non_unique_0'),
         ]
+
+
+class NonPkUniqueTarget(models.Model):
+    code = models.CharField(max_length=20, unique=True)
+    normalized_label = models.CharField(max_length=20, unique=True, db_column='NormalizedLabel')
+
+
+class ForeignKeyToUnique(models.Model):
+    code_ref = models.ForeignKey(NonPkUniqueTarget, models.CASCADE, to_field='code', related_name='+')
+    unique_code_ref = models.ForeignKey(
+        NonPkUniqueTarget,
+        models.CASCADE,
+        to_field='code',
+        blank=True,
+        null=True,
+        unique=True,
+        related_name='+',
+    )
+    normalized_label_ref = models.ForeignKey(
+        NonPkUniqueTarget,
+        models.CASCADE,
+        to_field='normalized_label',
+        related_name='+',
+    )
+
+
+class SelfRefUnique(models.Model):
+    token = models.CharField(max_length=20, unique=True)
+    token_ref = models.ForeignKey(
+        'self',
+        models.CASCADE,
+        to_field='token',
+        blank=True,
+        null=True,
+        related_name='+',
+    )
+
+
+class NormalizedTarget(models.Model):
+    weird_column = models.CharField(max_length=20, unique=True, db_column='WeirdColumn')
+
+
+class NormalizedRef(models.Model):
+    weird = models.ForeignKey(NormalizedTarget, models.CASCADE, to_field='weird_column', related_name='+')
