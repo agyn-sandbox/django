@@ -60,12 +60,16 @@ class UpdateQuery(Query):
         would normally be set in __init__() should go here instead.
         """
         self.values = []
-        self.related_ids = None
+        self.related_ids = {}
         self.related_updates = {}
 
     def clone(self):
         obj = super().clone()
         obj.related_updates = self.related_updates.copy()
+        obj.related_ids = {
+            model: ids[:] if isinstance(ids, list) else ids
+            for model, ids in self.related_ids.items()
+        }
         return obj
 
     def update_batch(self, pk_list, values, using):
@@ -133,8 +137,8 @@ class UpdateQuery(Query):
         for model, values in self.related_updates.items():
             query = UpdateQuery(model)
             query.values = values
-            if self.related_ids is not None:
-                query.add_filter("pk__in", self.related_ids)
+            ids = self.related_ids.get(model, [])
+            query.add_filter("pk__in", ids)
             result.append(query)
         return result
 

@@ -1846,15 +1846,31 @@ class SQLUpdateCompiler(SQLCompiler):
         # Now we adjust the current query: reset the where clause and get rid
         # of all the tables we don't need (since they're in the sub-select).
         self.query.clear_where()
+        self.query.related_ids = {}
         if self.query.related_updates or must_pre_select:
             # Either we're using the idents in multiple update queries (so
             # don't want them to change), or the db backend doesn't support
             # selecting from the updating table (e.g. MySQL).
             idents = []
-            for rows in query.get_compiler(self.using).execute_sql(MULTI):
+            compiler = query.get_compiler(self.using)
+            for rows in compiler.execute_sql(MULTI):
                 idents.extend(r[0] for r in rows)
             self.query.add_filter("pk__in", idents)
-            self.query.related_ids = idents
+            concrete_model = self.query.get_meta().concrete_model
+            self.query.related_ids[concrete_model] = idents
+            if self.query.related_updates:
+                for model in self.query.related_updates:
+                    parent_link = self.query.get_meta().get_ancestor_link(model)
+                    if parent_link is None:
+                        continue
+                    parent_query = query.clone()
+                    parent_query.select = []
+                    parent_query.add_fields([parent_link.attname])
+                    parent_compiler = parent_query.get_compiler(self.using)
+                    parent_idents = []
+                    for rows in parent_compiler.execute_sql(MULTI):
+                        parent_idents.extend(r[0] for r in rows)
+                    self.query.related_ids[model] = parent_idents
         else:
             # The fast path. Filters and updates in one query.
             self.query.add_filter("pk__in", query)
