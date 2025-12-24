@@ -57,6 +57,7 @@ class Command(BaseCommand):
             yield 'from %s import models' % self.db_module
             known_models = []
             table_info = connection.introspection.get_table_list(cursor)
+            table_types = {info.name: info.type for info in table_info}
 
             # Determine types of tables and/or views to be introspected.
             types = {'t'}
@@ -65,48 +66,47 @@ class Command(BaseCommand):
             if options['include_views']:
                 types.add('v')
 
-            for table_name in (options['table'] or sorted(info.name for info in table_info if info.type in types)):
+            table_names = options['table'] or sorted(info.name for info in table_info if info.type in types)
+            metadata_cache = {}
+
+            def get_table_metadata(table_name):
+                metadata = metadata_cache.get(table_name)
+                if metadata is not None:
+                    return metadata
+                metadata = self.introspect_table(connection, cursor, table_name)
+                metadata_cache[table_name] = metadata
+                return metadata
+
+            for table_name in table_names:
                 if table_name_filter is not None and callable(table_name_filter):
                     if not table_name_filter(table_name):
                         continue
-                try:
-                    try:
-                        relations = connection.introspection.get_relations(cursor, table_name)
-                    except NotImplementedError:
-                        relations = {}
-                    try:
-                        constraints = connection.introspection.get_constraints(cursor, table_name)
-                    except NotImplementedError:
-                        constraints = {}
-                    primary_key_column = connection.introspection.get_primary_key_column(cursor, table_name)
-                    unique_columns = [
-                        c['columns'][0] for c in constraints.values()
-                        if c['unique'] and len(c['columns']) == 1
-                    ]
-                    table_description = connection.introspection.get_table_description(cursor, table_name)
-                except Exception as e:
+
+                metadata = get_table_metadata(table_name)
+                if metadata.get('error') is not None:
                     yield "# Unable to inspect table '%s'" % table_name
-                    yield "# The error was: %s" % e
+                    yield "# The error was: %s" % metadata['error']
                     continue
+
+                relations = metadata['relations']
+                constraints = metadata['constraints']
+                primary_key_column = metadata['primary_key_column']
+                unique_columns = metadata['unique_columns']
+                table_description = metadata['table_description']
+                normalized_columns = metadata['normalized_columns']
 
                 yield ''
                 yield ''
                 yield 'class %s(models.Model):' % table2model(table_name)
                 known_models.append(table2model(table_name))
-                used_column_names = []  # Holds column names used in the table so far
-                column_to_field_name = {}  # Maps column names to names of model fields
+                column_to_field_name = {}
+
                 for row in table_description:
-                    comment_notes = []  # Holds Field notes, to be displayed in a Python comment.
-                    extra_params = {}  # Holds Field parameters such as 'db_column'.
+                    normalized = normalized_columns[row.name]
+                    comment_notes = list(normalized['field_notes'])
+                    extra_params = dict(normalized['field_params'])
                     column_name = row.name
-                    is_relation = column_name in relations
-
-                    att_name, params, notes = self.normalize_col_name(
-                        column_name, used_column_names, is_relation)
-                    extra_params.update(params)
-                    comment_notes.extend(notes)
-
-                    used_column_names.append(att_name)
+                    att_name = normalized['att_name']
                     column_to_field_name[column_name] = att_name
 
                     # Add primary_key and unique, if necessary.
@@ -115,19 +115,29 @@ class Command(BaseCommand):
                     elif column_name in unique_columns:
                         extra_params['unique'] = True
 
+                    is_relation = column_name in relations
                     if is_relation:
+                        target_column, target_table = relations[column_name]
                         if extra_params.pop('unique', False) or extra_params.get('primary_key'):
                             rel_type = 'OneToOneField'
                         else:
                             rel_type = 'ForeignKey'
                         rel_to = (
-                            "self" if relations[column_name][1] == table_name
-                            else table2model(relations[column_name][1])
+                            "self" if target_table == table_name
+                            else table2model(target_table)
                         )
                         if rel_to in known_models:
                             field_type = '%s(%s' % (rel_type, rel_to)
                         else:
                             field_type = "%s('%s'" % (rel_type, rel_to)
+
+                        if target_column is not None:
+                            target_metadata = get_table_metadata(target_table)
+                            if target_metadata.get('error') is None:
+                                target_column_name = target_metadata['column_to_field_name'].get(target_column)
+                                target_primary_key = target_metadata['primary_key_column']
+                                if target_column_name and target_primary_key != target_column:
+                                    extra_params['to_field'] = target_column_name
                     else:
                         # Calling `get_field_type` to get the field type string and any
                         # additional parameters and notes.
@@ -168,9 +178,82 @@ class Command(BaseCommand):
                     if comment_notes:
                         field_desc += '  # ' + ' '.join(comment_notes)
                     yield '    %s' % field_desc
-                is_view = any(info.name == table_name and info.type == 'v' for info in table_info)
-                is_partition = any(info.name == table_name and info.type == 'p' for info in table_info)
+
+                is_view = table_types.get(table_name) == 'v'
+                is_partition = table_types.get(table_name) == 'p'
                 yield from self.get_meta(table_name, constraints, column_to_field_name, is_view, is_partition)
+
+    def introspect_table(self, connection, cursor, table_name):
+        try:
+            try:
+                relations = connection.introspection.get_relations(cursor, table_name)
+            except NotImplementedError:
+                relations = {}
+            try:
+                constraints = connection.introspection.get_constraints(cursor, table_name)
+            except NotImplementedError:
+                constraints = {}
+            primary_key_column = connection.introspection.get_primary_key_column(cursor, table_name)
+            unique_columns = [
+                c['columns'][0] for c in constraints.values()
+                if c['unique'] and len(c['columns']) == 1
+            ]
+            table_description = connection.introspection.get_table_description(cursor, table_name)
+        except Exception as e:
+            return {
+                'error': e,
+                'relations': {},
+                'constraints': {},
+                'primary_key_column': None,
+                'unique_columns': [],
+                'table_description': [],
+                'normalized_columns': {},
+                'column_to_field_name': {},
+            }
+
+        used_column_names = []
+        normalized_columns = {}
+        for row in table_description:
+            column_name = row.name
+            is_relation = column_name in relations
+            att_name, params, notes = self.normalize_col_name(column_name, used_column_names, is_relation)
+            used_column_names.append(att_name)
+            normalized_columns[column_name] = {
+                'att_name': att_name,
+                'field_params': dict(params),
+                'field_notes': list(notes),
+            }
+
+        column_to_field_name = {name: data['att_name'] for name, data in normalized_columns.items()}
+
+        return {
+            'error': None,
+            'relations': relations,
+            'constraints': constraints,
+            'primary_key_column': primary_key_column,
+            'unique_columns': unique_columns,
+            'table_description': table_description,
+            'normalized_columns': normalized_columns,
+            'column_to_field_name': column_to_field_name,
+        }
+
+    def get_fallback_field_type(self, connection, type_code):
+        if not isinstance(type_code, str):
+            return None
+        data_types_reverse = getattr(connection.introspection, 'data_types_reverse', None)
+        if not data_types_reverse:
+            return None
+        key = type_code.lower().split('(', 1)[0].strip()
+        if not key:
+            return None
+        if hasattr(data_types_reverse, 'get'):
+            result = data_types_reverse.get(key)
+            if result is not None:
+                return result
+        try:
+            return data_types_reverse[key]
+        except KeyError:
+            return None
 
     def normalize_col_name(self, col_name, used_column_names, is_relation):
         """
@@ -240,8 +323,10 @@ class Command(BaseCommand):
         try:
             field_type = connection.introspection.get_field_type(row.type_code, row)
         except KeyError:
-            field_type = 'TextField'
-            field_notes.append('This field type is a guess.')
+            field_type = self.get_fallback_field_type(connection, row.type_code)
+            if field_type is None:
+                field_type = 'TextField'
+                field_notes.append('This field type is a guess.')
 
         # Add max_length for all CharFields.
         if field_type == 'CharField' and row.internal_size:
