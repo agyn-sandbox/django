@@ -8,12 +8,14 @@ from django.db.models.functions.comparison import Coalesce
 from django.db.models.functions.mixins import (
     FixDurationInputMixin, NumericOutputFieldMixin,
 )
+from django.utils.deconstruct import deconstructible
 
 __all__ = [
     'Aggregate', 'Avg', 'Count', 'Max', 'Min', 'StdDev', 'Sum', 'Variance',
 ]
 
 
+@deconstructible(path='django.db.models.Aggregate')
 class Aggregate(Func):
     template = '%(function)s(%(distinct)s%(expressions)s)'
     contains_aggregate = True
@@ -106,12 +108,14 @@ class Aggregate(Func):
         return options
 
 
+@deconstructible(path='django.db.models.Avg')
 class Avg(FixDurationInputMixin, NumericOutputFieldMixin, Aggregate):
     function = 'AVG'
     name = 'Avg'
     allow_distinct = True
 
 
+@deconstructible(path='django.db.models.Count')
 class Count(Aggregate):
     function = 'COUNT'
     name = 'Count'
@@ -127,16 +131,19 @@ class Count(Aggregate):
         super().__init__(expression, filter=filter, **extra)
 
 
+@deconstructible(path='django.db.models.Max')
 class Max(Aggregate):
     function = 'MAX'
     name = 'Max'
 
 
+@deconstructible(path='django.db.models.Min')
 class Min(Aggregate):
     function = 'MIN'
     name = 'Min'
 
 
+@deconstructible(path='django.db.models.StdDev')
 class StdDev(NumericOutputFieldMixin, Aggregate):
     name = 'StdDev'
 
@@ -148,12 +155,14 @@ class StdDev(NumericOutputFieldMixin, Aggregate):
         return {**super()._get_repr_options(), 'sample': self.function == 'STDDEV_SAMP'}
 
 
+@deconstructible(path='django.db.models.Sum')
 class Sum(FixDurationInputMixin, Aggregate):
     function = 'SUM'
     name = 'Sum'
     allow_distinct = True
 
 
+@deconstructible(path='django.db.models.Variance')
 class Variance(NumericOutputFieldMixin, Aggregate):
     name = 'Variance'
 
