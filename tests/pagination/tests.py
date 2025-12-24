@@ -2,7 +2,7 @@ import warnings
 from datetime import datetime
 
 from django.core.paginator import (
-    EmptyPage, InvalidPage, PageNotAnInteger, Paginator,
+    EmptyPage, InvalidPage, Page, PageNotAnInteger, Paginator,
     UnorderedObjectListWarning,
 )
 from django.test import SimpleTestCase, TestCase
@@ -149,6 +149,69 @@ class PaginationTests(SimpleTestCase):
         self.assertEqual(42, paginator.count)
         self.assertEqual(5, paginator.num_pages)
         self.assertEqual([1, 2, 3, 4, 5], list(paginator.page_range))
+
+    def test_iteration_yields_pages(self):
+        paginator = Paginator(range(1, 8), 3)
+        pages = list(paginator)
+        self.assertTrue(pages)
+        self.assertTrue(all(isinstance(page, Page) for page in pages))
+        self.assertEqual([1, 2, 3], [page.number for page in pages])
+
+    def test_iteration_edge_cases(self):
+        cases = (
+            ([], 5, 0, True, [1]),
+            ([], 5, 0, False, []),
+            ([1], 5, 0, True, [1]),
+            (list(range(11)), 10, 1, True, [1]),
+            (list(range(12)), 10, 1, True, [1, 2]),
+        )
+        for object_list, per_page, orphans, allow_empty, expected in cases:
+            with self.subTest(
+                object_list=object_list,
+                per_page=per_page,
+                orphans=orphans,
+                allow_empty=allow_empty,
+            ):
+                paginator = Paginator(
+                    object_list, per_page, orphans=orphans,
+                    allow_empty_first_page=allow_empty,
+                )
+                pages = list(paginator)
+                self.assertEqual(expected, [page.number for page in pages])
+                self.assertTrue(all(isinstance(page, Page) for page in pages))
+
+    def test_iteration_is_lazy(self):
+        class RecordingPaginator(Paginator):
+            def __init__(self, *args, **kwargs):
+                self.page_calls = []
+                super().__init__(*args, **kwargs)
+
+            def page(self, number):
+                self.page_calls.append(number)
+                return super().page(number)
+
+        paginator = RecordingPaginator(range(6), 2)
+        iterator = iter(paginator)
+        self.assertEqual([], paginator.page_calls)
+
+        first = next(iterator)
+        self.assertEqual([1], paginator.page_calls)
+        self.assertEqual(1, first.number)
+
+        second = next(iterator)
+        self.assertEqual([1, 2], paginator.page_calls)
+        self.assertEqual(2, second.number)
+
+        third = next(iterator)
+        self.assertEqual([1, 2, 3], paginator.page_calls)
+        self.assertEqual(3, third.number)
+
+        with self.assertRaises(StopIteration):
+            next(iterator)
+
+        empty = RecordingPaginator([], 2, allow_empty_first_page=False)
+        self.assertEqual([], list(empty))
+        self.assertEqual([], empty.page_calls)
 
     def test_count_does_not_silence_attribute_error(self):
         class AttributeErrorContainer:
