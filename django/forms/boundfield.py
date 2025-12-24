@@ -1,6 +1,7 @@
 import datetime
 import re
 
+from django.core.exceptions import ValidationError
 from django.forms.utils import flatatt, pretty_name
 from django.forms.widgets import Textarea, TextInput
 from django.utils.functional import cached_property
@@ -129,6 +130,20 @@ class BoundField:
         if self.form.is_bound:
             data = self.field.bound_data(self.data, data)
         return self.field.prepare_value(data)
+
+    def _did_change(self):
+        field = self.field
+        if not field.show_hidden_initial:
+            initial = self.initial
+        else:
+            hidden_widget = field.hidden_widget()
+            initial_prefixed_name = self.form.add_initial_prefix(self.name)
+            hidden_value = self.form._widget_data_value(hidden_widget, initial_prefixed_name)
+            try:
+                initial = field.to_python(hidden_value)
+            except ValidationError:
+                return True
+        return field.has_changed(initial, self.data)
 
     def label_tag(self, contents=None, attrs=None, label_suffix=None):
         """

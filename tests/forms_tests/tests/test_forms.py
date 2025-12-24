@@ -2113,14 +2113,14 @@ Password: <input type="password" name="password" required></li>
         self.assertEqual(unbound['ti_without_microsec'].value(), now_no_ms)
 
     def test_datetime_clean_initial_callable_disabled(self):
-        now = datetime.datetime(2006, 10, 25, 14, 30, 45, 123456)
-
         class DateTimeForm(forms.Form):
-            dt = DateTimeField(initial=lambda: now, disabled=True)
+            dt = DateTimeField(initial=datetime.datetime.now, disabled=True)
 
         form = DateTimeForm({})
         self.assertEqual(form.errors, {})
-        self.assertEqual(form.cleaned_data, {'dt': now})
+        cleaned_value = form.cleaned_data['dt']
+        bf = form['dt']
+        self.assertEqual(cleaned_value, bf.initial)
 
     def test_datetime_changed_data_callable_with_microseconds(self):
         class DateTimeForm(forms.Form):
