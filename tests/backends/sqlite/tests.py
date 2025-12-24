@@ -8,7 +8,8 @@ from sqlite3 import dbapi2
 from unittest import mock
 
 from django.core.exceptions import ImproperlyConfigured
-from django.db import NotSupportedError, connection, transaction
+from django.db import NotSupportedError, connection, models, transaction
+from django.db.migrations.state import ModelState, ProjectState
 from django.db.models import Aggregate, Avg, CharField, StdDev, Sum, Variance
 from django.db.utils import ConnectionHandler
 from django.test import (
@@ -195,6 +196,82 @@ class SchemaTests(TransactionTestCase):
         with self.assertRaisesMessage(NotSupportedError, msg):
             with connection.schema_editor(atomic=True) as editor:
                 editor.alter_db_table(Author, "backends_author", "renamed_table")
+
+    def test_add_nullable_onetoone_adds_unique_index(self):
+        refresh_state = ModelState(
+            app_label='backends',
+            name='RefreshToken',
+            fields=[('id', models.BigAutoField(primary_key=True))],
+        )
+        access_state = ModelState(
+            app_label='backends',
+            name='AccessToken',
+            fields=[('id', models.BigAutoField(primary_key=True))],
+        )
+        project_state = ProjectState()
+        project_state.add_model(refresh_state)
+        project_state.add_model(access_state)
+        apps = project_state.apps
+        RefreshToken = apps.get_model('backends', 'RefreshToken')
+        AccessToken = apps.get_model('backends', 'AccessToken')
+
+        access_with_field_state = ModelState(
+            app_label='backends',
+            name='AccessToken',
+            fields=[
+                ('id', models.BigAutoField(primary_key=True)),
+                (
+                    'source_refresh_token',
+                    models.OneToOneField('backends.RefreshToken', null=True, on_delete=models.CASCADE),
+                ),
+            ],
+        )
+        target_state = ProjectState()
+        target_state.add_model(refresh_state.clone())
+        target_state.add_model(access_with_field_state)
+        new_field = target_state.apps.get_model('backends', 'AccessToken')._meta.get_field('source_refresh_token')
+        new_field.model = AccessToken
+        new_field.remote_field.model = RefreshToken
+        clone_original = new_field.clone
+
+        def clone_with_model_resolution():
+            clone = clone_original()
+            clone.model = AccessToken
+            clone.remote_field.model = RefreshToken
+            clone.remote_field.field_name = new_field.remote_field.field_name
+            clone.set_attributes_from_name(new_field.name)
+            return clone
+
+        new_field.clone = clone_with_model_resolution
+
+        with connection.schema_editor(collect_sql=True) as editor:
+            editor.create_model(RefreshToken)
+            editor.create_model(AccessToken)
+
+            editor.add_field(AccessToken, new_field)
+            statements = list(editor.collected_sql)
+
+        alter_statement = next(
+            sql for sql in statements
+            if sql.startswith(
+                'ALTER TABLE "backends_accesstoken" '
+                'ADD COLUMN "source_refresh_token_id"'
+            )
+        )
+        self.assertIn(
+            'REFERENCES "backends_refreshtoken" ("id") '
+            'DEFERRABLE INITIALLY DEFERRED',
+            alter_statement,
+        )
+        self.assertNotIn(' UNIQUE', alter_statement)
+
+        create_unique_index = [
+            sql for sql in statements
+            if sql.startswith('CREATE UNIQUE INDEX')
+            and '"backends_accesstoken"' in sql
+            and '"source_refresh_token_id"' in sql
+        ]
+        self.assertTrue(create_unique_index)
 
 
 @unittest.skipUnless(connection.vendor == 'sqlite', 'Test only for SQLite')

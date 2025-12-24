@@ -330,8 +330,25 @@ class DatabaseSchemaEditor(BaseDatabaseSchemaEditor):
         if not field.null or self.effective_default(field) is not None:
             self._remake_table(model, create_field=field)
         else:
-            super().add_field(model, field)
+            # SQLite does not allow adding a column with an inline UNIQUE
+            # constraint via ALTER TABLE ... ADD COLUMN. For nullable
+            # unique fields (e.g., OneToOneField), avoid emitting inline UNIQUE
+            # and instead create a unique index after the column is added.
+            if getattr(field, "unique", False) and not getattr(field, "primary_key", False):
+                # Clone the field to suppress inline UNIQUE and any implicit
+                # non-unique index while adding the column, preserving inline
+                # REFERENCES behavior.
+                non_unique = copy.copy(field)
+                non_unique._unique = False
+                if getattr(non_unique, "db_index", False):
+                    non_unique.db_index = False
 
+                super().add_field(model, non_unique)
+
+                # Enforce uniqueness via a unique index.
+                self.execute(self._create_unique_sql(model, [field]))
+            else:
+                super().add_field(model, field)
     def remove_field(self, model, field):
         """
         Remove a field from a model. Usually involves deleting a column,
