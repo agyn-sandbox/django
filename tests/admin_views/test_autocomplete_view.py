@@ -48,6 +48,13 @@ site.register(PKChild, search_fields=['name'])
 site.register(Toy, autocomplete_fields=['child'])
 
 
+class CustomAutocompleteJsonView(AutocompleteJsonView):
+    def serialize_result(self, obj, to_field_name):
+        result = super().serialize_result(obj, to_field_name)
+        result['label'] = obj.question.upper()
+        return result
+
+
 @contextmanager
 def model_admin(model, model_admin, admin_site=site):
     org_admin = admin_site._registry.get(model)
@@ -153,6 +160,22 @@ class AutocompleteJsonViewTests(AdminViewBasicTestCase):
                     'results': [{'id': str(o.pk), 'text': o.name}],
                     'pagination': {'more': False},
                 })
+
+    def test_serialize_result_override(self):
+        custom_site = admin.AdminSite(name='custom_autocomplete_admin')
+        custom_site.register(Question, QuestionAdmin)
+        question = Question.objects.create(question='Is this a question?')
+        request = self.factory.get('/custom-admin/autocomplete/', {'term': 'is', **self.opts})
+        request.user = self.superuser
+        response = CustomAutocompleteJsonView.as_view(admin_site=custom_site)(request)
+        self.assertEqual(response.status_code, 200)
+        data = json.loads(response.content.decode('utf-8'))
+        self.assertEqual(data['results'], [{
+            'id': str(question.pk),
+            'text': question.question,
+            'label': question.question.upper(),
+        }])
+        self.assertEqual(data['pagination'], {'more': False})
 
     def test_to_field_resolution_with_fk_pk(self):
         p = Parent.objects.create(name="Bertie")
