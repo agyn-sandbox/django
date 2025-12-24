@@ -218,6 +218,68 @@ class OptimizerTests(SimpleTestCase):
             migrations.AlterOrderWithRespectTo("Foo", "b"),
         )
 
+    def test_alter_together_collapses_empty_pairs(self):
+        operations = [
+            migrations.AlterUniqueTogether("Book", []),
+            migrations.AlterIndexTogether("Book", []),
+            migrations.AlterUniqueTogether("Book", [["title"]]),
+            migrations.AlterIndexTogether("Book", [["title"]]),
+        ]
+        expected = [
+            migrations.AlterUniqueTogether("Book", [["title"]]),
+            migrations.AlterIndexTogether("Book", [["title"]]),
+        ]
+        self.assertOptimizesTo(operations, expected)
+
+    def test_alter_together_blocked_by_field_changes(self):
+        operations = [
+            migrations.AlterUniqueTogether("Book", []),
+            migrations.AlterIndexTogether("Book", []),
+            migrations.AlterField("Book", "title", models.CharField(max_length=128)),
+            migrations.AlterUniqueTogether("Book", [["title"]]),
+            migrations.AlterIndexTogether("Book", [["title"]]),
+        ]
+        self.assertOptimizesTo(operations, operations[:])
+
+    def test_alter_together_independent_per_type(self):
+        operations = [
+            migrations.AlterUniqueTogether("Book", []),
+            migrations.AlterIndexTogether("Book", []),
+            migrations.AlterUniqueTogether("Book", [["title"]]),
+            migrations.AlterIndexTogether("Book", [["author"]]),
+        ]
+        expected = [
+            migrations.AlterUniqueTogether("Book", [["title"]]),
+            migrations.AlterIndexTogether("Book", [["author"]]),
+        ]
+        self.assertOptimizesTo(operations, expected)
+
+    def test_alter_together_collapses_multiple_pairs(self):
+        operations = [
+            migrations.AlterUniqueTogether("Book", []),
+            migrations.AlterUniqueTogether("Book", [["title"]]),
+            migrations.AlterUniqueTogether("Book", []),
+            migrations.AlterUniqueTogether("Book", [["author"]]),
+            migrations.AlterIndexTogether("Book", []),
+            migrations.AlterIndexTogether("Book", [["title"]]),
+            migrations.AlterIndexTogether("Book", []),
+            migrations.AlterIndexTogether("Book", [["author"]]),
+        ]
+        expected = [
+            migrations.AlterUniqueTogether("Book", [["author"]]),
+            migrations.AlterIndexTogether("Book", [["author"]]),
+        ]
+        self.assertOptimizesTo(operations, expected)
+
+    def test_alter_together_different_models_do_not_collapse(self):
+        operations = [
+            migrations.AlterUniqueTogether("Book", []),
+            migrations.AlterUniqueTogether("Author", [["name"]]),
+            migrations.AlterIndexTogether("Book", []),
+            migrations.AlterIndexTogether("Author", [["name"]]),
+        ]
+        self.assertOptimizesTo(operations, operations[:])
+
     def test_optimize_through_create(self):
         """
         We should be able to optimize away create/delete through a create or delete
