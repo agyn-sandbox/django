@@ -13,6 +13,7 @@ from django.contrib.contenttypes.models import ContentType
 from django.contrib.messages.storage.cookie import CookieStorage
 from django.db import connection, models
 from django.db.models import F, Field, IntegerField
+from django.db.models.sql.datastructures import Join
 from django.db.models.functions import Upper
 from django.db.models.lookups import Contains, Exact
 from django.template import Context, Template, TemplateSyntaxError
@@ -488,6 +489,26 @@ class ChangeListTests(TestCase):
         self.assertIs(cl.queryset.query.distinct, False)
         cl.queryset.delete()
         self.assertEqual(cl.queryset.count(), 0)
+
+    def test_multi_word_search_does_not_duplicate_fk_joins(self):
+        parent = Parent.objects.create(name='Mary Jane Watson')
+        Child.objects.create(parent=parent, name='Peter')
+
+        child_admin = ChildAdmin(Child, custom_site)
+        child_admin.search_fields = ['parent__name']
+
+        request = self.factory.get('/child/', data={SEARCH_VAR: 'Mary Jane Watson'})
+        request.user = self.superuser
+
+        cl = child_admin.get_changelist_instance(request)
+        parent_table = Parent._meta.db_table
+        joins_to_parent = [
+            join for join in cl.queryset.query.alias_map.values()
+            if isinstance(join, Join) and join.table_name == parent_table
+        ]
+
+        self.assertEqual(len(joins_to_parent), 1)
+        self.assertEqual(cl.queryset.count(), 1)
 
     def test_no_duplicates_for_many_to_many_at_second_level_in_search_fields(self):
         """

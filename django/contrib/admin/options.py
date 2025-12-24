@@ -1031,14 +1031,35 @@ class ModelAdmin(BaseModelAdmin):
         if search_fields and search_term:
             orm_lookups = [construct_search(str(search_field))
                            for search_field in search_fields]
+            search_terms = []
             for bit in smart_split(search_term):
                 if bit.startswith(('"', "'")) and bit[0] == bit[-1]:
                     bit = unescape_string_literal(bit)
-                or_queries = models.Q(
-                    *((orm_lookup, bit) for orm_lookup in orm_lookups),
-                    _connector=models.Q.OR,
-                )
-                queryset = queryset.filter(or_queries)
+                search_terms.append(bit)
+
+            if all(
+                not lookup_spawns_duplicates(self.opts, search_spec)
+                for search_spec in orm_lookups
+            ):
+                term_queries = [
+                    models.Q(
+                        *((orm_lookup, bit) for orm_lookup in orm_lookups),
+                        _connector=models.Q.OR,
+                    )
+                    for bit in search_terms
+                ]
+                if term_queries:
+                    combined_q = term_queries[0]
+                    for term_query in term_queries[1:]:
+                        combined_q &= term_query
+                    queryset = queryset.filter(combined_q)
+            else:
+                for bit in search_terms:
+                    or_queries = models.Q(
+                        *((orm_lookup, bit) for orm_lookup in orm_lookups),
+                        _connector=models.Q.OR,
+                    )
+                    queryset = queryset.filter(or_queries)
             may_have_duplicates |= any(
                 lookup_spawns_duplicates(self.opts, search_spec)
                 for search_spec in orm_lookups
