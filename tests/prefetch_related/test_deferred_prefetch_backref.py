@@ -30,10 +30,7 @@ class DeferredNestedPrefetchTests(TransactionTestCase):
         with connection.constraint_checks_disabled():
             with connection.schema_editor(atomic=False) as editor:
                 for model in models:
-                    try:
-                        editor.delete_model(model)
-                    except Exception:
-                        pass
+                    editor.delete_model(model)
 
     @isolate_apps('tests.prefetch_related.test_deferred_prefetch_backref.RegressConfig')
     def test_onetoone_nested_prefetch_backref_deferred(self):
