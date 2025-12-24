@@ -6,7 +6,7 @@ import re
 from django.core import serializers
 from django.core.serializers.base import DeserializationError
 from django.core.serializers.json import DjangoJSONEncoder
-from django.db import models
+from django.db import connection, models
 from django.test import SimpleTestCase, TestCase, TransactionTestCase
 from django.test.utils import isolate_apps
 from django.utils.translation import gettext_lazy, override
@@ -271,6 +271,58 @@ class JsonSerializerTestCase(SerializersTestBase, TestCase):
         expected = "(serializers.m2mdata:pk=1) field_value was 'None'"
         with self.assertRaisesMessage(DeserializationError, expected):
             next(serializers.deserialize("json", test_string, ignore=False))
+
+
+class JsonSerializerSelectRelatedTests(TransactionTestCase):
+    available_apps = ["serializers"]
+
+    @isolate_apps("serializers")
+    def test_m2m_related_manager_select_related(self):
+        class MemberManager(models.Manager):
+            def get_queryset(self):
+                return super().get_queryset().select_related("mentor")
+
+        class Member(models.Model):
+            name = models.CharField(max_length=50)
+            mentor = models.ForeignKey(
+                "self", null=True, blank=True, on_delete=models.CASCADE
+            )
+
+            objects = MemberManager()
+
+            class Meta:
+                db_table = "serializers_json_member"
+
+        class Club(models.Model):
+            name = models.CharField(max_length=50)
+            members = models.ManyToManyField(
+                Member, db_table="serializers_json_club_members"
+            )
+
+            class Meta:
+                db_table = "serializers_json_club"
+
+        with connection.schema_editor() as editor:
+            editor.create_model(Member)
+            editor.create_model(Club)
+
+        def teardown_models():
+            with connection.schema_editor() as editor:
+                editor.delete_model(Club)
+                editor.delete_model(Member)
+
+        self.addCleanup(teardown_models)
+
+        mentor = Member.objects.create(name="Mentor")
+        member = Member.objects.create(name="Member", mentor=mentor)
+        club = Club.objects.create(name="Club")
+        club.members.add(member)
+
+        with self.assertNumQueries(1):
+            payload = serializers.serialize("json", [club])
+
+        data = json.loads(payload)
+        self.assertEqual(data[0]["fields"]["members"], [member.pk])
 
 
 class JsonSerializerTransactionTestCase(
