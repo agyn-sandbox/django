@@ -1171,6 +1171,32 @@ class FormsFormsetTestCase(SimpleTestCase):
         self.assertIn('class="errorlist nonform"', errors_html)
         self.assertIn('ManagementForm data is missing or has been tampered with.', errors_html)
 
+    def test_non_form_errors_custom_error_class_without_attribute(self):
+        class SimpleList(list):
+            pass
+
+        class NonFormErrorFormSet(BaseFormSet):
+            def clean(self):
+                raise ValidationError("This is a non-form error")
+
+        FormSet = formset_factory(
+            FavoriteDrinkForm,
+            formset=NonFormErrorFormSet,
+            extra=1,
+        )
+        data = {
+            'drinks-TOTAL_FORMS': '1',
+            'drinks-INITIAL_FORMS': '0',
+            'drinks-MIN_NUM_FORMS': '0',
+            'drinks-MAX_NUM_FORMS': '1000',
+            'drinks-0-name': 'Water',
+        }
+        formset = FormSet(data, prefix='drinks', error_class=SimpleList)
+        errors = formset.non_form_errors()
+        self.assertIsInstance(errors, SimpleList)
+        self.assertEqual(len(errors), 1)
+        self.assertEqual(errors[0].messages, ['This is a non-form error'])
+
     def test_validate_max_ignores_forms_marked_for_deletion(self):
         class CheckForm(Form):
             field = IntegerField()
