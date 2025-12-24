@@ -1,9 +1,11 @@
 import datetime
 
 from django.core.exceptions import FieldDoesNotExist
+from django.db import connection
 from django.db.models import F
 from django.db.models.functions import Lower
 from django.test import TestCase, skipUnlessDBFeature
+from django.test.utils import CaptureQueriesContext
 
 from .models import (
     Article, CustomDbColumn, CustomPk, Detail, Individual, JSONFieldNullable,
@@ -96,6 +98,19 @@ class BulkUpdateNoteTests(TestCase):
         Note.objects.bulk_update(self.notes, ['note'])
         self.assertEqual(set(Note.objects.values_list('note', flat=True)), {'test'})
 
+    def test_bulk_update_accepts_F_expression_for_charfield(self):
+        note = Note.objects.create(note='orig', misc='extra')
+        note.note = F('note')
+        with CaptureQueriesContext(connection) as queries:
+            Note.objects.bulk_update([note], ['note'])
+        update_sql = queries[-1]['sql']
+        note.refresh_from_db()
+        self.assertEqual(note.note, 'orig', update_sql)
+        self.assertNotIn("'F(note)'", update_sql)
+        quoted_table = connection.ops.quote_name(Note._meta.db_table)
+        quoted_column = connection.ops.quote_name('note')
+        self.assertIn(f'{quoted_table}.{quoted_column}', update_sql)
+
     # Tests that use self.notes go here, otherwise put them in another class.
 
 
@@ -104,6 +119,24 @@ class BulkUpdateTests(TestCase):
         msg = 'Field names must be given to bulk_update().'
         with self.assertRaisesMessage(ValueError, msg):
             Note.objects.bulk_update([], fields=[])
+
+    def test_bulk_update_supports_arithmetic_F_expression(self):
+        numbers = [
+            Number.objects.create(num=1, other_num=10, another_num=20),
+            Number.objects.create(num=3, other_num=30, another_num=40),
+        ]
+        numbers[0].num = F('num') + 1
+        numbers[1].num = F('num') + 2
+        with CaptureQueriesContext(connection) as queries:
+            Number.objects.bulk_update(numbers, ['num'])
+        update_sql = queries[-1]['sql']
+        for expected, number in zip((2, 5), numbers):
+            number.refresh_from_db()
+            self.assertEqual(number.num, expected, update_sql)
+        self.assertNotIn("'F(num)'", update_sql)
+        quoted_table = connection.ops.quote_name(Number._meta.db_table)
+        quoted_column = connection.ops.quote_name('num')
+        self.assertIn(f'{quoted_table}.{quoted_column}', update_sql)
 
     def test_invalid_batch_size(self):
         msg = 'Batch size must be a positive integer.'
