@@ -953,8 +953,37 @@ extra forms displayed.
 
 Also, ``extra=0`` doesn't prevent creation of new model instances as you can
 :ref:`add additional forms with JavaScript <understanding-the-managementform>`
-or send additional POST data. Formsets :ticket:`don't yet provide functionality
-<26142>` for an "edit only" view that prevents creation of new instances.
+or send additional POST data. To make a formset edit-only, pass
+``allow_create=False`` (or ``edit_only=True``) to
+:func:`~django.forms.models.modelformset_factory` or
+:func:`~django.forms.models.inlineformset_factory`. Edit-only formsets render
+without extra forms (``extra`` is forced to ``0`` when unbound) and reject any
+tampered POST submissions—including altered management form counts or missing
+and out-of-queryset primary keys—that would otherwise create new objects.
+Existing objects continue to be editable, and deletions still work when
+``can_delete=True``. Existing ``max_num``/``validate_max`` limits remain in
+effect; they don't re-enable creation.
+
+For example::
+
+    >>> AuthorFormSet = modelformset_factory(
+    ...     Author,
+    ...     fields=('name',),
+    ...     allow_create=False,
+    ...     can_delete=True,
+    ... )
+    >>> formset = AuthorFormSet(queryset=Author.objects.order_by('name'))
+
+Inline formsets support the same flag::
+
+    >>> AuthorBooksFormSet = inlineformset_factory(
+    ...     Author,
+    ...     Book,
+    ...     fields=('title',),
+    ...     allow_create=False,
+    ...     can_delete=True,
+    ... )
+    >>> formset = AuthorBooksFormSet(instance=author)
 
 If the value of ``max_num`` is greater than the number of existing related
 objects, up to ``extra`` additional blank forms will be added to the formset,

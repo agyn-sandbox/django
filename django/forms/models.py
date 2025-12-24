@@ -568,21 +568,54 @@ class BaseModelFormSet(BaseFormSet):
     A ``FormSet`` for editing a queryset and/or adding new objects to it.
     """
     model = None
+    allow_create = True
+    edit_only = False
+    default_error_messages = {
+        'add_not_allowed': _('Adding new objects is not allowed in this formset.'),
+    }
 
     # Set of fields that must be unique among forms of this set.
     unique_fields = set()
 
     def __init__(self, data=None, files=None, auto_id='id_%s', prefix=None,
                  queryset=None, *, initial=None, **kwargs):
+        allow_create_value = kwargs.pop('allow_create', None)
+        edit_only = kwargs.pop('edit_only', None)
+        if allow_create_value is not None and edit_only is not None:
+            raise TypeError("'allow_create' and 'edit_only' arguments are mutually exclusive.")
+        if edit_only is not None:
+            allow_create_value = not edit_only
+        if allow_create_value is None:
+            allow_create_value = getattr(type(self), 'allow_create', True)
+        self.allow_create = bool(allow_create_value)
+        self.edit_only = not self.allow_create
+        if not self.allow_create:
+            self.extra = 0
         self.queryset = queryset
         self.initial_extra = initial
+        self._initial_queryset_count_cache = None
+        self._existing_object_pks_cache = None
         super().__init__(**{'data': data, 'files': files, 'auto_id': auto_id, 'prefix': prefix, **kwargs})
 
     def initial_form_count(self):
         """Return the number of forms that are required in this FormSet."""
         if not self.is_bound:
-            return len(self.get_queryset())
+            return self._initial_queryset_count()
+        if not self.allow_create:
+            return self._initial_queryset_count()
         return super().initial_form_count()
+
+    def _initial_queryset_count(self):
+        if self._initial_queryset_count_cache is None:
+            self._initial_queryset_count_cache = len(self.get_queryset())
+        return self._initial_queryset_count_cache
+
+    def _existing_object_pks(self):
+        if self._existing_object_pks_cache is None:
+            self._existing_object_pks_cache = {
+                obj.pk for obj in self.get_queryset() if obj.pk is not None
+            }
+        return self._existing_object_pks_cache
 
     def _existing_object(self, pk):
         if not hasattr(self, '_object_dict'):
@@ -653,6 +686,8 @@ class BaseModelFormSet(BaseFormSet):
 
     def save_new(self, form, commit=True):
         """Save and return a new model instance for the given form."""
+        if not self.allow_create:
+            self._raise_add_not_allowed()
         return form.save(commit=commit)
 
     def save_existing(self, form, instance, commit=True):
@@ -682,6 +717,26 @@ class BaseModelFormSet(BaseFormSet):
 
     def clean(self):
         self.validate_unique()
+        if self.allow_create:
+            return
+        initial_count = self._initial_queryset_count()
+        existing_pks = self._existing_object_pks()
+        for index, form in enumerate(self.forms):
+            if self.can_delete and self._should_delete_form(form):
+                continue
+            if index >= initial_count:
+                if form.has_changed():
+                    self._raise_add_not_allowed()
+                continue
+            instance_pk = getattr(form.instance, 'pk', None)
+            if instance_pk not in existing_pks and form.has_changed():
+                self._raise_add_not_allowed()
+
+    def _raise_add_not_allowed(self):
+        raise ValidationError(
+            self.error_messages['add_not_allowed'],
+            code='add_not_allowed',
+        )
 
     def validate_unique(self):
         # Collect unique_checks and date_checks to run from all the forms.
@@ -793,18 +848,28 @@ class BaseModelFormSet(BaseFormSet):
 
         saved_instances = []
         forms_to_delete = self.deleted_forms
+        existing_pks = self._existing_object_pks() if not self.allow_create else None
         for form in self.initial_forms:
             obj = form.instance
+            if form in forms_to_delete:
+                if obj.pk is None:
+                    continue
+                self.deleted_objects.append(obj)
+                self.delete_existing(obj, commit=commit)
+                continue
+            if not self.allow_create:
+                instance_pk = getattr(obj, 'pk', None)
+                if instance_pk not in existing_pks:
+                    if form.has_changed():
+                        self._raise_add_not_allowed()
+                    continue
             # If the pk is None, it means either:
             # 1. The object is an unexpected empty model, created by invalid
             #    POST data such as an object outside the formset's queryset.
             # 2. The object was already deleted from the database.
             if obj.pk is None:
                 continue
-            if form in forms_to_delete:
-                self.deleted_objects.append(obj)
-                self.delete_existing(obj, commit=commit)
-            elif form.has_changed():
+            if form.has_changed():
                 self.changed_objects.append((obj, form.changed_data))
                 saved_instances.append(self.save_existing(form, obj, commit=commit))
                 if not commit:
@@ -813,6 +878,14 @@ class BaseModelFormSet(BaseFormSet):
 
     def save_new_objects(self, commit=True):
         self.new_objects = []
+        if not self.allow_create:
+            for form in self.extra_forms:
+                if not form.has_changed():
+                    continue
+                if self.can_delete and self._should_delete_form(form):
+                    continue
+                self._raise_add_not_allowed()
+            return self.new_objects
         for form in self.extra_forms:
             if not form.has_changed():
                 continue
@@ -875,7 +948,8 @@ def modelformset_factory(model, form=ModelForm, formfield_callback=None,
                          widgets=None, validate_max=False, localized_fields=None,
                          labels=None, help_texts=None, error_messages=None,
                          min_num=None, validate_min=False, field_classes=None,
-                         absolute_max=None, can_delete_extra=True, renderer=None):
+                         absolute_max=None, can_delete_extra=True, renderer=None,
+                         allow_create=None, edit_only=None):
     """Return a FormSet class for the given Django model class."""
     meta = getattr(form, 'Meta', None)
     if (getattr(meta, 'fields', fields) is None and
@@ -890,12 +964,21 @@ def modelformset_factory(model, form=ModelForm, formfield_callback=None,
                              widgets=widgets, localized_fields=localized_fields,
                              labels=labels, help_texts=help_texts,
                              error_messages=error_messages, field_classes=field_classes)
+    if allow_create is not None and edit_only is not None:
+        raise TypeError("'allow_create' and 'edit_only' arguments are mutually exclusive.")
+    if edit_only is not None:
+        allow_create = not edit_only
+    if allow_create is False:
+        extra = 0
     FormSet = formset_factory(form, formset, extra=extra, min_num=min_num, max_num=max_num,
                               can_order=can_order, can_delete=can_delete,
                               validate_min=validate_min, validate_max=validate_max,
                               absolute_max=absolute_max, can_delete_extra=can_delete_extra,
                               renderer=renderer)
     FormSet.model = model
+    if allow_create is not None:
+        FormSet.allow_create = allow_create
+        FormSet.edit_only = not allow_create
     return FormSet
 
 
@@ -1076,7 +1159,8 @@ def inlineformset_factory(parent_model, model, form=ModelForm,
                           widgets=None, validate_max=False, localized_fields=None,
                           labels=None, help_texts=None, error_messages=None,
                           min_num=None, validate_min=False, field_classes=None,
-                          absolute_max=None, can_delete_extra=True, renderer=None):
+                          absolute_max=None, can_delete_extra=True, renderer=None,
+                          allow_create=None, edit_only=None):
     """
     Return an ``InlineFormSet`` for the given kwargs.
 
@@ -1087,6 +1171,12 @@ def inlineformset_factory(parent_model, model, form=ModelForm,
     # enforce a max_num=1 when the foreign key to the parent model is unique.
     if fk.unique:
         max_num = 1
+    if allow_create is not None and edit_only is not None:
+        raise TypeError("'allow_create' and 'edit_only' arguments are mutually exclusive.")
+    if edit_only is not None:
+        allow_create = not edit_only
+    if allow_create is False:
+        extra = 0
     kwargs = {
         'form': form,
         'formfield_callback': formfield_callback,
@@ -1110,6 +1200,8 @@ def inlineformset_factory(parent_model, model, form=ModelForm,
         'can_delete_extra': can_delete_extra,
         'renderer': renderer,
     }
+    if allow_create is not None:
+        kwargs['allow_create'] = allow_create
     FormSet = modelformset_factory(model, **kwargs)
     FormSet.fk = fk
     return FormSet

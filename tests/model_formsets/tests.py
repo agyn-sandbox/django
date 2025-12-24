@@ -4,7 +4,7 @@ from datetime import date
 from decimal import Decimal
 
 from django import forms
-from django.core.exceptions import ImproperlyConfigured
+from django.core.exceptions import ImproperlyConfigured, ValidationError
 from django.db import models
 from django.forms.models import (
     BaseModelFormSet, _get_foreign_key, inlineformset_factory,
@@ -2021,3 +2021,157 @@ class TestModelFormsetOverridesTroughFormMeta(TestCase):
         BookFormSet = modelformset_factory(Author, fields='__all__', renderer=renderer)
         formset = BookFormSet()
         self.assertEqual(formset.renderer, renderer)
+
+
+class EditOnlyModelFormSetTests(TestCase):
+    def test_allow_create_true_accepts_tampered_total_forms(self):
+        author = Author.objects.create(name='Existing Author')
+        AuthorFormSet = modelformset_factory(Author, fields="__all__", extra=0)
+        data = {
+            'form-TOTAL_FORMS': '2',
+            'form-INITIAL_FORMS': '1',
+            'form-MAX_NUM_FORMS': '',
+            'form-0-id': str(author.pk),
+            'form-0-name': 'Existing Author',
+            'form-1-id': '',
+            'form-1-name': 'Unauthorized Author',
+        }
+        formset = AuthorFormSet(data=data, queryset=Author.objects.order_by('pk'))
+        self.assertTrue(formset.is_valid())
+        self.assertEqual(Author.objects.count(), 1)
+
+        saved = formset.save()
+        self.assertEqual(len(saved), 1)
+        self.assertEqual(Author.objects.count(), 2)
+        self.assertTrue(Author.objects.filter(name='Unauthorized Author').exists())
+
+    def test_disallow_create_rejects_added_form(self):
+        author = Author.objects.create(name='Existing Author')
+        AuthorFormSet = modelformset_factory(Author, fields="__all__", extra=0, allow_create=False)
+        data = {
+            'form-TOTAL_FORMS': '2',
+            'form-INITIAL_FORMS': '1',
+            'form-MAX_NUM_FORMS': '',
+            'form-0-id': str(author.pk),
+            'form-0-name': 'Existing Author',
+            'form-1-id': '',
+            'form-1-name': 'Unauthorized Author',
+        }
+        formset = AuthorFormSet(data=data, queryset=Author.objects.order_by('pk'))
+        self.assertIs(formset.is_valid(), False)
+        errors = formset.non_form_errors().as_data()
+        self.assertTrue(errors)
+        self.assertEqual(errors[0].code, 'add_not_allowed')
+        with self.assertRaises(ValidationError):
+            formset.save()
+        self.assertEqual(Author.objects.count(), 1)
+
+    def test_disallow_create_rejects_initial_forms_tampering(self):
+        author = Author.objects.create(name='Existing Author')
+        AuthorFormSet = modelformset_factory(Author, fields="__all__", extra=0, allow_create=False)
+        data = {
+            'form-TOTAL_FORMS': '2',
+            'form-INITIAL_FORMS': '2',
+            'form-MAX_NUM_FORMS': '',
+            'form-0-id': str(author.pk),
+            'form-0-name': 'Existing Author',
+            'form-1-id': '',
+            'form-1-name': 'Unauthorized Author',
+        }
+        formset = AuthorFormSet(data=data, queryset=Author.objects.order_by('pk'))
+        self.assertIs(formset.is_valid(), False)
+        errors = formset.non_form_errors().as_data()
+        self.assertEqual(errors[0].code, 'add_not_allowed')
+        self.assertEqual(Author.objects.count(), 1)
+
+    def test_disallow_create_rejects_bogus_primary_key(self):
+        Author.objects.create(name='Existing Author')
+        AuthorFormSet = modelformset_factory(Author, fields="__all__", extra=0, allow_create=False)
+        data = {
+            'form-TOTAL_FORMS': '1',
+            'form-INITIAL_FORMS': '1',
+            'form-MAX_NUM_FORMS': '',
+            'form-0-id': '',
+            'form-0-name': 'Unauthorized Author',
+        }
+        formset = AuthorFormSet(data=data, queryset=Author.objects.order_by('pk'))
+        self.assertIs(formset.is_valid(), False)
+        errors = formset.non_form_errors().as_data()
+        self.assertEqual(errors[0].code, 'add_not_allowed')
+        self.assertEqual(Author.objects.count(), 1)
+
+    def test_disallow_create_allows_updates_and_deletions(self):
+        author = Author.objects.create(name='Existing Author')
+        former_author = Author.objects.create(name='To Remove')
+        AuthorFormSet = modelformset_factory(
+            Author,
+            fields="__all__",
+            extra=0,
+            can_delete=True,
+            allow_create=False,
+        )
+        data = {
+            'form-TOTAL_FORMS': '2',
+            'form-INITIAL_FORMS': '2',
+            'form-MAX_NUM_FORMS': '',
+            'form-0-id': str(author.pk),
+            'form-0-name': 'Updated Author',
+            'form-1-id': str(former_author.pk),
+            'form-1-name': 'To Remove',
+            'form-1-DELETE': 'on',
+        }
+        formset = AuthorFormSet(data=data, queryset=Author.objects.order_by('pk'))
+        self.assertTrue(formset.is_valid())
+        formset.save()
+        self.assertTrue(Author.objects.filter(name='Updated Author').exists())
+        self.assertFalse(Author.objects.filter(pk=former_author.pk).exists())
+
+    def test_disallow_create_respects_max_num_without_validate_max(self):
+        author = Author.objects.create(name='Existing Author')
+        AuthorFormSet = modelformset_factory(
+            Author,
+            fields="__all__",
+            extra=0,
+            allow_create=False,
+            max_num=1,
+            validate_max=False,
+        )
+        data = {
+            'form-TOTAL_FORMS': '2',
+            'form-INITIAL_FORMS': '1',
+            'form-MAX_NUM_FORMS': '',
+            'form-0-id': str(author.pk),
+            'form-0-name': 'Existing Author',
+            'form-1-id': '',
+            'form-1-name': 'Unauthorized Author',
+        }
+        formset = AuthorFormSet(data=data, queryset=Author.objects.order_by('pk'))
+        self.assertIs(formset.is_valid(), False)
+        errors = formset.non_form_errors().as_data()
+        self.assertEqual(errors[0].code, 'add_not_allowed')
+        self.assertEqual(Author.objects.count(), 1)
+
+    def test_inline_formset_disallow_create_blocks_add(self):
+        author = Author.objects.create(name='Existing Author')
+        book = Book.objects.create(author=author, title='Existing Book')
+        AuthorBooksFormSet = inlineformset_factory(
+            Author,
+            Book,
+            fields="__all__",
+            extra=0,
+            allow_create=False,
+        )
+        data = {
+            'book_set-TOTAL_FORMS': '2',
+            'book_set-INITIAL_FORMS': '1',
+            'book_set-MAX_NUM_FORMS': '',
+            'book_set-0-id': str(book.pk),
+            'book_set-0-title': 'Existing Book',
+            'book_set-1-id': '',
+            'book_set-1-title': 'Unauthorized Book',
+        }
+        formset = AuthorBooksFormSet(data=data, instance=author, prefix='book_set')
+        self.assertIs(formset.is_valid(), False)
+        errors = formset.non_form_errors().as_data()
+        self.assertEqual(errors[0].code, 'add_not_allowed')
+        self.assertEqual(author.book_set.count(), 1)
