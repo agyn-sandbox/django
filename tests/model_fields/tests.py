@@ -1,9 +1,11 @@
+import copy
 import pickle
 
 from django import forms
 from django.core.exceptions import ValidationError
 from django.db import models
 from django.test import SimpleTestCase, TestCase
+from django.test.utils import isolate_apps
 from django.utils.functional import lazy
 
 from .models import (
@@ -131,6 +133,79 @@ class BasicFieldTests(SimpleTestCase):
         self.assertNotEqual(hash(abstract_model_field), hash(inherit1_model_field))
         self.assertNotEqual(hash(abstract_model_field), hash(inherit2_model_field))
         self.assertNotEqual(hash(inherit1_model_field), hash(inherit2_model_field))
+
+
+class FieldHashTests(SimpleTestCase):
+
+    @isolate_apps('model_fields')
+    def test_dict_membership_survives_assignment(self):
+        field = models.CharField(max_length=200)
+        cache = {field: 'value'}
+
+        class Book(models.Model):
+            title = field
+
+        self.assertIn(field, cache)
+        self.assertEqual(cache[field], 'value')
+
+    @isolate_apps('model_fields')
+    def test_hash_consistency_across_assignment(self):
+        field = models.CharField(max_length=200)
+        hash_before = hash(field)
+
+        class Book(models.Model):
+            title = field
+
+        self.assertEqual(hash(field), hash_before)
+
+    @isolate_apps('model_fields')
+    def test_clone_hash_and_equality(self):
+        field = models.CharField(max_length=200)
+        clone = field.clone()
+
+        self.assertNotEqual(field, clone)
+        self.assertNotEqual(hash(field), hash(clone))
+
+    @isolate_apps('model_fields')
+    def test_shallow_copy_keeps_equality(self):
+
+        class Book(models.Model):
+            title = models.CharField(max_length=200)
+
+        original = Book._meta.get_field('title')
+        duplicate = copy.copy(original)
+
+        self.assertEqual(original, duplicate)
+        self.assertEqual(hash(original), hash(duplicate))
+
+    @isolate_apps('model_fields')
+    def test_abstract_base_inheritance_hash_usage(self):
+
+        class AbstractBook(models.Model):
+            title = models.CharField(max_length=200)
+
+            class Meta:
+                abstract = True
+
+        class Novel(AbstractBook):
+            pass
+
+        class Textbook(AbstractBook):
+            pass
+
+        abstract_field = AbstractBook._meta.get_field('title')
+        novel_field = Novel._meta.get_field('title')
+        textbook_field = Textbook._meta.get_field('title')
+
+        lookup = {
+            abstract_field: 'abstract',
+            novel_field: 'novel',
+            textbook_field: 'textbook',
+        }
+
+        self.assertEqual(lookup[abstract_field], 'abstract')
+        self.assertEqual(lookup[novel_field], 'novel')
+        self.assertEqual(lookup[textbook_field], 'textbook')
 
 
 class ChoicesTests(SimpleTestCase):
