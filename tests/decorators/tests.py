@@ -184,6 +184,55 @@ def myattr2_dec(func):
 myattr2_dec_m = method_decorator(myattr2_dec)
 
 
+wraps_recorded_names = []
+wraps_attribute_assignments = []
+
+
+def name_recording_dec(func):
+    recorded_name = func.__name__
+    wraps_recorded_names.append(recorded_name)
+
+    @wraps(func)
+    def wrapper(*args, **kwargs):
+        return func(*args, **kwargs)
+
+    wrapper.recorded_name = recorded_name
+    return wrapper
+
+
+name_recording_dec_m = method_decorator(name_recording_dec)
+
+
+def suffixing_name_dec(func):
+    suffix_source = func.__name__
+    wraps_recorded_names.append(suffix_source)
+
+    @wraps(func)
+    def wrapper(*args, **kwargs):
+        return f"{func(*args, **kwargs)}:{suffix_source}"
+
+    wrapper.suffix_source = suffix_source
+    return wrapper
+
+
+suffixing_name_dec_m = method_decorator(suffixing_name_dec)
+
+
+def attr_setting_wraps_dec(func):
+    func.wraps_attribute = func.__name__
+    wraps_attribute_assignments.append(func.wraps_attribute)
+
+    @wraps(func)
+    def wrapper(*args, **kwargs):
+        return func(*args, **kwargs)
+
+    wrapper.wraps_attribute = func.wraps_attribute
+    return wrapper
+
+
+attr_setting_wraps_dec_m = method_decorator(attr_setting_wraps_dec)
+
+
 class ClsDec:
     def __init__(self, myattr):
         self.myattr = myattr
@@ -270,6 +319,43 @@ class MethodDecoratorTests(SimpleTestCase):
                 self.assertIs(getattr(Test.method, 'myattr2', False), True)
                 self.assertEqual(Test.method.__doc__, 'A method')
                 self.assertEqual(Test.method.__name__, 'method')
+
+    def test_wraps_decorator_referencing_name(self):
+        wraps_recorded_names.clear()
+
+        class Greeter:
+            @name_recording_dec_m
+            def greet(self):
+                return "hello"
+
+        greeter = Greeter()
+        self.assertEqual(greeter.greet(), "hello")
+        self.assertGreaterEqual(wraps_recorded_names.count("greet"), 1)
+
+    def test_multiple_wraps_decorators(self):
+        wraps_recorded_names.clear()
+
+        class Greeter:
+            @name_recording_dec_m
+            @suffixing_name_dec_m
+            def greet(self):
+                return "hello"
+
+        greeter = Greeter()
+        self.assertEqual(greeter.greet(), "hello:greet")
+        self.assertGreaterEqual(wraps_recorded_names.count("greet"), 2)
+
+    def test_wraps_decorator_setting_attribute_on_input(self):
+        wraps_attribute_assignments.clear()
+
+        class Marker:
+            @attr_setting_wraps_dec_m
+            def tag(self):
+                return "tagged"
+
+        marker = Marker()
+        self.assertEqual(marker.tag(), "tagged")
+        self.assertIn("tag", wraps_attribute_assignments)
 
     def test_new_attribute(self):
         """A decorator that sets a new attribute on the method."""
