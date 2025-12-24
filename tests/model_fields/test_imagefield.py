@@ -444,6 +444,23 @@ class TwoImageFieldTests(ImageFieldTestMixin, TestCase):
         # have been opened.
         self.assertIs(p.mugshot.was_opened, True)
         self.assertIs(p.headshot.was_opened, True)
+        # Dimensions should now be cached, and if we reset was_opened and
+        # check dimensions again, the files should not open.
+        p.mugshot.was_opened = False
+        p.headshot.was_opened = False
+        self.check_dimensions(p, 4, 8, "mugshot")
+        self.check_dimensions(p, 8, 4, "headshot")
+        self.assertIs(p.mugshot.was_opened, False)
+        self.assertIs(p.headshot.was_opened, False)
+
+        # If we assign new images to the instance, the dimensions should
+        # update and the files should reopen.
+        p.mugshot = self.file2
+        p.headshot = self.file1
+        self.check_dimensions(p, 8, 4, "mugshot")
+        self.check_dimensions(p, 4, 8, "headshot")
+        self.assertIs(p.mugshot.was_opened, True)
+        self.assertIs(p.headshot.was_opened, True)
 
 
 @skipIf(Image is None, "Pillow is required to test ImageField")
