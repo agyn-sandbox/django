@@ -48,6 +48,10 @@ class TestModel1:
     thing = models.FileField(upload_to=upload_to)
 
 
+class NonModelMixin:
+    pass
+
+
 class TextEnum(enum.Enum):
     A = 'a-value'
     B = 'value-b'
@@ -658,6 +662,12 @@ class WriterTests(SimpleTestCase):
     def test_serialize_type_none(self):
         self.assertSerializedEqual(type(None))
 
+    def test_serialize_models_model(self):
+        self.assertSerializedResultEqual(
+            models.Model,
+            ("models.Model", {"from django.db import models"}),
+        )
+
     def test_simple_migration(self):
         """
         Tests serializing a simple migration.
@@ -786,6 +796,24 @@ class WriterTests(SimpleTestCase):
         writer = MigrationWriter(migration)
         output = writer.as_string()
         self.assertIn("from django.db import migrations\n", output)
+
+    def test_create_model_with_mixin_and_model_bases(self):
+        migration = type("Migration", (migrations.Migration,), {
+            "operations": [
+                migrations.CreateModel(
+                    name="Article",
+                    fields=[],
+                    bases=(NonModelMixin, models.Model),
+                ),
+            ],
+        })
+        writer = MigrationWriter(migration)
+        output = writer.as_string()
+        self.assertIn("from django.db import migrations, models\n", output)
+        self.assertIn(
+            "bases=(migrations.test_writer.NonModelMixin, models.Model)",
+            output,
+        )
 
     def test_deconstruct_class_arguments(self):
         # Yes, it doesn't make sense to use a class as a default for a
