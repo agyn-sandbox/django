@@ -464,10 +464,17 @@ class BaseModelAdmin(metaclass=forms.MediaDefiningClass):
             # It is allowed to filter on values that would be found from local
             # model anyways. For example, if you filter on employee__department__id,
             # then the id value would be found already from employee__department_id.
-            if not prev_field or (
-                prev_field.is_relation
-                and field not in prev_field.path_infos[-1].target_fields
-            ):
+            append_part = True
+            if prev_field and prev_field.is_relation:
+                target_fields = prev_field.path_infos[-1].target_fields
+                if field in target_fields:
+                    skip_for_target = not field.is_relation
+                    if field.is_relation:
+                        skip_for_target = getattr(
+                            field.remote_field, "parent_link", False
+                        )
+                    append_part = not skip_for_target
+            if append_part:
                 relation_parts.append(part)
             if not getattr(field, "path_infos", None):
                 # This is not a relational field, so further parts
