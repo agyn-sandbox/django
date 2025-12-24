@@ -489,6 +489,22 @@ class ChangeListTests(TestCase):
         cl.queryset.delete()
         self.assertEqual(cl.queryset.count(), 0)
 
+    def test_multi_word_search_avoids_duplicate_fk_joins(self):
+        class ChildSearchAdmin(admin.ModelAdmin):
+            search_fields = ['parent__name']
+
+        parent = Parent.objects.create(name='Alpha Parent')
+        Child.objects.create(parent=parent, name='child')
+
+        m = ChildSearchAdmin(Child, custom_site)
+        request = self.factory.get('/child/', data={SEARCH_VAR: 'alpha beta gamma'})
+        request.user = self.superuser
+        cl = m.get_changelist_instance(request)
+        sql = str(cl.queryset.query).lower()
+
+        parent_table = Parent._meta.db_table.lower()
+        self.assertEqual(sql.count(f'join "{parent_table}"'), 1)
+
     def test_no_duplicates_for_many_to_many_at_second_level_in_search_fields(self):
         """
         When using a ManyToMany in search_fields at the second level behind a
