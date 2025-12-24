@@ -215,7 +215,7 @@ class TestChildArguments(SimpleTestCase):
             ('warn_default_encoding', True),
         ])
         with mock.patch.object(autoreload.sys.implementation, 'name', 'cpython'):
-            with mock.patch('django.utils.autoreload.sys._xoptions', options):
+            with mock.patch.dict(autoreload.sys._xoptions, options, clear=True):
                 self.assertEqual(
                     autoreload.get_child_arguments(),
                     [
@@ -238,7 +238,7 @@ class TestChildArguments(SimpleTestCase):
             ('tracemalloc', 5),
         ])
         with mock.patch.object(autoreload.sys.implementation, 'name', 'cpython'):
-            with mock.patch('django.utils.autoreload.sys._xoptions', options):
+            with mock.patch.dict(autoreload.sys._xoptions, options, clear=True):
                 self.assertEqual(
                     autoreload.get_child_arguments(),
                     [
@@ -256,7 +256,7 @@ class TestChildArguments(SimpleTestCase):
     def test_non_cpython_ignores_xoptions(self):
         options = OrderedDict([('dev', True)])
         with mock.patch.object(autoreload.sys.implementation, 'name', 'pypy'):
-            with mock.patch('django.utils.autoreload.sys._xoptions', options):
+            with mock.patch.dict(autoreload.sys._xoptions, options, clear=True):
                 self.assertEqual(
                     autoreload.get_child_arguments(),
                     [sys.executable, __file__, 'runserver']
@@ -268,7 +268,7 @@ class TestChildArguments(SimpleTestCase):
     def test_warnoptions_before_xoptions(self):
         options = OrderedDict([('dev', True)])
         with mock.patch.object(autoreload.sys.implementation, 'name', 'cpython'):
-            with mock.patch('django.utils.autoreload.sys._xoptions', options):
+            with mock.patch.dict(autoreload.sys._xoptions, options, clear=True):
                 self.assertEqual(
                     autoreload.get_child_arguments(),
                     [
@@ -301,7 +301,7 @@ class TestChildArguments(SimpleTestCase):
             options = OrderedDict([('dev', True)])
             with mock.patch('sys.argv', [exe_path.with_suffix(''), 'runserver']):
                 with mock.patch.object(autoreload.sys.implementation, 'name', 'cpython'):
-                    with mock.patch('django.utils.autoreload.sys._xoptions', options):
+                    with mock.patch.dict(autoreload.sys._xoptions, options, clear=True):
                         self.assertEqual(
                             autoreload.get_child_arguments(),
                             [exe_path, 'runserver']
