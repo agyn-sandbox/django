@@ -365,6 +365,11 @@ The formset ``clean`` method is called after all the ``Form.clean`` methods
 have been called. The errors will be found using the ``non_form_errors()``
 method on the formset.
 
+When rendered in a template, ``{{ formset.non_form_errors }}`` yields an
+:class:`~django.forms.utils.ErrorList` with the CSS classes ``errorlist`` and
+``nonform``, mirroring the ``errorlist nonfield`` classes used by
+``{{ form.non_field_errors }}`` on individual forms.
+
 Validating the number of forms in a formset
 ===========================================
 

@@ -334,6 +334,7 @@ class BaseFormSet:
         """
         self._errors = []
         self._non_form_errors = self.error_class()
+        self._set_non_form_css_class(self._non_form_errors)
         empty_forms_count = 0
 
         if not self.is_bound:  # Stop further processing.
@@ -381,6 +382,7 @@ class BaseFormSet:
             self.clean()
         except ValidationError as e:
             self._non_form_errors = self.error_class(e.error_list)
+            self._set_non_form_css_class(self._non_form_errors)
 
     def clean(self):
         """
@@ -390,6 +392,17 @@ class BaseFormSet:
         via formset.non_form_errors()
         """
         pass
+
+    def _set_non_form_css_class(self, error_list):
+        error_class_attr = getattr(error_list, 'error_class', None)
+        if error_class_attr is None:
+            return
+        if not error_class_attr:
+            error_list.error_class = 'errorlist nonform'
+            return
+        if 'nonform' in str(error_class_attr).split():
+            return
+        error_list.error_class = f"{error_class_attr} nonform"
 
     def has_changed(self):
         """Return True if data in any form differs from initial."""
