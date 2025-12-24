@@ -9,6 +9,17 @@ class AutocompleteJsonView(BaseListView):
     paginate_by = 20
     admin_site = None
 
+    def serialize_result(self, obj, to_field_name):
+        """Build the JSON result for ``obj``.
+
+        Subclasses may override this hook to add extra metadata, but the
+        returned mapping must always include ``id`` and ``text`` keys.
+        """
+        return {
+            'id': str(getattr(obj, to_field_name)),
+            'text': str(obj),
+        }
+
     def get(self, request, *args, **kwargs):
         """
         Return a JsonResponse with search results of the form:
@@ -26,7 +37,7 @@ class AutocompleteJsonView(BaseListView):
         context = self.get_context_data()
         return JsonResponse({
             'results': [
-                {'id': str(getattr(obj, to_field_name)), 'text': str(obj)}
+                self.serialize_result(obj, to_field_name)
                 for obj in context['object_list']
             ],
             'pagination': {'more': context['page_obj'].has_next()},
