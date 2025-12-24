@@ -79,6 +79,26 @@ class UrlizeTests(SimpleTestCase):
             '<a href="http://example.com/?x=&amp;y=%3C2%3E" rel="nofollow">http://example.com/?x=&amp;y=&lt;2&gt;</a>',
         )
 
+    @setup({'urlize10': '{{ text|urlize }}'})
+    def test_urlize_entity_trailing_punctuation(self):
+        output = self.engine.render_to_string('urlize10', {
+            'text': 'Search for google.com/?q=1&lt! and see.',
+        })
+        self.assertEqual(
+            output,
+            'Search for <a href="http://google.com/?q=1%3C" rel="nofollow">google.com/?q=1&amp;lt</a>! and see.',
+        )
+
+    @setup({'urlize11': '{{ text|urlize }}'})
+    def test_urlize_entity_trailing_parentheses(self):
+        output = self.engine.render_to_string('urlize11', {
+            'text': '(see google.com/?q=1&lt!)',
+        })
+        self.assertEqual(
+            output,
+            '(see <a href="http://google.com/?q=1%3C" rel="nofollow">google.com/?q=1&amp;lt</a>!)',
+        )
+
 
 class FunctionTests(SimpleTestCase):
 
