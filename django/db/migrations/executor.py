@@ -277,6 +277,8 @@ class MigrationExecutor:
             all_applied = all(m in applied for m in migration.replaces)
             if all_applied and key not in applied:
                 self.recorder.record_applied(*key)
+            elif not all_applied and key in applied:
+                self.recorder.record_unapplied(*key)
 
     def detect_soft_applied(self, project_state, migration):
         """

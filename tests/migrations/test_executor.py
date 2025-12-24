@@ -4,6 +4,7 @@ from django.apps.registry import apps as global_apps
 from django.db import DatabaseError, connection, migrations, models
 from django.db.migrations.exceptions import InvalidMigrationPlan
 from django.db.migrations.executor import MigrationExecutor
+from django.db.migrations.loader import MigrationLoader
 from django.db.migrations.graph import MigrationGraph
 from django.db.migrations.recorder import MigrationRecorder
 from django.db.migrations.state import ProjectState
@@ -652,6 +653,45 @@ class ExecutorTests(MigrationTestBase):
             ("migrations", "0001_squashed_0002"),
             recorder.applied_migrations(),
         )
+
+    @override_settings(MIGRATION_MODULES={"migrations": "migrations.test_migrations_squashed"})
+    def test_unapply_replacement_removes_replacement_record(self):
+        """Unapplying a replacement migration removes its record."""
+        recorder = MigrationRecorder(connection)
+        executor = MigrationExecutor(connection)
+        executor.migrate([("migrations", "0001_squashed_0002")])
+        self.assertIn(
+            ("migrations", "0001_squashed_0002"),
+            recorder.applied_migrations(),
+        )
+
+        executor.loader.build_graph()
+        executor.migrate([("migrations", None)])
+
+        self.assertNotIn(
+            ("migrations", "0001_squashed_0002"),
+            recorder.applied_migrations(),
+        )
+
+    @override_settings(MIGRATION_MODULES={"migrations": "migrations.test_migrations_squashed"})
+    def test_unapply_replaced_migration_removes_replacement_record(self):
+        """Unapplying a replaced migration removes the replacement record."""
+        recorder = MigrationRecorder(connection)
+        recorder.record_applied("migrations", "0001_initial")
+        executor = MigrationExecutor(connection)
+        executor.migrate([("migrations", "0002_second")], fake=True)
+        self.assertIn(
+            ("migrations", "0001_squashed_0002"),
+            recorder.applied_migrations(),
+        )
+
+        executor.loader.build_graph()
+        executor.loader = MigrationLoader(connection, replace_migrations=False)
+        executor.migrate([("migrations", "0001_initial")], fake=True)
+
+        applied = recorder.applied_migrations()
+        self.assertNotIn(("migrations", "0001_squashed_0002"), applied)
+        self.assertIn(("migrations", "0001_initial"), applied)
 
     # When the feature is False, the operation and the record won't be
     # performed in a transaction and the test will systematically pass.
