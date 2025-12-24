@@ -324,6 +324,8 @@ class LookupTests(TestCase):
             # getting the lookups again should re-cache
             self.assertIn("exactly", field.get_lookups())
 
+        self.assertNotIn("exactly", field.get_lookups())
+
 
 class BilateralTransformTests(TestCase):
     def test_bilateral_upper(self):
