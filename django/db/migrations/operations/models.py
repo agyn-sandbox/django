@@ -321,30 +321,40 @@ class RenameModel(ModelOperation):
         if self.allow_migrate_model(schema_editor.connection.alias, new_model):
             old_model = from_state.apps.get_model(app_label, self.old_name)
             # Move the main table
+            old_db_table = old_model._meta.db_table
+            new_db_table = new_model._meta.db_table
             schema_editor.alter_db_table(
                 new_model,
-                old_model._meta.db_table,
-                new_model._meta.db_table,
+                old_db_table,
+                new_db_table,
             )
+            ignores_table_name_case = bool(
+                schema_editor.connection.features.ignores_table_name_case
+            )
+            if ignores_table_name_case:
+                table_unchanged = old_db_table.casefold() == new_db_table.casefold()
+            else:
+                table_unchanged = old_db_table == new_db_table
             # Alter the fields pointing to us
-            for related_object in old_model._meta.related_objects:
-                if related_object.related_model == old_model:
-                    model = new_model
-                    related_key = (app_label, self.new_name_lower)
-                else:
-                    model = related_object.related_model
-                    related_key = (
-                        related_object.related_model._meta.app_label,
-                        related_object.related_model._meta.model_name,
+            if not table_unchanged:
+                for related_object in old_model._meta.related_objects:
+                    if related_object.related_model == old_model:
+                        model = new_model
+                        related_key = (app_label, self.new_name_lower)
+                    else:
+                        model = related_object.related_model
+                        related_key = (
+                            related_object.related_model._meta.app_label,
+                            related_object.related_model._meta.model_name,
+                        )
+                    to_field = to_state.apps.get_model(
+                        *related_key
+                    )._meta.get_field(related_object.field.name)
+                    schema_editor.alter_field(
+                        model,
+                        related_object.field,
+                        to_field,
                     )
-                to_field = to_state.apps.get_model(
-                    *related_key
-                )._meta.get_field(related_object.field.name)
-                schema_editor.alter_field(
-                    model,
-                    related_object.field,
-                    to_field,
-                )
             # Rename M2M fields whose name is based on this model's name.
             fields = zip(old_model._meta.local_many_to_many, new_model._meta.local_many_to_many)
             for (old_field, new_field) in fields:

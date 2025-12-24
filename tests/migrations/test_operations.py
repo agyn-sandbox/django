@@ -1,7 +1,10 @@
+from unittest import mock
+
 from django.core.exceptions import FieldDoesNotExist
 from django.db import (
     IntegrityError, connection, migrations, models, transaction,
 )
+from django.db.backends.base.schema import BaseDatabaseSchemaEditor
 from django.db.migrations.migration import Migration
 from django.db.migrations.operations.fields import FieldOperation
 from django.db.migrations.state import ModelState, ProjectState
@@ -650,6 +653,46 @@ class OperationTests(OperationTestBase):
         self.assertEqual(definition[0], "RenameModel")
         self.assertEqual(definition[1], [])
         self.assertEqual(definition[2], {'old_name': "Pony", 'new_name': "Horse"})
+
+    def test_rename_model_noop_db_table_skips_alter_field(self):
+        app_label = "test_rename_model_noop_db_table"
+        project_state = self.apply_operations(app_label, ProjectState(), operations=[
+            migrations.CreateModel(
+                "Tracked", fields=[
+                    ("id", models.AutoField(primary_key=True)),
+                ], options={"db_table": "rename_model_noop_table"},
+            ),
+            migrations.CreateModel(
+                "Watcher", fields=[
+                    ("id", models.AutoField(primary_key=True)),
+                    ("tracked", models.ForeignKey(
+                        f"{app_label}.Tracked", models.CASCADE,
+                    )),
+                ],
+            ),
+        ])
+        rename_operation = migrations.RenameModel("Tracked", "TrackedRenamed")
+        new_state = project_state.clone()
+        rename_operation.state_forwards(app_label, new_state)
+
+        with mock.patch.object(
+            BaseDatabaseSchemaEditor,
+            "alter_field",
+            wraps=BaseDatabaseSchemaEditor.alter_field,
+            autospec=True,
+        ) as mocked_alter_field:
+            with connection.schema_editor(
+                atomic=connection.features.supports_atomic_references_rename,
+            ) as editor:
+                rename_operation.database_forwards(
+                    app_label,
+                    editor,
+                    project_state,
+                    new_state,
+                )
+
+        mocked_alter_field.assert_not_called()
+        self.assertTableExists("rename_model_noop_table")
 
     def test_rename_model_state_forwards(self):
         """
