@@ -43,8 +43,6 @@ language_code_re = _lazy_re_compile(
     re.IGNORECASE
 )
 
-language_code_prefix_re = _lazy_re_compile(r'^/(\w+([@-]\w+)?)(/|$)')
-
 
 @receiver(setting_changed)
 def reset_cache(**kwargs):
@@ -505,14 +503,86 @@ def get_language_from_path(path, strict=False):
     If `strict` is False (the default), look for a country-specific variant
     when neither the language code nor its generic variant is found.
     """
-    regex_match = language_code_prefix_re.match(path)
-    if not regex_match:
+    if not path:
         return None
-    lang_code = regex_match[1]
+    segment = path.lstrip('/').split('/', 1)[0]
+    if not segment:
+        return None
+    if not language_code_re.match(segment):
+        return None
+    subtags = segment.split('-')
+
+    def is_script(subtag):
+        return len(subtag) == 4 and subtag.isalpha()
+
+    def is_region(subtag):
+        return (
+            (len(subtag) == 2 and subtag.isalpha()) or
+            (len(subtag) == 3 and subtag.isdigit())
+        )
+
+    def normalize_bcp47(code):
+        parts = code.split('-')
+        if not parts:
+            return code
+        normalized = [parts[0].lower()]
+        for part in parts[1:]:
+            if len(part) == 4 and part.isalpha():
+                normalized.append(part.title())
+            elif len(part) == 2 and part.isalpha():
+                normalized.append(part.upper())
+            elif len(part) == 3 and part.isdigit():
+                normalized.append(part)
+            else:
+                normalized.append(part.lower())
+        return '-'.join(normalized)
+
+    supported_languages = get_languages()
+    compare_map = {}
+    for code in supported_languages:
+        key = normalize_bcp47(code).casefold()
+        compare_map.setdefault(key, []).append(code)
+
+    def find_configured_variant(original_segment):
+        key = normalize_bcp47(original_segment).casefold()
+        candidates = compare_map.get(key)
+        if not candidates:
+            return None
+        for code in candidates:
+            if code == original_segment:
+                return code
+        for code in candidates:
+            if code.casefold() == original_segment.casefold():
+                return code
+        return candidates[0]
+
+    is_script_region = (
+        len(subtags) >= 3 and is_script(subtags[1]) and is_region(subtags[2])
+    )
+    if is_script_region:
+        return find_configured_variant(segment)
+
+    if len(subtags) == 2 and is_region(subtags[1]):
+        configured = find_configured_variant(segment)
+        if configured:
+            return configured
+        if strict:
+            return None
+        try:
+            return get_supported_language_variant(segment.lower(), strict=False)
+        except LookupError:
+            return None
+
+    configured = find_configured_variant(segment)
+    if configured:
+        return configured
     try:
-        return get_supported_language_variant(lang_code, strict=strict)
+        matched_code = get_supported_language_variant(segment.lower(), strict=strict)
     except LookupError:
         return None
+    if len(subtags) > 2 and '-' not in matched_code:
+        return None
+    return matched_code
 
 
 def get_language_from_request(request, check_path=False):

@@ -361,6 +361,43 @@ class URLRedirectWithScriptAliasTests(URLTestCaseBase):
             self.assertRedirects(response, '%s/en/prefixed/' % prefix, target_status_code=404)
 
 
+@override_settings(
+    LANGUAGES=[
+        ('nl', 'Dutch'),
+        ('en', 'English'),
+        ('en-latn-us', 'English (Latin US lower)'),
+        ('en-Latn-US', 'English (Latin US)'),
+        ('pt-br', 'Brazilian Portuguese'),
+    ]
+)
+class ScriptRegionURLTests(URLTestCaseBase):
+
+    def test_supported_script_region_prefix(self):
+        response = self.client.get('/en-latn-us/prefixed/')
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.headers['content-language'], 'en-latn-us')
+        self.assertEqual(response.context['LANGUAGE_CODE'], 'en-latn-us')
+
+        response = self.client.get('/en-Latn-US/prefixed/')
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.headers['content-language'], 'en-latn-us')
+        self.assertEqual(response.context['LANGUAGE_CODE'], 'en-latn-us')
+
+    def test_unlisted_script_region_prefix(self):
+        response = self.client.get('/en-Latn-GB/prefixed/')
+        self.assertEqual(response.status_code, 404)
+
+    @override_settings(
+        LANGUAGES=[
+            ('en', 'English'),
+            ('en-us', 'English (US)'),
+        ]
+    )
+    def test_script_region_prefix_not_configured(self):
+        response = self.client.get('/en-Latn-US/prefixed/')
+        self.assertEqual(response.status_code, 404)
+
+
 class URLTagTests(URLTestCaseBase):
     """
     Test if the language tag works.

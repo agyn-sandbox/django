@@ -322,8 +322,11 @@ class LocalePrefixPattern:
 
     def match(self, path):
         language_prefix = self.language_prefix
-        if path.startswith(language_prefix):
-            return path[len(language_prefix):], (), {}
+        if not language_prefix:
+            return path, (), {}
+        prefix_len = len(language_prefix)
+        if path[:prefix_len].lower() == language_prefix.lower():
+            return path[prefix_len:], (), {}
         return None
 
     def check(self):
