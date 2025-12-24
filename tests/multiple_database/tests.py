@@ -2,17 +2,20 @@ import datetime
 import pickle
 from io import StringIO
 from operator import attrgetter
+from unittest import mock
 from unittest.mock import Mock
 
 from django.contrib.auth.models import User
 from django.contrib.contenttypes.models import ContentType
 from django.core import management
+from django.core import serializers
+from django.core.management import call_command
 from django.db import DEFAULT_DB_ALIAS, router, transaction
 from django.db.models import signals
 from django.db.utils import ConnectionRouter
 from django.test import SimpleTestCase, TestCase, override_settings
 
-from .models import Book, Person, Pet, Review, UserProfile
+from .models import AuthorNK, Book, BookNK, Person, Pet, Review, UserProfile
 from .routers import AuthRouter, TestRouter, WriteRouter
 
 
@@ -2529,3 +2532,52 @@ class RelationAssignmentTests(SimpleTestCase):
         profile = UserProfile()
         with self.assertRaisesMessage(ValueError, self.router_prevents_msg):
             user.userprofile = profile
+
+
+class LoaddataNaturalFKDbBindingTests(TestCase):
+    databases = {"default", "other"}
+
+    def test_loaddata_other_db_with_fk_traversal_in_natural_key(self):
+        a_other = AuthorNK.objects.using("other").create(name="Alice")
+        b_other = BookNK.objects.using("other").create(
+            title="Wonderland", author=a_other
+        )
+
+        fixture_json = serializers.serialize(
+            "json",
+            [a_other, b_other],
+            use_natural_foreign_keys=True,
+            use_natural_primary_keys=True,
+        )
+
+        BookNK.objects.using("other").all().delete()
+        AuthorNK.objects.using("other").all().delete()
+
+        self.assertFalse(AuthorNK.objects.using("default").exists())
+        self.assertFalse(BookNK.objects.using("default").exists())
+
+        with mock.patch(
+            "django.core.management.commands.loaddata.sys.stdin",
+            StringIO(fixture_json),
+        ):
+            call_command(
+                "loaddata",
+                "--format=json",
+                "-",
+                database="other",
+                verbosity=0,
+            )
+
+        self.assertTrue(
+            AuthorNK.objects.using("other")
+            .filter(name="Alice")
+            .exists()
+        )
+        self.assertTrue(
+            BookNK.objects.using("other")
+            .filter(title="Wonderland", author__name="Alice")
+            .exists()
+        )
+
+        self.assertFalse(AuthorNK.objects.using("default").exists())
+        self.assertFalse(BookNK.objects.using("default").exists())
