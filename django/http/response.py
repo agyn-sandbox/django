@@ -604,20 +604,17 @@ class FileResponse(StreamingHttpResponse):
 
         filename = os.path.basename(self.filename or filename)
         if self._no_explicit_content_type:
+            content_type = None
+            encoding = None
             if filename:
                 content_type, encoding = mimetypes.guess_type(filename)
-                # Encoding isn't set to prevent browsers from automatically
-                # uncompressing files.
-                content_type = {
-                    "bzip2": "application/x-bzip",
-                    "gzip": "application/gzip",
-                    "xz": "application/x-xz",
-                }.get(encoding, content_type)
-                self.headers["Content-Type"] = (
-                    content_type or "application/octet-stream"
-                )
-            else:
-                self.headers["Content-Type"] = "application/octet-stream"
+            self.headers["Content-Type"] = content_type or "application/octet-stream"
+            if filename:
+                lower_filename = filename.lower()
+                if encoding is None and lower_filename.endswith(".br"):
+                    encoding = "br"
+                if encoding in {"gzip", "compress", "bzip2", "xz", "br"}:
+                    self.headers["Content-Encoding"] = encoding
 
         if content_disposition := content_disposition_header(
             self.as_attachment, filename
