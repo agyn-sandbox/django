@@ -1,4 +1,5 @@
-from django.db import connection
+from django.apps.registry import Apps
+from django.db import connection, models
 from django.db.backends.ddl_references import (
     Columns, Expressions, ForeignKeyName, IndexName, Statement, Table,
 )
@@ -187,6 +188,33 @@ class StatementTests(SimpleTestCase):
         reference = MockReference('reference', {}, {})
         statement = Statement("%(reference)s - %(non_reference)s", reference=reference, non_reference='non_reference')
         self.assertEqual(str(statement), 'reference - non_reference')
+
+
+class SchemaEditorReferencesTests(SimpleTestCase):
+    databases = {"default"}
+
+    def test_create_unique_sql_references_column(self):
+        app_registry = Apps()
+
+        class Author(models.Model):
+            email = models.CharField(max_length=255)
+
+            class Meta:
+                app_label = "ddl_references"
+                apps = app_registry
+                db_table = "ddl_ref_author"
+
+        with connection.schema_editor() as editor:
+            statement = editor._create_unique_sql(
+                Author,
+                [Author._meta.get_field("email").column],
+                name="ddl_ref_author_email_unique",
+            )
+
+        self.assertIs(
+            statement.references_column(Author._meta.db_table, "email"),
+            True,
+        )
 
 
 class ExpressionsTests(TransactionTestCase):
