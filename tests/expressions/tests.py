@@ -857,6 +857,12 @@ class BasicExpressionsTests(TestCase):
         self.gmbh.save()
         self.assertCountEqual(Employee.objects.filter(Q(Exists(is_poc))), [self.max])
 
+    def test_negated_empty_exists_does_not_clear_where(self):
+        base_qs = Company.objects.filter(num_employees__gt=10).order_by('name')
+        expected = list(base_qs)
+        filtered = base_qs.filter(~Exists(Company.objects.none())).order_by('name')
+        self.assertSequenceEqual(filtered, expected)
+
 
 class IterableLookupInnerExpressionsTests(TestCase):
     @classmethod
