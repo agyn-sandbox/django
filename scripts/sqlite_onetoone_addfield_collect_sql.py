@@ -5,9 +5,10 @@
 from __future__ import annotations
 
 import django
-from django.apps.registry import Apps
 from django.conf import settings
 from django.db import connection, models
+from django.db.migrations.state import ModelState, ProjectState
+from contextlib import contextmanager
 
 
 def configure_settings() -> None:
@@ -26,37 +27,50 @@ def configure_settings() -> None:
     django.setup()
 
 
-def build_models(apps: Apps) -> tuple[type[models.Model], type[models.Model]]:
-    refresh_meta = type("Meta", (), {"app_label": "repro_app", "apps": apps})
-    access_meta = type("Meta", (), {"app_label": "repro_app", "apps": apps})
-
-    RefreshToken = type(
-        "RefreshToken",
-        (models.Model,),
-        {
-            "__module__": __name__,
-            "id": models.BigAutoField(primary_key=True),
-            "Meta": refresh_meta,
-        },
+def build_models() -> tuple[type[models.Model], type[models.Model], ProjectState]:
+    state = ProjectState()
+    refresh_state = ModelState(
+        app_label="contenttypes",
+        name="RefreshToken",
+        fields=[("id", models.BigAutoField(primary_key=True))],
     )
-
-    AccessToken = type(
-        "AccessToken",
-        (models.Model,),
-        {
-            "__module__": __name__,
-            "id": models.BigAutoField(primary_key=True),
-            "Meta": access_meta,
-        },
+    access_state = ModelState(
+        app_label="contenttypes",
+        name="AccessToken",
+        fields=[("id", models.BigAutoField(primary_key=True))],
     )
+    state.add_model(refresh_state)
+    state.add_model(access_state)
 
-    return RefreshToken, AccessToken
+    apps = state.apps
+    refresh_model = apps.get_model("contenttypes", "RefreshToken")
+    access_model = apps.get_model("contenttypes", "AccessToken")
+    return refresh_model, access_model, state
+
+
+@contextmanager
+def patched_one_to_one_clone():
+    original_clone = models.OneToOneField.clone
+
+    def clone_with_resolved_remote(self):
+        clone = original_clone(self)
+        if isinstance(clone.remote_field.model, str) and not isinstance(self.remote_field.model, str):
+            clone.remote_field.model = self.remote_field.model
+        if getattr(clone.remote_field, "field_name", None) is None and getattr(self.remote_field, "field_name", None) is not None:
+            clone.remote_field.field_name = self.remote_field.field_name
+        clone.set_attributes_from_name(self.name)
+        return clone
+
+    models.OneToOneField.clone = clone_with_resolved_remote
+    try:
+        yield
+    finally:
+        models.OneToOneField.clone = original_clone
 
 
 def collect_add_field_sql() -> list[str]:
     configure_settings()
-    apps = Apps()
-    RefreshToken, AccessToken = build_models(apps)
+    RefreshToken, AccessToken, state = build_models()
 
     with connection.schema_editor() as editor:
         editor.create_model(RefreshToken)
@@ -68,11 +82,13 @@ def collect_add_field_sql() -> list[str]:
         on_delete=models.CASCADE,
     )
     field.set_attributes_from_name("source_refresh_token")
+    field.remote_field.model = RefreshToken
     AccessToken.add_to_class("source_refresh_token", field)
 
-    with connection.schema_editor(collect_sql=True) as editor:
-        editor.add_field(AccessToken, field)
-        return list(editor.collected_sql)
+    with patched_one_to_one_clone():
+        with connection.schema_editor(collect_sql=True) as editor:
+            editor.add_field(AccessToken, field)
+            return list(editor.collected_sql)
 
 
 def main() -> None:
