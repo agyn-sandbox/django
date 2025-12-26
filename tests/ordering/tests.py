@@ -1,3 +1,4 @@
+import re
 from datetime import datetime
 from operator import attrgetter
 
@@ -8,7 +9,15 @@ from django.db.models import (
 from django.db.models.functions import Upper
 from django.test import TestCase
 
-from .models import Article, Author, ChildArticle, OrderedByFArticle, Reference
+from .models import (
+    Article,
+    Author,
+    ChildArticle,
+    OneModel,
+    OrderedByFArticle,
+    Reference,
+    TwoModel,
+)
 
 
 class OrderingTests(TestCase):
@@ -480,3 +489,60 @@ class OrderingTests(TestCase):
         ca4 = ChildArticle.objects.create(headline='h1', pub_date=datetime(2005, 7, 28))
         articles = ChildArticle.objects.order_by('article_ptr')
         self.assertSequenceEqual(articles, [ca4, ca2, ca1, ca3])
+
+
+class SelfReferentialFKOrderingTests(TestCase):
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.root_low = OneModel.objects.create(oneval=1)
+        cls.root_high = OneModel.objects.create(oneval=2)
+        cls.child_low = OneModel.objects.create(root=cls.root_low, oneval=3)
+        cls.child_high = OneModel.objects.create(root=cls.root_high, oneval=4)
+        cls.low_record = TwoModel.objects.create(record=cls.child_low, twoval=10)
+        cls.high_record = TwoModel.objects.create(record=cls.child_high, twoval=20)
+
+    def order_by_fragment(self, queryset):
+        sql = str(queryset.query)
+        start = sql.upper().find('ORDER BY')
+        self.assertNotEqual(start, -1, 'ORDER BY clause not found in generated SQL.')
+        fragment = sql[start:]
+        fragment = fragment.upper()
+        return re.sub(r'["`\[\]]', '', fragment)
+
+    def first_ordering_term(self, fragment):
+        return fragment[len('ORDER BY '):].split(',', 1)[0].strip()
+
+    def test_order_by_record_root_id(self):
+        qs = TwoModel.objects.order_by('record__root_id')
+        records = list(qs)
+        fragment = self.order_by_fragment(qs)
+        first_term = self.first_ordering_term(fragment)
+        self.assertSequenceEqual(records, [self.low_record, self.high_record], msg=fragment)
+        self.assertIn('ROOT_ID', first_term)
+        self.assertTrue(first_term.endswith('ASC'), msg=fragment)
+
+    def test_order_by_record_root_relation(self):
+        qs = TwoModel.objects.order_by('record__root')
+        records = list(qs)
+        fragment = self.order_by_fragment(qs)
+        first_term = self.first_ordering_term(fragment)
+        self.assertSequenceEqual(records, [self.high_record, self.low_record], msg=fragment)
+        self.assertTrue(first_term.endswith('ID DESC'), msg=fragment)
+
+    def test_order_by_record_root_pk(self):
+        qs = TwoModel.objects.order_by('record__root__id')
+        self.assertSequenceEqual(list(qs), [self.low_record, self.high_record])
+        fragment = self.order_by_fragment(qs)
+        first_term = self.first_ordering_term(fragment)
+        self.assertTrue(first_term.endswith('ID ASC'), msg=fragment)
+        self.assertNotIn('ID DESC', first_term)
+
+    def test_order_by_record_root_id_descending(self):
+        qs = TwoModel.objects.order_by('-record__root_id')
+        records = list(qs)
+        fragment = self.order_by_fragment(qs)
+        first_term = self.first_ordering_term(fragment)
+        self.assertSequenceEqual(records, [self.high_record, self.low_record], msg=fragment)
+        self.assertIn('ROOT_ID', first_term)
+        self.assertTrue(first_term.endswith('DESC'), msg=fragment)

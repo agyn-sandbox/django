@@ -59,3 +59,19 @@ class Reference(models.Model):
 
     class Meta:
         ordering = ('article',)
+
+
+class OneModel(models.Model):
+
+    class Meta:
+        ordering = ('-id',)
+
+    id = models.BigAutoField(primary_key=True)
+    root = models.ForeignKey('self', models.CASCADE, null=True)
+    oneval = models.BigIntegerField(null=True)
+
+
+class TwoModel(models.Model):
+    id = models.BigAutoField(primary_key=True)
+    record = models.ForeignKey(OneModel, models.CASCADE)
+    twoval = models.BigIntegerField(null=True)
