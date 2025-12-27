@@ -1,8 +1,10 @@
 from datetime import datetime, time
 
+from django.conf import settings
 from django.template.defaultfilters import date
 from django.test import SimpleTestCase
-from django.utils import timezone, translation
+from django.utils import formats, timezone, translation
+from django.utils.translation import gettext_lazy
 
 from ..utils import setup
 from .timezone_utils import TimezoneTestCase
@@ -83,3 +85,25 @@ class FunctionTests(SimpleTestCase):
 
     def test_escape_characters(self):
         self.assertEqual(date(datetime(2005, 12, 29), r"jS \o\f F"), "29th of December")
+
+    def test_lazy_format_string(self):
+        lazy_format = gettext_lazy("Y-m-d")
+        with translation.override("en"):
+            self.assertEqual(date(datetime(2024, 1, 2), lazy_format), "2024-01-02")
+
+    def test_get_format_with_lazy_string(self):
+        with translation.override("en"):
+            result = formats.get_format(gettext_lazy("Y-m-d"), use_l10n=True)
+        self.assertEqual(result, "Y-m-d")
+        self.assertIsInstance(result, str)
+
+    def test_get_format_named_setting(self):
+        with translation.override("en"):
+            result = formats.get_format("DATE_FORMAT", use_l10n=True)
+        self.assertEqual(result, settings.DATE_FORMAT)
+
+    def test_get_format_bytes_input(self):
+        with translation.override("en"):
+            result = formats.get_format(b"Y-m-d", use_l10n=True)
+        self.assertEqual(result, "Y-m-d")
+        self.assertIsInstance(result, str)
