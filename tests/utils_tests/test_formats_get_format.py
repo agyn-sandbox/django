@@ -25,3 +25,6 @@ class GetFormatTests(SimpleTestCase):
 
     def test_safe_string_literal(self):
         self.assertEqual(formats.get_format(mark_safe("Y-m-d")), "Y-m-d")
+
+    def test_protected_type_preserved(self):
+        self.assertIsNone(formats.get_format(None, use_l10n=False))

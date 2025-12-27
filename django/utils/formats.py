@@ -108,7 +108,7 @@ def get_format(format_type, lang=None, use_l10n=None):
     be localized (or not), overriding the value of settings.USE_L10N.
     """
     if not isinstance(format_type, str):
-        format_type = force_str(format_type)
+        format_type = force_str(format_type, strings_only=True)
     if use_l10n is None:
         try:
             use_l10n = settings._USE_L10N_INTERNAL
