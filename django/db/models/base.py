@@ -201,10 +201,14 @@ class ModelBase(type):
             if base != new_class and not base._meta.abstract:
                 continue
             # Locate OneToOneField instances.
-            for field in base._meta.local_fields:
-                if isinstance(field, OneToOneField):
-                    related = resolve_relation(new_class, field.remote_field.model)
-                    parent_links[make_model_tuple(related)] = field
+            fields = [f for f in base._meta.local_fields if isinstance(f, OneToOneField)]
+            for field in sorted(fields, key=lambda f: f.remote_field.parent_link, reverse=True):
+                related_key = make_model_tuple(resolve_relation(new_class, field.remote_field.model))
+                existing = parent_links.get(related_key)
+                if existing is None or (
+                    field.remote_field.parent_link and not existing.remote_field.parent_link
+                ):
+                    parent_links[related_key] = field
 
         # Track fields inherited from base models.
         inherited_attributes = set()
