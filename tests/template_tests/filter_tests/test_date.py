@@ -3,12 +3,21 @@ from datetime import datetime, time
 from django.template.defaultfilters import date
 from django.test import SimpleTestCase
 from django.utils import timezone, translation
+from django.utils.translation import gettext_lazy
 
 from ..utils import setup
 from .timezone_utils import TimezoneTestCase
 
 
 class DateTests(TimezoneTestCase):
+    @setup({"date_lazy_format": "{{ d|date:fmt }}"})
+    def test_lazy_format_string(self):
+        output = self.engine.render_to_string(
+            "date_lazy_format",
+            {"d": datetime(2020, 1, 1), "fmt": gettext_lazy("Y-m-d")},
+        )
+        self.assertEqual(output, "2020-01-01")
+
     @setup({"date01": '{{ d|date:"m" }}'})
     def test_date01(self):
         output = self.engine.render_to_string("date01", {"d": datetime(2008, 1, 1)})
