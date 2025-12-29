@@ -791,6 +791,19 @@ class WriterTests(SimpleTestCase):
         string = MigrationWriter.serialize(models.CharField(default=DeconstructibleInstances))[0]
         self.assertEqual(string, "models.CharField(default=migrations.test_writer.DeconstructibleInstances)")
 
+    def test_foreign_key_deconstruct_preserves_app_label_case(self):
+        field = models.ForeignKey('MixedCaseApp.ModelName', models.CASCADE)
+        _, _, _, kwargs = field.deconstruct()
+        self.assertEqual(kwargs['to'], 'MixedCaseApp.modelname')
+
+        class Target(models.Model):
+            class Meta:
+                app_label = 'MixedCaseApp'
+
+        class_field = models.ForeignKey(Target, models.CASCADE)
+        _, _, _, kwargs = class_field.deconstruct()
+        self.assertEqual(kwargs['to'], Target._meta.label_lower)
+
     def test_register_serializer(self):
         class ComplexSerializer(BaseSerializer):
             def serialize(self):
