@@ -27,6 +27,13 @@ Model Form API reference. For introductory material about model forms, see the
     ``formfield_callback`` is a callable that takes a model field and returns
     a form field.
 
+    .. note::
+
+        If the supplied ``form`` defines ``Meta.formfield_callback`` and you
+        omit the ``formfield_callback`` argument, that callback is used.
+        Pass ``formfield_callback=None`` to suppress the ``Meta`` callback and
+        fall back to Django's default conversion.
+
     ``widgets`` is a dictionary of model field names mapped to a widget.
 
     ``localized_fields`` is a list of names of fields which should be localized.
@@ -61,6 +68,13 @@ Model Form API reference. For introductory material about model forms, see the
     ``help_texts``, ``error_messages``, and ``field_classes`` are all passed
     through to :func:`~django.forms.models.modelform_factory`.
 
+    .. note::
+
+        When the supplied ``form`` defines ``Meta.formfield_callback`` and you
+        omit this argument, that callback is used for every model field. Pass
+        ``formfield_callback=None`` to prevent inheriting the ``Meta`` callback
+        and use Django's default conversion.
+
     Arguments ``formset``, ``extra``, ``can_delete``, ``can_order``,
     ``max_num``, ``validate_max``, ``min_num``, ``validate_min``,
     ``absolute_max``, ``can_delete_extra``, and ``renderer`` are passed
@@ -84,6 +98,13 @@ Model Form API reference. For introductory material about model forms, see the
     Returns an ``InlineFormSet`` using :func:`modelformset_factory` with
     defaults of ``formset=``:class:`~django.forms.models.BaseInlineFormSet`,
     ``can_delete=True``, and ``extra=3``.
+
+    .. note::
+
+        If the inline form's ``Meta`` class defines ``formfield_callback`` and
+        you leave this argument unset, that callback is used. Provide
+        ``formfield_callback=None`` to disable it and fall back to default
+        model field handling.
 
     If your model has more than one :class:`~django.db.models.ForeignKey` to
     the ``parent_model``, you must specify a ``fk_name``.
