@@ -1652,6 +1652,23 @@ class FormattingTests(SimpleTestCase):
     def test_format_arbitrary_settings(self):
         self.assertEqual(get_format("DEBUG"), "DEBUG")
 
+    def test_get_format_lazy_literal(self):
+        reset_format_cache()
+        lazy_format = gettext_lazy("Y-m-d")
+        result = get_format(lazy_format)
+        self.assertEqual(result, "Y-m-d")
+        self.assertIsInstance(result, str)
+
+    def test_get_format_lazy_setting_name(self):
+        reset_format_cache()
+        with translation.override("en", deactivate=True):
+            expected = get_format("DATE_FORMAT")
+        reset_format_cache()
+        with translation.override("en", deactivate=True):
+            lazy_format = gettext_lazy("DATE_FORMAT")
+            result = get_format(lazy_format)
+        self.assertEqual(result, expected)
+
     def test_get_custom_format(self):
         reset_format_cache()
         with self.settings(FORMAT_MODULE_PATH="i18n.other.locale"):
