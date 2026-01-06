@@ -94,3 +94,53 @@ class PostgreSqlDbshellCommandTestCase(SimpleTestCase):
             DatabaseClient.runshell_db({})
         # dbshell restores the original handler.
         self.assertEqual(sigint_handler, signal.getsignal(signal.SIGINT))
+
+    def test_ssl_env_mapping_present(self):
+        """SSL-related OPTIONS map to libpq environment variables for psql."""
+        captured_env = {}
+
+        def _mock_subprocess_run(*args, env=os.environ, **kwargs):
+            captured_env.update(env)
+            return subprocess.CompletedProcess(args, 0)
+
+        dbinfo = {
+            'database': 'dbname',
+            'user': 'someuser',
+            'host': 'somehost',
+            'port': '444',
+            'sslmode': 'verify-full',
+            'sslrootcert': '/tmp/root.crt',
+            'sslcert': '/tmp/client.crt',
+            'sslkey': '/tmp/client.key',
+        }
+        with mock.patch.dict(os.environ, {}, clear=True):
+            with mock.patch('subprocess.run', new=_mock_subprocess_run):
+                DatabaseClient.runshell_db(dbinfo)
+
+        self.assertEqual(captured_env.get('PGSSLMODE'), 'verify-full')
+        self.assertEqual(captured_env.get('PGSSLROOTCERT'), '/tmp/root.crt')
+        self.assertEqual(captured_env.get('PGSSLCERT'), '/tmp/client.crt')
+        self.assertEqual(captured_env.get('PGSSLKEY'), '/tmp/client.key')
+
+    def test_ssl_env_mapping_absent(self):
+        """SSL-related env variables are not set when OPTIONS are absent."""
+        captured_env = {}
+
+        def _mock_subprocess_run(*args, env=os.environ, **kwargs):
+            captured_env.update(env)
+            return subprocess.CompletedProcess(args, 0)
+
+        dbinfo = {
+            'database': 'dbname',
+            'user': 'someuser',
+            'host': 'somehost',
+            'port': '444',
+        }
+        with mock.patch.dict(os.environ, {}, clear=True):
+            with mock.patch('subprocess.run', new=_mock_subprocess_run):
+                DatabaseClient.runshell_db(dbinfo)
+
+        self.assertIsNone(captured_env.get('PGSSLMODE'))
+        self.assertIsNone(captured_env.get('PGSSLROOTCERT'))
+        self.assertIsNone(captured_env.get('PGSSLCERT'))
+        self.assertIsNone(captured_env.get('PGSSLKEY'))

@@ -30,6 +30,18 @@ class DatabaseClient(BaseDatabaseClient):
         subprocess_env = os.environ.copy()
         if passwd:
             subprocess_env['PGPASSWORD'] = str(passwd)
+        # Map SSL-related connection parameters to libpq environment variables
+        # so that psql/libpq can establish mutual TLS when configured.
+        ssl_mapping = {
+            'sslmode': 'PGSSLMODE',
+            'sslrootcert': 'PGSSLROOTCERT',
+            'sslcert': 'PGSSLCERT',
+            'sslkey': 'PGSSLKEY',
+        }
+        for opt_key, env_key in ssl_mapping.items():
+            opt_val = conn_params.get(opt_key)
+            if opt_val:
+                subprocess_env[env_key] = str(opt_val)
         try:
             # Allow SIGINT to pass to psql to abort queries.
             signal.signal(signal.SIGINT, signal.SIG_IGN)
