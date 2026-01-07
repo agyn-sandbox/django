@@ -1,6 +1,6 @@
 import datetime
 
-from django.test import TestCase
+from django.test import TestCase, override_settings
 from django.test.utils import requires_tz_support
 from django.utils import timezone, translation
 from django.utils.timesince import timesince, timeuntil
@@ -121,20 +121,51 @@ class TimesinceTests(TestCase):
                     )
 
     @requires_tz_support
+    @override_settings(USE_TZ=True)
     def test_different_timezones(self):
         """When using two different timezones."""
-        now = datetime.datetime.now()
-        now_tz = timezone.make_aware(now, timezone.get_default_timezone())
-        now_tz_i = timezone.localtime(now_tz, timezone.get_fixed_timezone(195))
+        aware_utc_now = timezone.now()
+        default_tz = timezone.get_default_timezone()
+        aware_default = timezone.localtime(aware_utc_now, default_tz)
+        now = aware_default.replace(tzinfo=None)
+        now_tz = aware_default
+        now_tz_i = timezone.localtime(aware_utc_now, timezone.get_fixed_timezone(195))
 
-        self.assertEqual(timesince(now), "0\xa0minutes")
-        self.assertEqual(timesince(now_tz), "0\xa0minutes")
-        self.assertEqual(timesince(now_tz_i), "0\xa0minutes")
+        self.assertEqual(timesince(now, now), "0\xa0minutes")
+        self.assertEqual(timesince(now_tz, now_tz), "0\xa0minutes")
+        self.assertEqual(timesince(now_tz_i, now_tz_i), "0\xa0minutes")
         self.assertEqual(timesince(now_tz, now_tz_i), "0\xa0minutes")
-        self.assertEqual(timeuntil(now), "0\xa0minutes")
-        self.assertEqual(timeuntil(now_tz), "0\xa0minutes")
-        self.assertEqual(timeuntil(now_tz_i), "0\xa0minutes")
+        self.assertEqual(timeuntil(now, now), "0\xa0minutes")
+        self.assertEqual(timeuntil(now_tz, now_tz), "0\xa0minutes")
+        self.assertEqual(timeuntil(now_tz_i, now_tz_i), "0\xa0minutes")
         self.assertEqual(timeuntil(now_tz, now_tz_i), "0\xa0minutes")
+
+    @requires_tz_support
+    @override_settings(USE_TZ=True)
+    def test_month_boundary_with_use_tz(self):
+        aware_now = datetime.datetime(2024, 7, 1, 12, 0, tzinfo=datetime.timezone.utc)
+        self.assertEqual(
+            timesince(aware_now - datetime.timedelta(days=31), aware_now),
+            "1\xa0month",
+        )
+
+    @override_settings(USE_TZ=False)
+    def test_month_boundary_without_use_tz(self):
+        now = datetime.datetime(2024, 7, 1, 12, 0)
+        self.assertEqual(
+            timesince(now - datetime.timedelta(days=31), now),
+            "1\xa0month",
+        )
+
+    @requires_tz_support
+    @override_settings(USE_TZ=True)
+    def test_month_boundary_with_different_timezones(self):
+        other_tz = timezone.get_fixed_timezone(120)
+        aware_other = datetime.datetime(2024, 7, 1, 9, 0, tzinfo=other_tz)
+        aware_utc = aware_other.astimezone(datetime.timezone.utc)
+        past_other = aware_other - datetime.timedelta(days=31)
+
+        self.assertEqual(timesince(past_other, aware_utc), "1\xa0month")
 
     def test_date_objects(self):
         """Both timesince and timeuntil should work on date objects (#17937)."""
