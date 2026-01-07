@@ -220,6 +220,22 @@ class AggregateTestCase(TestCase):
             lambda r: (r.id, r.isbn, r.page_sum, r.contact.name, r.name)
         )
 
+    def test_annotate_aggregate_default_non_empty_queryset(self):
+        annotated = Book.objects.annotate(author_count=Count('authors'))
+        result = annotated.aggregate(total_authors=Sum('author_count', default=0))
+        expected_total = sum(annotated.values_list('author_count', flat=True))
+        self.assertEqual(result['total_authors'], expected_total)
+
+    def test_annotate_aggregate_default_empty_queryset(self):
+        annotated = Book.objects.annotate(author_count=Count('authors')).filter(pk__lt=0)
+        result = annotated.aggregate(total_authors=Sum('author_count', default=0))
+        self.assertEqual(result['total_authors'], 0)
+
+    def test_annotate_aggregate_without_default_empty_queryset(self):
+        annotated = Book.objects.annotate(author_count=Count('authors')).filter(pk__lt=0)
+        result = annotated.aggregate(total_authors=Sum('author_count'))
+        self.assertIsNone(result['total_authors'])
+
     def test_annotate_m2m(self):
         books = Book.objects.filter(rating__lt=4.5).annotate(Avg("authors__age")).order_by("name")
         self.assertQuerysetEqual(
