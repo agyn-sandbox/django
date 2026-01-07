@@ -545,11 +545,178 @@ class Query(BaseExpression):
 
         return dict(zip(outer_query.annotation_select, result))
 
+    def _scan_expression_for_annotation_refs(
+        self,
+        expression,
+        alias_by_id,
+        *,
+        skip_alias=None,
+        refs=None,
+        seen=None,
+    ):
+        if refs is None:
+            refs = set()
+        if seen is None:
+            seen = set()
+
+        def scan(node):
+            if node is None:
+                return
+            if isinstance(node, (list, tuple, set)):
+                for child in node:
+                    scan(child)
+                return
+            if isinstance(node, Mapping):
+                for child in node.values():
+                    scan(child)
+                return
+            node_id = id(node)
+            if node_id in seen:
+                return
+            seen.add(node_id)
+            if isinstance(node, Ref):
+                if node.refs in self.annotations:
+                    refs.add(node.refs)
+            alias = alias_by_id.get(node_id)
+            if alias is not None and alias != skip_alias:
+                refs.add(alias)
+            if hasattr(node, "get_source_expressions"):
+                for source in node.get_source_expressions() or []:
+                    scan(source)
+
+        scan(expression)
+        return refs
+
+    def _annotation_dependency_graph(self):
+        alias_by_id = {
+            id(expression): alias for alias, expression in self.annotations.items()
+        }
+        dependencies = {alias: set() for alias in self.annotations}
+        for alias, expression in self.annotations.items():
+            refs = self._scan_expression_for_annotation_refs(
+                expression,
+                alias_by_id,
+                skip_alias=alias,
+            )
+            dependencies[alias] = {
+                ref for ref in refs if ref in self.annotations and ref != alias
+            }
+        return dependencies
+
+    def _collect_annotation_references(self, context):
+        alias_by_id = {
+            id(expression): alias for alias, expression in self.annotations.items()
+        }
+        if not alias_by_id:
+            return set()
+
+        references = set()
+
+        if self.where:
+            where, having, qualify = self.where.split_having_qualify(
+                must_group_by=self.group_by is not None
+            )
+            for node in (where, having, qualify):
+                if node is not None:
+                    self._scan_expression_for_annotation_refs(
+                        node,
+                        alias_by_id,
+                        refs=references,
+                    )
+
+        if isinstance(self.group_by, tuple):
+            for expression in self.group_by:
+                self._scan_expression_for_annotation_refs(
+                    expression,
+                    alias_by_id,
+                    refs=references,
+                )
+
+        for distinct_field in self.distinct_fields:
+            if isinstance(distinct_field, str):
+                if distinct_field in self.annotations:
+                    references.add(distinct_field)
+            else:
+                self._scan_expression_for_annotation_refs(
+                    distinct_field,
+                    alias_by_id,
+                    refs=references,
+                )
+
+        if context == "count":
+            for name in self.values_select:
+                if name in self.annotations:
+                    references.add(name)
+            if self.annotation_select_mask is not None:
+                references.update(
+                    alias
+                    for alias in self.annotation_select_mask
+                    if alias in self.annotations
+                )
+
+        return {ref for ref in references if ref in self.annotations}
+
+    def _annotations_requiring_grouping(self):
+        required = set()
+        for alias, annotation in self.annotations.items():
+            if getattr(annotation, "contains_aggregate", False):
+                continue
+            for col in self._gen_cols([annotation], include_external=True):
+                if getattr(col, "possibly_multivalued", False):
+                    required.add(alias)
+                    break
+        return required
+
+    def prune_unused_annotations(self, context):
+        if context not in {"count", "exists"}:
+            raise ValueError("Unsupported pruning context: %s" % context)
+        if not self.annotations:
+            return
+
+        required = self._collect_annotation_references(context)
+        required.update(self._annotations_requiring_grouping())
+        dependency_graph = self._annotation_dependency_graph()
+
+        to_keep = set()
+        stack = [alias for alias in required if alias in dependency_graph]
+        while stack:
+            alias = stack.pop()
+            if alias in to_keep:
+                continue
+            to_keep.add(alias)
+            for dependency in dependency_graph.get(alias, ()):  # pragma: no branch
+                if dependency not in to_keep:
+                    stack.append(dependency)
+
+        to_keep &= set(self.annotations)
+        if len(to_keep) == len(self.annotations):
+            return
+
+        to_remove = set(self.annotations).difference(to_keep)
+        keep_alias_refs = set()
+        for alias in to_keep:
+            expression = self.annotations[alias]
+            for ref_alias in self._gen_col_aliases([expression]):
+                if ref_alias in self.alias_refcount:
+                    keep_alias_refs.add(ref_alias)
+        for alias in to_remove:
+            expression = self.annotations.pop(alias)
+            for ref_alias in self._gen_col_aliases([expression]):
+                if (
+                    ref_alias in self.alias_refcount
+                    and ref_alias not in keep_alias_refs
+                ):
+                    self.unref_alias(ref_alias)
+        if self.annotation_select_mask is not None:
+            self.annotation_select_mask.difference_update(to_remove)
+        self._annotation_select_cache = None
+
     def get_count(self, using):
         """
         Perform a COUNT() query using the current filter constraints.
         """
         obj = self.clone()
+        obj.prune_unused_annotations("count")
         obj.add_annotation(Count("*"), alias="__count", is_summary=True)
         return obj.get_aggregation(using, ["__count"])["__count"]
 
@@ -573,6 +740,7 @@ class Query(BaseExpression):
                 for combined_query in q.combined_queries
             )
         q.clear_ordering(force=True)
+        q.prune_unused_annotations("exists")
         if limit:
             q.set_limits(high=1)
         q.add_annotation(Value(1), "a")
