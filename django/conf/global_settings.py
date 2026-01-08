@@ -637,6 +637,10 @@ SECURE_HSTS_INCLUDE_SUBDOMAINS = False
 SECURE_HSTS_PRELOAD = False
 SECURE_HSTS_SECONDS = 0
 SECURE_REDIRECT_EXEMPT = []
-SECURE_REFERRER_POLICY = None
+# Default Referrer-Policy for SecurityMiddleware.
+#
+# Version changed: 3.1 — default changed from None to 'same-origin'.
+# Set SECURE_REFERRER_POLICY = None to omit the header entirely.
+SECURE_REFERRER_POLICY = 'same-origin'
 SECURE_SSL_HOST = None
 SECURE_SSL_REDIRECT = False
