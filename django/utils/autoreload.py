@@ -223,10 +223,21 @@ def get_child_arguments():
     # __spec__ is set when the server was started with the `-m` option,
     # see https://docs.python.org/3/reference/import.html#main-spec
     # __spec__ may not exist, e.g. when running in a Conda env.
-    if getattr(__main__, '__spec__', None) is not None and __main__.__spec__.parent:
-        args += ['-m', __main__.__spec__.parent]
-        args += sys.argv[1:]
-    elif not py_script.exists():
+    spec = getattr(__main__, '__spec__', None)
+    module_name = None
+    if spec is not None:
+        if spec.name == '__main__':
+            module_name = spec.parent
+        elif spec.name.endswith('.__main__') and spec.parent:
+            module_name = spec.parent
+        else:
+            module_name = spec.name
+
+        if module_name:
+            args += ['-m', module_name]
+            args += sys.argv[1:]
+            return args
+    if not py_script.exists():
         # sys.argv[0] may not exist for several reasons on Windows.
         # It may exist with a .exe extension or have a -script.py suffix.
         exe_entrypoint = py_script.with_suffix('.exe')
@@ -238,8 +249,7 @@ def get_child_arguments():
             # Should be executed as usual.
             return [*args, script_entrypoint, *sys.argv[1:]]
         raise RuntimeError('Script %s does not exist.' % py_script)
-    else:
-        args += sys.argv
+    args += sys.argv
     return args
 
 

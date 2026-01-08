@@ -1,4 +1,5 @@
 import contextlib
+import importlib.machinery
 import os
 import py_compile
 import shutil
@@ -182,6 +183,57 @@ class TestChildArguments(SimpleTestCase):
             [sys.executable, '-m', 'utils_tests.test_module', 'runserver'],
         )
 
+    @mock.patch('sys.warnoptions', [])
+    def test_preserves_non_package_spec_name(self):
+        module = types.ModuleType('__main__')
+        module.__file__ = 'manage.py'
+        module.__spec__ = importlib.machinery.ModuleSpec('app.module', loader=None)
+        with mock.patch.dict(sys.modules, {'__main__': module}):
+            with mock.patch('sys.argv', ['manage.py', 'runserver']):
+                self.assertEqual(
+                    autoreload.get_child_arguments(),
+                    [sys.executable, '-m', 'app.module', 'runserver'],
+                )
+
+    @mock.patch('sys.warnoptions', [])
+    def test_package_main_uses_parent(self):
+        module = types.ModuleType('__main__')
+        module.__file__ = 'manage.py'
+        module.__spec__ = importlib.machinery.ModuleSpec('pkg.sub.__main__', loader=None)
+        with mock.patch.dict(sys.modules, {'__main__': module}):
+            with mock.patch('sys.argv', ['manage.py', 'runserver']):
+                self.assertEqual(
+                    autoreload.get_child_arguments(),
+                    [sys.executable, '-m', 'pkg.sub', 'runserver'],
+                )
+
+    @mock.patch('sys.warnoptions', [])
+    def test_nested_dotted_module_preserved(self):
+        module = types.ModuleType('__main__')
+        module.__file__ = 'manage.py'
+        module.__spec__ = importlib.machinery.ModuleSpec('a.b.c.d', loader=None)
+        with mock.patch.dict(sys.modules, {'__main__': module}):
+            with mock.patch('sys.argv', ['manage.py', 'runserver']):
+                self.assertEqual(
+                    autoreload.get_child_arguments(),
+                    [sys.executable, '-m', 'a.b.c.d', 'runserver'],
+                )
+
+    @mock.patch('sys.warnoptions', [])
+    def test_bare_main_falls_back_to_script(self):
+        module = types.ModuleType('__main__')
+        with tempfile.TemporaryDirectory() as tmpdir:
+            script_path = Path(tmpdir) / 'manage.py'
+            script_path.touch()
+            module.__file__ = str(script_path)
+            module.__spec__ = importlib.machinery.ModuleSpec('__main__', loader=None)
+            with mock.patch.dict(sys.modules, {'__main__': module}):
+                with mock.patch('sys.argv', [module.__file__, 'runserver']):
+                    self.assertEqual(
+                        autoreload.get_child_arguments(),
+                        [sys.executable, module.__file__, 'runserver'],
+                    )
+
     @mock.patch('sys.argv', [__file__, 'runserver'])
     @mock.patch('sys.warnoptions', ['error'])
     def test_warnoptions(self):
@@ -211,6 +263,21 @@ class TestChildArguments(SimpleTestCase):
                     autoreload.get_child_arguments(),
                     [sys.executable, script_path, 'runserver']
                 )
+
+    @mock.patch('sys.warnoptions', [])
+    def test_spec_without_module_uses_windows_fallback(self):
+        module = types.ModuleType('__main__')
+        module.__file__ = 'manage.py'
+        module.__spec__ = importlib.machinery.ModuleSpec('__main__', loader=None)
+        with tempfile.TemporaryDirectory() as tmpdir:
+            exe_path = Path(tmpdir) / 'django-admin.exe'
+            exe_path.touch()
+            with mock.patch.dict(sys.modules, {'__main__': module}):
+                with mock.patch('sys.argv', [exe_path.with_suffix(''), 'runserver']):
+                    self.assertEqual(
+                        autoreload.get_child_arguments(),
+                        [exe_path, 'runserver']
+                    )
 
     @mock.patch('sys.argv', ['does-not-exist', 'runserver'])
     @mock.patch('sys.warnoptions', [])
