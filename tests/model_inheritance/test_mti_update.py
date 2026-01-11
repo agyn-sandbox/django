@@ -1,5 +1,7 @@
+import re
+
 from django.db import connection, models
-from django.db.models import Q
+from django.db.models import OneToOneField, Q
 from django.test import TransactionTestCase
 from django.test.utils import CaptureQueriesContext, isolate_apps
 
@@ -157,30 +159,101 @@ class MultiParentUpdateTests(TransactionTestCase):
         )
 
     def test_parent_updates_constrain_to_child_ids_in_sql(self):
-        parent_tables = {
-            self.PrimaryParent._meta.db_table,
-            self.SecondaryParent._meta.db_table,
+        parent_links = {}
+        for model in (self.PrimaryParent, self.SecondaryParent):
+            link = self.Child._meta.get_ancestor_link(model)
+            self.assertIsInstance(link, OneToOneField)
+            parent_links[model] = link
+
+        expected_ids_by_table = {
+            model._meta.db_table: {
+                getattr(self.child_one, link.attname),
+                getattr(self.child_two, link.attname),
+            }
+            for model, link in parent_links.items()
         }
+
         with CaptureQueriesContext(connection) as ctx:
-            self.Child.objects.filter(pk__in=[self.child_one.pk, self.child_two.pk]).update(
+            self.Child.objects.filter(
+                pk__in=[self.child_one.pk, self.child_two.pk]
+            ).update(
                 base_val=33,
                 other_val=44,
             )
 
-        update_statements = [
-            q["sql"] for q in ctx if "UPDATE" in q["sql"] and " WHERE " in q["sql"]
-        ]
-        self.assertGreaterEqual(len(update_statements), 2)
-        for statement in update_statements:
-            if not any(table in statement for table in parent_tables):
+        queries = list(ctx.captured_queries)
+
+        placeholder_pattern = re.compile(r"(%\([^)]+\)s|%s|\?|:\d+)")
+
+        def normalized_table_from_sql(sql):
+            match = re.match(
+                r"^\s*UPDATE\s+(?P<table>(?:\"[^\"]+\"|`[^`]+`|\[[^\]]+\]|[\w]+)"
+                r"(?:\.(?:\"[^\"]+\"|`[^`]+`|\[[^\]]+\]|[\w]+))?)\s+SET",
+                sql,
+                flags=re.IGNORECASE,
+            )
+            if not match:
+                return None
+            identifier = match.group("table")
+            parts = [part.strip('"`[]') for part in identifier.split('.')]
+            return parts[-1]
+
+        def extract_in_values(sql, params, expected_count):
+            where_match = re.search(r"\bWHERE\b", sql, flags=re.IGNORECASE)
+            placeholder_count = 0
+            if where_match:
+                set_clause = sql[: where_match.start()]
+                placeholder_count = len(placeholder_pattern.findall(set_clause))
+            extracted = []
+            if params:
+                param_list = list(params)
+                where_params = param_list[placeholder_count:]
+                if where_params:
+                    relevant = where_params[-expected_count:]
+                    for value in relevant:
+                        try:
+                            extracted.append(int(value))
+                        except (TypeError, ValueError):
+                            extracted.append(value)
+            if extracted:
+                return set(extracted)
+            in_match = re.search(
+                r"\bIN\s*\((?P<values>[^)]+)\)",
+                sql,
+                flags=re.IGNORECASE,
+            )
+            if not in_match:
+                return set()
+            tokens = [
+                token.strip()
+                for token in in_match.group("values").split(',')
+                if token.strip()
+            ]
+            parsed = set()
+            for token in tokens:
+                normalized = token.strip('"\'')
+                try:
+                    parsed.add(int(normalized))
+                except ValueError:
+                    if normalized:
+                        parsed.add(normalized)
+            return parsed
+
+        inspected_tables = set()
+        for query in queries:
+            sql = query["sql"]
+            if "UPDATE" not in sql.upper():
                 continue
-            self.assertIn(" WHERE ", statement)
-            self.assertIn(" IN ", statement)
-            self.assertTrue(
-                str(self.child_one.pk) in statement
-                or str(self.child_one_secondary_id) in statement
+            table = normalized_table_from_sql(sql)
+            if table not in expected_ids_by_table:
+                continue
+            expected_ids = expected_ids_by_table[table]
+            actual_ids = extract_in_values(sql, query.get("params"), len(expected_ids))
+            self.assertEqual(
+                actual_ids,
+                expected_ids,
+                f"{table} UPDATE should target {expected_ids}",
             )
-            self.assertTrue(
-                str(self.child_two.pk) in statement
-                or str(self.child_two_secondary_id) in statement
-            )
+            inspected_tables.add(table)
+
+        self.assertEqual(inspected_tables, set(expected_ids_by_table))
