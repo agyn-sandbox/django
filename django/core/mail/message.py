@@ -10,12 +10,13 @@ from email.mime.base import MIMEBase
 from email.mime.message import MIMEMessage
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
-from email.utils import formatdate, getaddresses, make_msgid
+from email.utils import format_datetime, formatdate, getaddresses, make_msgid
 from io import BytesIO, StringIO
 from pathlib import Path
 
 from django.conf import settings
 from django.core.mail.utils import DNS_NAME
+from django.utils import timezone
 from django.utils.encoding import force_str
 
 # Don't BASE64-encode UTF-8 messages so that we avoid unwanted attention from
@@ -160,8 +161,8 @@ class SafeMIMEText(MIMEMixin, MIMEText):
     def set_payload(self, payload, charset=None):
         if charset == 'utf-8' and not isinstance(charset, Charset.Charset):
             has_long_lines = any(
-                len(l.encode()) > RFC5322_EMAIL_LINE_LENGTH_LIMIT
-                for l in payload.splitlines()
+                len(line.encode(errors='surrogateescape')) > RFC5322_EMAIL_LINE_LENGTH_LIMIT
+                for line in payload.splitlines()
             )
             # Quoted-Printable encoding has the side effect of shortening long
             # lines, if any (#22561).
@@ -250,11 +251,15 @@ class EmailMessage:
         # accommodate that when doing comparisons.
         header_names = [key.lower() for key in self.extra_headers]
         if 'date' not in header_names:
-            # formatdate() uses stdlib methods to format the date, which use
-            # the stdlib/OS concept of a timezone, however, Django sets the
-            # TZ environment variable based on the TIME_ZONE setting which
-            # will get picked up by formatdate().
-            msg['Date'] = formatdate(localtime=settings.EMAIL_USE_LOCALTIME)
+            now = timezone.now()
+            if settings.EMAIL_USE_LOCALTIME:
+                if timezone.is_naive(now):
+                    date = now
+                else:
+                    date = timezone.localtime(now)
+                msg['Date'] = format_datetime(date)
+            else:
+                msg['Date'] = formatdate(now.timestamp(), localtime=False)
         if 'message-id' not in header_names:
             # Use cached DNS_NAME for performance
             msg['Message-ID'] = make_msgid(domain=DNS_NAME)
