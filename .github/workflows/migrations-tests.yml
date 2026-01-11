@@ -8,10 +8,7 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: Set up Python
-        container:
+    container:
       image: python:3.6
     steps:
       - uses: actions/checkout@v4
