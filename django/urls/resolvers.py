@@ -76,8 +76,9 @@ def get_resolver(urlconf=None):
     explicitly. The cache key is the supplied ``urlconf`` argument, so module
     paths, imported modules, and iterable URL pattern objects each maintain
     independent resolver instances. Use ``get_resolver.cache_clear()`` (or
-    ``clear_url_caches()``) to reset the cache, and
-    ``get_resolver.cache_info()`` to inspect hit and miss counts.
+    ``clear_url_caches()``) to reset the cache, ``get_resolver.cache_info()``
+    to inspect hit and miss counts, and ``get_resolver.cache_parameters()`` to
+    introspect configuration.
     """
     if urlconf is None:
         urlconf = settings.ROOT_URLCONF
@@ -86,6 +87,8 @@ def get_resolver(urlconf=None):
 
 get_resolver.cache_clear = _get_resolver_cached.cache_clear
 get_resolver.cache_info = _get_resolver_cached.cache_info
+if hasattr(_get_resolver_cached, "cache_parameters"):
+    get_resolver.cache_parameters = _get_resolver_cached.cache_parameters
 
 
 @functools.lru_cache(maxsize=None)

@@ -1381,6 +1381,11 @@ class ResolverCacheTests(TestCase):
         self.assertEqual(info.misses, 0)
         self.assertEqual(info.currsize, 0)
 
+    def test_cache_parameters_exposed(self):
+        if not hasattr(get_resolver, "cache_parameters"):
+            self.skipTest("functools.lru_cache.cache_parameters unavailable")
+        self.assertEqual(get_resolver.cache_parameters(), {'maxsize': None, 'typed': False})
+
     def test_runtime_root_urlconf_change(self):
         default_resolver = get_resolver()
         self.assertEqual(default_resolver.urlconf_name, settings.ROOT_URLCONF)
