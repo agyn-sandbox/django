@@ -9,7 +9,10 @@ all about the internals of models in order to get the information it needs.
 import copy
 import warnings
 from collections import Counter, OrderedDict
-from collections.abc import Iterator, Mapping
+try:
+    from collections.abc import Iterator, Mapping
+except ImportError:  # Python < 3.3
+    from collections import Iterator, Mapping
 from itertools import chain, count, product
 from string import ascii_uppercase
 
