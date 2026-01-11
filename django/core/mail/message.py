@@ -252,7 +252,7 @@ class EmailMessage:
         header_names = [key.lower() for key in self.extra_headers]
         if 'date' not in header_names:
             if settings.EMAIL_USE_LOCALTIME:
-                msg['Date'] = format_datetime(timezone.localtime())
+                msg['Date'] = format_datetime(timezone.localtime(timezone.now())) if settings.USE_TZ else formatdate(localtime=True)
             else:
                 msg['Date'] = formatdate(localtime=False)
         if 'message-id' not in header_names:
