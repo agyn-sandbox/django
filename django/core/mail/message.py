@@ -251,15 +251,10 @@ class EmailMessage:
         # accommodate that when doing comparisons.
         header_names = [key.lower() for key in self.extra_headers]
         if 'date' not in header_names:
-            now = timezone.now()
             if settings.EMAIL_USE_LOCALTIME:
-                if timezone.is_naive(now):
-                    date = now
-                else:
-                    date = timezone.localtime(now)
-                msg['Date'] = format_datetime(date)
+                msg['Date'] = format_datetime(timezone.localtime())
             else:
-                msg['Date'] = formatdate(now.timestamp(), localtime=False)
+                msg['Date'] = formatdate(localtime=False)
         if 'message-id' not in header_names:
             # Use cached DNS_NAME for performance
             msg['Message-ID'] = make_msgid(domain=DNS_NAME)

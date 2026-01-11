@@ -12,14 +12,15 @@ class CachedDnsName:
         return self.get_fqdn()
 
     def get_fqdn(self):
-        if not hasattr(self, '_fqdn'):
+        fqdn = getattr(self, '_fqdn', None)
+        if fqdn is None:
             fqdn = socket.getfqdn()
             try:
                 fqdn.encode('ascii')
             except UnicodeEncodeError:
                 fqdn = fqdn.encode('idna').decode('ascii')
             self._fqdn = fqdn
-        return self._fqdn
+        return fqdn
 
 
 DNS_NAME = CachedDnsName()
