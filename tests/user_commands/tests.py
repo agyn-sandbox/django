@@ -234,7 +234,7 @@ class CommandTests(SimpleTestCase):
         self.assertIn('bar', out.getvalue())
 
     def test_subparser_invalid_option(self):
-        msg = 'Error executing a_42_command_that_doesnt_exist_42'
+        msg = "Error: argument {foo}: invalid choice: 'test' (choose from 'foo')"
         with self.assertRaisesMessage(CommandError, msg):
             management.call_command('subparser', 'test', 12)
 
