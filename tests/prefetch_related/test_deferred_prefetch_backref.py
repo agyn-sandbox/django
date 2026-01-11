@@ -8,7 +8,7 @@ from django.test.utils import CaptureQueriesContext, isolate_apps
 
 
 class RegressConfig(AppConfig):
-    name = 'tests.prefetch_related.test_deferred_prefetch_backref'
+    name = 'prefetch_related.test_deferred_prefetch_backref'
     label = 'regress'
     path = str(Path(__file__).resolve().parent)
 
@@ -32,7 +32,7 @@ class DeferredNestedPrefetchTests(TransactionTestCase):
                 for model in models:
                     editor.delete_model(model)
 
-    @isolate_apps('tests.prefetch_related.test_deferred_prefetch_backref.RegressConfig')
+    @isolate_apps('prefetch_related.test_deferred_prefetch_backref.RegressConfig')
     def test_onetoone_nested_prefetch_backref_deferred(self):
         class SimpleUser(models.Model):
             email = models.CharField(max_length=255)
@@ -73,7 +73,7 @@ class DeferredNestedPrefetchTests(TransactionTestCase):
             _ = inner_user.email
         self.assertNotIn('kind', inner_user.get_deferred_fields())
 
-    @isolate_apps('tests.prefetch_related.test_deferred_prefetch_backref.RegressConfig')
+    @isolate_apps('prefetch_related.test_deferred_prefetch_backref.RegressConfig')
     def test_foreignkey_nested_prefetch_backref_deferred(self):
         class SimpleUser(models.Model):
             email = models.CharField(max_length=255)
