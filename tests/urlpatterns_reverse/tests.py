@@ -1352,3 +1352,67 @@ class ResolverCacheTests(TestCase):
         self.assertIs(default_resolver, default_again)
         self.assertIs(namespaced_resolver, namespaced_again)
         self.assertIsNot(default_resolver, namespaced_resolver)
+
+    def test_none_argument_reuses_default(self):
+        default_resolver = get_resolver()
+        none_resolver = get_resolver(None)
+        root_resolver = get_resolver(settings.ROOT_URLCONF)
+        self.assertIs(default_resolver, none_resolver)
+        self.assertIs(default_resolver, root_resolver)
+
+    def test_cache_info_counters(self):
+        info = get_resolver.cache_info()
+        self.assertEqual(info.hits, 0)
+        self.assertEqual(info.misses, 0)
+        self.assertEqual(info.currsize, 0)
+        get_resolver()
+        info = get_resolver.cache_info()
+        self.assertEqual(info.hits, 0)
+        self.assertEqual(info.misses, 1)
+        self.assertEqual(info.currsize, 1)
+        get_resolver()
+        info = get_resolver.cache_info()
+        self.assertEqual(info.hits, 1)
+        self.assertEqual(info.misses, 1)
+        self.assertEqual(info.currsize, 1)
+        get_resolver.cache_clear()
+        info = get_resolver.cache_info()
+        self.assertEqual(info.hits, 0)
+        self.assertEqual(info.misses, 0)
+        self.assertEqual(info.currsize, 0)
+
+    def test_runtime_root_urlconf_change(self):
+        default_resolver = get_resolver()
+        self.assertEqual(default_resolver.urlconf_name, settings.ROOT_URLCONF)
+        with override_settings(ROOT_URLCONF='urlpatterns_reverse.namespace_urls'):
+            clear_url_caches()
+            override_resolver = get_resolver()
+            self.assertEqual(override_resolver.urlconf_name, 'urlpatterns_reverse.namespace_urls')
+            self.assertIsNot(override_resolver, default_resolver)
+        clear_url_caches()
+        reverted_resolver = get_resolver()
+        self.assertEqual(reverted_resolver.urlconf_name, settings.ROOT_URLCONF)
+
+    def test_thread_overrides_are_isolated(self):
+        default_resolver = get_resolver()
+        results = {}
+
+        def worker(label, urlconf):
+            set_urlconf(urlconf)
+            try:
+                results[label] = get_resolver(get_urlconf())
+            finally:
+                set_urlconf(None)
+
+        first = threading.Thread(target=worker, args=('first', 'urlpatterns_reverse.namespace_urls'))
+        second = threading.Thread(target=worker, args=('second', 'urlpatterns_reverse.included_urls'))
+        first.start()
+        second.start()
+        first.join()
+        second.join()
+        self.assertIs(get_resolver(), default_resolver)
+        self.assertEqual(results['first'].urlconf_name, 'urlpatterns_reverse.namespace_urls')
+        self.assertEqual(results['second'].urlconf_name, 'urlpatterns_reverse.included_urls')
+        self.assertIsNot(results['first'], results['second'])
+        self.assertIsNot(results['first'], default_resolver)
+        self.assertIsNot(results['second'], default_resolver)
