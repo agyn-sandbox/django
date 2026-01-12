@@ -108,3 +108,20 @@ class SiteActionsTests(SimpleTestCase):
         self.assertEqual(self.site.get_action(action_name), delete_selected)
         self.site.disable_action(action_name)
         self.assertEqual(self.site.get_action(action_name), delete_selected)
+
+
+@override_settings(ROOT_URLCONF="admin_views.test_adminsite", APPEND_SLASH=True)
+class SiteAppendSlashRedirectTests(TestCase):
+    @classmethod
+    def setUpTestData(cls):
+        cls.superuser = User.objects.create_superuser(
+            username="admin", email="admin@example.com", password="password"
+        )
+
+    def setUp(self):
+        self.client.force_login(self.superuser)
+
+    def test_catch_all_preserves_querystring_on_slash_redirect(self):
+        resp = self.client.get("/test_admin/admin/auth?id=123", follow=False)
+        self.assertEqual(resp.status_code, 301)
+        self.assertEqual(resp["Location"], "/test_admin/admin/auth/?id=123")
