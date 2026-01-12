@@ -17,16 +17,20 @@ def get_template_directories():
         if not isinstance(backend, DjangoTemplates):
             continue
 
-        items.update(cwd / to_path(dir) for dir in backend.engine.dirs)
+        for directory in backend.engine.dirs:
+            if isinstance(directory, str) and directory.strip() == "":
+                continue
+            items.add(cwd / to_path(directory))
 
         for loader in backend.engine.template_loaders:
             if not hasattr(loader, "get_dirs"):
                 continue
-            items.update(
-                cwd / to_path(directory)
-                for directory in loader.get_dirs()
-                if not is_django_path(directory)
-            )
+            for directory in loader.get_dirs():
+                if isinstance(directory, str) and directory.strip() == "":
+                    continue
+                if is_django_path(directory):
+                    continue
+                items.add(cwd / to_path(directory))
     return items
 
 
