@@ -95,13 +95,22 @@ END;
     _tzname_re = re.compile(r'^[\w/:+-]+$')
 
     def _convert_field_to_tz(self, field_name, tzname):
-        if not settings.USE_TZ:
+        if not settings.USE_TZ or tzname is None:
             return field_name
-        if not self._tzname_re.match(tzname):
-            raise ValueError("Invalid time zone name: %s" % tzname)
-        # Convert from UTC to local time, returning TIMESTAMP WITH TIME ZONE
-        # and cast it back to TIMESTAMP to strip the TIME ZONE details.
-        return "CAST((FROM_TZ(%s, '0:00') AT TIME ZONE '%s') AS TIMESTAMP)" % (field_name, tzname)
+        source_tzname = self.connection.timezone_name
+        if source_tzname == tzname:
+            return field_name
+        for name in (source_tzname, tzname):
+            if not self._tzname_re.match(name):
+                raise ValueError("Invalid time zone name: %s" % name)
+        # Convert from the connection timezone to the requested timezone,
+        # returning TIMESTAMP WITH TIME ZONE and casting it back to TIMESTAMP
+        # to strip the TIME ZONE details.
+        return "CAST((FROM_TZ(%s, '%s') AT TIME ZONE '%s') AS TIMESTAMP)" % (
+            field_name,
+            source_tzname,
+            tzname,
+        )
 
     def datetime_cast_date_sql(self, field_name, tzname):
         field_name = self._convert_field_to_tz(field_name, tzname)
