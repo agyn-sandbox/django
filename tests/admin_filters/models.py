@@ -77,3 +77,21 @@ class Bookmark(models.Model):
 
     def __str__(self):
         return self.url
+
+
+class OrderedCategory(models.Model):
+    name = models.CharField(max_length=50)
+
+    class Meta:
+        ordering = ['name']
+
+    def __str__(self):
+        return self.name
+
+
+class Item(models.Model):
+    name = models.CharField(max_length=50)
+    category = models.ForeignKey(OrderedCategory, models.CASCADE)
+
+    def __str__(self):
+        return self.name
