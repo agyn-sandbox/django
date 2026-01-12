@@ -247,21 +247,38 @@ class FileResponseTests(SimpleTestCase):
 
     def test_compressed_response(self):
         """
-        If compressed responses are served with the uncompressed Content-Type
-        and a compression Content-Encoding, browsers might automatically
-        uncompress the file, which is most probably not wanted.
+        FileResponse infers the underlying Content-Type and sets
+        Content-Encoding for known compressed suffixes.
         """
         test_tuples = (
-            (".tar.gz", "application/gzip"),
-            (".tar.bz2", "application/x-bzip"),
-            (".tar.xz", "application/x-xz"),
+            (".tar.gz", "application/x-tar", "gzip"),
+            (".tar.bz2", "application/x-tar", "bzip2"),
+            (".tar.xz", "application/x-tar", "xz"),
         )
-        for extension, mimetype in test_tuples:
+        for extension, mimetype, encoding in test_tuples:
             with self.subTest(ext=extension):
                 with tempfile.NamedTemporaryFile(suffix=extension) as tmp:
                     response = FileResponse(tmp)
                 self.assertEqual(response.headers["Content-Type"], mimetype)
-                self.assertFalse(response.has_header("Content-Encoding"))
+                self.assertEqual(response.headers["Content-Encoding"], encoding)
+
+    def test_content_encoding_Z_suffix(self):
+        with tempfile.NamedTemporaryFile(suffix=".html.Z") as tmp:
+            response = FileResponse(tmp)
+        self.assertEqual(response.headers["Content-Type"], "text/html")
+        self.assertEqual(response.headers["Content-Encoding"], "compress")
+
+    def test_content_encoding_br_suffix(self):
+        with tempfile.NamedTemporaryFile(suffix=".html.br") as tmp:
+            response = FileResponse(tmp)
+        self.assertEqual(response.headers["Content-Type"], "text/html")
+        self.assertEqual(response.headers["Content-Encoding"], "br")
+
+    def test_explicit_content_type_disables_encoding_inference(self):
+        with tempfile.NamedTemporaryFile(suffix=".tar.gz") as tmp:
+            response = FileResponse(tmp, content_type="application/gzip")
+        self.assertEqual(response.headers["Content-Type"], "application/gzip")
+        self.assertFalse(response.has_header("Content-Encoding"))
 
     def test_unicode_attachment(self):
         response = FileResponse(
