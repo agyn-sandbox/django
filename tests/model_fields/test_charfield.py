@@ -4,7 +4,7 @@ from django.core.exceptions import ValidationError
 from django.db import connection, models
 from django.test import SimpleTestCase, TestCase
 
-from .models import Post
+from .models import CharSubclassChoicesModel, Post
 
 
 class TestCharField(TestCase):
@@ -42,6 +42,64 @@ class TestCharField(TestCase):
         p2 = Post.objects.get(title='Carnival!')
         self.assertEqual(p1, p2)
         self.assertEqual(p2.title, Event.C)
+
+    def test_assignment_type_from_textchoices(self):
+        class Event(models.TextChoices):
+            C = 'Carnival!'
+            F = 'Festival!'
+
+        post = Post(body='Festival!')
+        post.title = Event.C
+        self.assertIs(type(post.title), str)
+        self.assertEqual(post.title, 'Carnival!')
+        post.save()
+        post.refresh_from_db()
+        self.assertIs(type(post.title), str)
+        self.assertEqual(post.title, 'Carnival!')
+
+    def test_assignment_from_textchoices_on_field_subclasses(self):
+        class SampleChoices(models.TextChoices):
+            SLUG = 'release-candidate'
+            EMAIL = 'contact@example.com'
+            URL = 'https://example.com/docs'
+            CI = 'CaseInsensitive'
+
+        entry = CharSubclassChoicesModel()
+        entry.slug = SampleChoices.SLUG
+        self.assertIs(type(entry.slug), str)
+        self.assertEqual(entry.slug, 'release-candidate')
+        self.assertEqual(entry.slug, SampleChoices.SLUG)
+        entry.email = SampleChoices.EMAIL
+        self.assertIs(type(entry.email), str)
+        self.assertEqual(entry.email, 'contact@example.com')
+        self.assertEqual(entry.email, SampleChoices.EMAIL)
+        entry.url = SampleChoices.URL
+        self.assertIs(type(entry.url), str)
+        self.assertEqual(entry.url, 'https://example.com/docs')
+        self.assertEqual(entry.url, SampleChoices.URL)
+        entry.ci_label = SampleChoices.CI
+        self.assertIs(type(entry.ci_label), str)
+        self.assertEqual(entry.ci_label, 'CaseInsensitive')
+        self.assertEqual(entry.ci_label, SampleChoices.CI)
+        entry.save()
+        entry.refresh_from_db()
+        self.assertIs(type(entry.slug), str)
+        self.assertEqual(entry.slug, SampleChoices.SLUG)
+        self.assertIs(type(entry.email), str)
+        self.assertEqual(entry.email, SampleChoices.EMAIL)
+        self.assertIs(type(entry.url), str)
+        self.assertEqual(entry.url, SampleChoices.URL)
+        self.assertIs(type(entry.ci_label), str)
+        self.assertEqual(entry.ci_label, SampleChoices.CI)
+
+    def test_assignment_type_from_str(self):
+        post = Post(title='Carnival!', body='Festival!')
+        self.assertIs(type(post.title), str)
+        self.assertEqual(post.title, 'Carnival!')
+        post.save()
+        post.refresh_from_db()
+        self.assertIs(type(post.title), str)
+        self.assertEqual(post.title, 'Carnival!')
 
 
 class ValidationTests(SimpleTestCase):

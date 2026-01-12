@@ -10,7 +10,10 @@ from docutils.parsers.rst import Directive
 from docutils.statemachine import ViewList
 from sphinx import addnodes
 from sphinx.builders.html import StandaloneHTMLBuilder
-from sphinx.directives import CodeBlock
+try:
+    from sphinx.directives.code import CodeBlock
+except ImportError:  # Sphinx < 2.0
+    from sphinx.directives import CodeBlock
 from sphinx.domains.std import Cmdoption
 from sphinx.errors import ExtensionError
 from sphinx.util import logging

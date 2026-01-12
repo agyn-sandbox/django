@@ -6,12 +6,31 @@ large and/or so that they can be used by other modules without getting into
 circular import difficulties.
 """
 import copy
+import enum
 import functools
 import inspect
 from collections import namedtuple
 
 from django.db.models.constants import LOOKUP_SEP
 from django.utils import tree
+
+_STRING_LIKE_FIELD_TYPES = {"CharField", "TextField"}
+_INTEGER_LIKE_FIELD_TYPES = {
+    "IntegerField",
+    "SmallIntegerField",
+    "BigIntegerField",
+    "PositiveIntegerField",
+    "PositiveSmallIntegerField",
+    "PositiveBigIntegerField",
+    "AutoField",
+    "BigAutoField",
+    "SmallAutoField",
+}
+
+
+def _field_type_matches(field, candidates):
+    return any(base.__name__ in candidates for base in type(field).__mro__)
+
 
 # PathInfo is used when converting lookups (fk__somecol). The contents
 # describe the relation in Model terms (model Options and Fields for both
@@ -137,6 +156,18 @@ class DeferredAttribute:
                 val = getattr(instance, field_name)
             data[field_name] = val
         return data[field_name]
+
+    def __set__(self, instance, value):
+        if isinstance(value, enum.Enum):
+            if isinstance(value, str) and _field_type_matches(
+                self.field, _STRING_LIKE_FIELD_TYPES
+            ):
+                value = value.value
+            elif isinstance(value, int) and _field_type_matches(
+                self.field, _INTEGER_LIKE_FIELD_TYPES
+            ):
+                value = value.value
+        instance.__dict__[self.field.attname] = value
 
     def _check_parent_chain(self, instance):
         """
