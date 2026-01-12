@@ -158,7 +158,11 @@ class Field(RegisterLookupMixin):
         self.unique_for_date = unique_for_date
         self.unique_for_month = unique_for_month
         self.unique_for_year = unique_for_year
-        if isinstance(choices, collections.Iterator):
+        try:
+            _Iterator = collections.abc.Iterator
+        except AttributeError:
+            _Iterator = collections.Iterator
+        if isinstance(choices, _Iterator):
             choices = list(choices)
         self.choices = choices or []
         self.help_text = help_text

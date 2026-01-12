@@ -96,17 +96,23 @@ class Command(BaseCommand):
         loader = MigrationLoader(None, ignore_no_migrations=True)
 
         # Raise an error if any migrations are applied before their dependencies.
-        consistency_check_labels = set(config.label for config in apps.get_app_configs())
+        consistency_check_app_configs = list(apps.get_app_configs())
         # Non-default databases are only checked if database routers used.
         aliases_to_check = connections if settings.DATABASE_ROUTERS else [DEFAULT_DB_ALIAS]
         for alias in sorted(aliases_to_check):
             connection = connections[alias]
-            if (connection.settings_dict['ENGINE'] != 'django.db.backends.dummy' and any(
-                    # At least one model must be migrated to the database.
-                    router.allow_migrate(connection.alias, app_label, model_name=model._meta.object_name)
-                    for app_label in consistency_check_labels
-                    for model in apps.get_models(app_label)
-            )):
+            if connection.settings_dict['ENGINE'] == 'django.db.backends.dummy':
+                continue
+            # At least one model must be migrated to the database.
+            has_migratable_models = any(
+                router.get_migratable_models(
+                    app_config,
+                    connection.alias,
+                    include_auto_created=False,
+                )
+                for app_config in consistency_check_app_configs
+            )
+            if has_migratable_models:
                 loader.check_consistent_history(connection)
 
         # Before anything else, see if there's conflicting apps and drop out
