@@ -126,3 +126,58 @@ class Base(models.Model):
 
 class RelToBase(models.Model):
     base = models.ForeignKey(Base, models.DO_NOTHING)
+
+
+class ExplodingTextField(models.TextField):
+    def from_db_value(self, value, expression, connection):
+        raise RuntimeError('ExplodingTextField evaluated')
+
+
+class DeleteCollectorTag(models.Model):
+    name = models.CharField(max_length=16)
+
+
+class DeleteCollectorRoot(models.Model):
+    code = models.CharField(max_length=32, unique=True)
+    payload = ExplodingTextField()
+    tags = models.ManyToManyField(
+        DeleteCollectorTag,
+        through='DeleteCollectorRootTag',
+        related_name='collector_roots',
+    )
+
+
+class DeleteCollectorRootTag(models.Model):
+    root = models.ForeignKey(DeleteCollectorRoot, models.CASCADE)
+    tag = models.ForeignKey(DeleteCollectorTag, models.CASCADE)
+
+
+class DeleteCollectorCascadeChild(models.Model):
+    root = models.ForeignKey(DeleteCollectorRoot, models.CASCADE, related_name='cascade_children')
+
+
+class DeleteCollectorSetNullChild(models.Model):
+    root = models.ForeignKey(DeleteCollectorRoot, models.SET_NULL, null=True, related_name='setnull_children')
+
+
+class DeleteCollectorProtectedChild(models.Model):
+    root = models.ForeignKey(DeleteCollectorRoot, models.PROTECT, related_name='protect_children')
+
+
+class DeleteCollectorCodeTarget(models.Model):
+    code = models.CharField(max_length=32, unique=True)
+    payload = ExplodingTextField()
+
+
+class DeleteCollectorCodeChild(models.Model):
+    target = models.ForeignKey(
+        DeleteCollectorCodeTarget,
+        models.CASCADE,
+        to_field='code',
+        db_column='target_code',
+        related_name='code_children',
+    )
+
+
+class DeleteCollectorFast(models.Model):
+    payload = ExplodingTextField()

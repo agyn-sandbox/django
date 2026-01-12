@@ -76,6 +76,72 @@ class Collector:
         # database tables; proxy models are represented here by their concrete
         # parent.
         self.dependencies = {}  # {model: {models}}
+        self._required_fields_cache = {}
+
+    def _required_fields_for_model(self, model):
+        fields = self._required_fields_cache.get(model)
+        if fields is not None:
+            return fields
+
+        opts = model._meta
+        required = {opts.pk.name}
+        for parent_link in opts.parents.values():
+            if parent_link:
+                required.add(parent_link.name)
+        for related in get_candidate_relations_to_delete(opts):
+            for target_field in related.field.foreign_related_fields:
+                required.add(target_field.name)
+        fields = tuple(sorted(required))
+        self._required_fields_cache[model] = fields
+        return fields
+
+    def _optimization_allowed_for_model(self, model):
+        if (signals.pre_delete.has_listeners(model) or
+                signals.post_delete.has_listeners(model) or
+                signals.m2m_changed.has_listeners(model)):
+            return False
+        for m2m in model._meta.many_to_many:
+            through = m2m.remote_field.through
+            if signals.m2m_changed.has_listeners(through):
+                return False
+        return True
+
+    def _optimize_queryset(self, objs):
+        if not hasattr(objs, 'query') or not hasattr(objs, 'model'):
+            return objs
+
+        model = objs.model
+        if not self._optimization_allowed_for_model(model):
+            return objs
+
+        required_fields = self._required_fields_for_model(model)
+        if not required_fields:
+            return objs
+
+        query = objs.query
+        existing, defer = query.deferred_loading
+        required = set(required_fields)
+
+        if defer:
+            if not existing:
+                return objs.only(*required_fields)
+            missing = required.intersection(existing)
+            if not missing:
+                return objs
+            clone = objs._chain()
+            clone.query.deferred_loading = (frozenset(existing.difference(missing)), True)
+            return clone
+
+        # Immediate loading is in use. Ensure required fields are present.
+        if not existing:
+            query.add_immediate_loading(required_fields)
+            return objs
+
+        if required.difference(existing):
+            clone = objs._chain()
+            clone.query.deferred_loading = (frozenset(set(existing).union(required)), False)
+            return clone
+        return objs
 
     def add(self, objs, source=None, nullable=False, reverse_dependency=False):
         """
@@ -188,6 +254,7 @@ class Collector:
         if self.can_fast_delete(objs):
             self.fast_deletes.append(objs)
             return
+        objs = self._optimize_queryset(objs)
         new_objs = self.add(objs, source, nullable,
                             reverse_dependency=reverse_dependency)
         if not new_objs:
@@ -220,8 +287,10 @@ class Collector:
                     sub_objs = self.related_objects(related, batch)
                     if self.can_fast_delete(sub_objs, from_field=field):
                         self.fast_deletes.append(sub_objs)
-                    elif sub_objs:
-                        field.remote_field.on_delete(self, field, sub_objs, self.using)
+                    else:
+                        sub_objs = self._optimize_queryset(sub_objs)
+                        if sub_objs:
+                            field.remote_field.on_delete(self, field, sub_objs, self.using)
             for field in model._meta.private_fields:
                 if hasattr(field, 'bulk_related_objects'):
                     # It's something like generic foreign key.

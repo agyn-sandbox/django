@@ -1,13 +1,16 @@
 from math import ceil
 
 from django.db import IntegrityError, connection, models
-from django.db.models.deletion import Collector
+from django.db.models.deletion import Collector, ProtectedError
 from django.db.models.sql.constants import GET_ITERATOR_CHUNK_SIZE
 from django.test import TestCase, skipIfDBFeature, skipUnlessDBFeature
 
 from .models import (
     MR, A, Avatar, Base, Child, HiddenUser, HiddenUserProfile, M, M2MFrom,
     M2MTo, MRNull, Parent, R, RChild, S, T, User, create_a, get_default_r,
+    DeleteCollectorCascadeChild, DeleteCollectorCodeChild, DeleteCollectorCodeTarget,
+    DeleteCollectorFast, DeleteCollectorProtectedChild, DeleteCollectorRoot,
+    DeleteCollectorSetNullChild, DeleteCollectorTag,
 )
 
 
@@ -531,3 +534,67 @@ class FastDeleteTests(TestCase):
                 User.objects.filter(avatar__desc='missing').delete(),
                 (0, {'delete.User': 0})
             )
+
+
+class CollectorOptimizationTests(TestCase):
+
+    def test_queryset_delete_skips_unrelated_fields_without_signals(self):
+        root = DeleteCollectorRoot.objects.create(code='root-no-signal', payload='payload')
+        DeleteCollectorCascadeChild.objects.create(root=root)
+        DeleteCollectorRoot.objects.filter(pk=root.pk).delete()
+        self.assertFalse(DeleteCollectorRoot.objects.filter(pk=root.pk).exists())
+        self.assertFalse(DeleteCollectorCascadeChild.objects.filter(root=root).exists())
+
+    def test_queryset_delete_handles_to_field_target(self):
+        target = DeleteCollectorCodeTarget.objects.create(code='code-target', payload='payload')
+        DeleteCollectorCodeChild.objects.create(target=target)
+        DeleteCollectorCodeTarget.objects.filter(pk=target.pk).delete()
+        self.assertFalse(DeleteCollectorCodeTarget.objects.filter(pk=target.pk).exists())
+        self.assertFalse(DeleteCollectorCodeChild.objects.exists())
+
+    def test_queryset_delete_with_signals_fetches_all_fields(self):
+        root = DeleteCollectorRoot.objects.create(code='root-with-signal', payload='payload')
+        DeleteCollectorCascadeChild.objects.create(root=root)
+
+        def receiver(sender, instance, using, **kwargs):
+            pass
+
+        models.signals.pre_delete.connect(receiver, sender=DeleteCollectorRoot)
+        try:
+            with self.assertRaises(RuntimeError):
+                DeleteCollectorRoot.objects.filter(pk=root.pk).delete()
+        finally:
+            models.signals.pre_delete.disconnect(receiver, sender=DeleteCollectorRoot)
+
+    def test_fast_delete_skips_selects(self):
+        DeleteCollectorFast.objects.create(payload='payload')
+        self.assertNumQueries(1, DeleteCollectorFast.objects.all().delete)
+        self.assertFalse(DeleteCollectorFast.objects.exists())
+
+    def test_set_null_and_protect_behaviors_with_restricted_selection(self):
+        protected_root = DeleteCollectorRoot.objects.create(code='root-protect', payload='payload')
+        DeleteCollectorProtectedChild.objects.create(root=protected_root)
+        with self.assertRaises(ProtectedError):
+            DeleteCollectorRoot.objects.filter(pk=protected_root.pk).delete()
+
+        nullable_root = DeleteCollectorRoot.objects.create(code='root-set-null', payload='payload')
+        child = DeleteCollectorSetNullChild.objects.create(root=nullable_root)
+        DeleteCollectorRoot.objects.filter(pk=nullable_root.pk).delete()
+        child.refresh_from_db()
+        self.assertIsNone(child.root)
+
+    def test_m2m_changed_listener_disables_optimization(self):
+        root = DeleteCollectorRoot.objects.create(code='root-m2m', payload='payload')
+        tag = DeleteCollectorTag.objects.create(name='tag')
+        root.tags.add(tag)
+
+        def listener(sender, **kwargs):
+            pass
+
+        through = DeleteCollectorRoot.tags.through
+        models.signals.m2m_changed.connect(listener, sender=through)
+        try:
+            with self.assertRaises(RuntimeError):
+                DeleteCollectorRoot.objects.filter(pk=root.pk).delete()
+        finally:
+            models.signals.m2m_changed.disconnect(listener, sender=through)
