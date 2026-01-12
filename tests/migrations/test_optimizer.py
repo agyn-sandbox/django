@@ -165,6 +165,115 @@ class OptimizerTests(SimpleTestCase):
             ],
         )
 
+    def test_create_alter_model_managers(self):
+        managers = [("featured", EmptyManager())]
+        self.assertOptimizesTo(
+            [
+                migrations.CreateModel("Foo", fields=[]),
+                migrations.AlterModelManagers(name="Foo", managers=managers),
+            ],
+            [
+                migrations.CreateModel(
+                    "Foo",
+                    fields=[],
+                    managers=managers,
+                ),
+            ],
+        )
+
+    def test_create_alter_model_managers_multiple(self):
+        original_managers = [("old", EmptyManager())]
+        first_managers = [("primary", EmptyManager())]
+        final_managers = [("secondary", EmptyManager())]
+        self.assertOptimizesTo(
+            [
+                migrations.CreateModel(
+                    "Foo",
+                    fields=[],
+                    managers=original_managers,
+                ),
+                migrations.AlterModelManagers(name="Foo", managers=first_managers),
+                migrations.AlterModelManagers(name="Foo", managers=final_managers),
+            ],
+            [
+                migrations.CreateModel(
+                    "Foo",
+                    fields=[],
+                    managers=final_managers,
+                ),
+            ],
+        )
+
+    def test_create_alter_model_managers_identity(self):
+        managers = [("objects", EmptyManager())]
+        self.assertOptimizesTo(
+            [
+                migrations.CreateModel("Foo", fields=[], managers=managers),
+                migrations.AlterModelManagers(name="Foo", managers=managers),
+            ],
+            [
+                migrations.CreateModel(
+                    "Foo",
+                    fields=[],
+                    managers=managers,
+                ),
+            ],
+        )
+
+    def test_create_proxy_alter_model_managers(self):
+        managers = [("objects", EmptyManager())]
+        self.assertOptimizesTo(
+            [
+                migrations.CreateModel(
+                    "FooProxy",
+                    fields=[],
+                    options={"proxy": True},
+                    bases=(UnicodeModel,),
+                ),
+                migrations.AlterModelManagers(name="FooProxy", managers=managers),
+            ],
+            [
+                migrations.CreateModel(
+                    "FooProxy",
+                    fields=[],
+                    options={"proxy": True},
+                    bases=(UnicodeModel,),
+                    managers=managers,
+                ),
+            ],
+        )
+
+    def test_create_alter_model_managers_then_alter_options(self):
+        managers = [("objects", EmptyManager())]
+        self.assertOptimizesTo(
+            [
+                migrations.CreateModel(
+                    "Foo",
+                    fields=[("name", models.CharField(max_length=255))],
+                    options={"verbose_name": "Foo"},
+                ),
+                migrations.AlterModelManagers(name="Foo", managers=managers),
+                migrations.AlterModelOptions(
+                    name="Foo",
+                    options={
+                        "verbose_name": "Foo",
+                        "verbose_name_plural": "Foos",
+                    },
+                ),
+            ],
+            [
+                migrations.CreateModel(
+                    "Foo",
+                    fields=[("name", models.CharField(max_length=255))],
+                    options={
+                        "verbose_name": "Foo",
+                        "verbose_name_plural": "Foos",
+                    },
+                    managers=managers,
+                ),
+            ],
+        )
+
     def _test_create_alter_foo_delete_model(self, alter_foo):
         """
         CreateModel, AlterModelTable, AlterUniqueTogether/AlterIndexTogether/
