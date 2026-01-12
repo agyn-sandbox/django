@@ -2260,6 +2260,26 @@ django\-admin migrate \-\-traceback
 .UNINDENT
 .INDENT 0.0
 .TP
+.B \-\-skip\-checks
+.UNINDENT
+.sp
+Skips execution of the system check framework before running the command.
+Use this option only when you know the project is in a valid state. See the
+\fISystem check framework\fP documentation for more details.
+.sp
+Example usage:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+django\-admin migrate \-\-skip\-checks
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.INDENT 0.0
+.TP
 .B \-\-verbosity {0,1,2,3}, \-v {0,1,2,3}
 .UNINDENT
 .sp

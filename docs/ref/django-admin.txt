@@ -1692,6 +1692,12 @@ Example usage::
 
     django-admin migrate --traceback
 
+.. django-admin-option:: --skip-checks
+
+Skips execution of the system check framework before running the command.
+Only use this option when you know the project is in a valid state. See
+:doc:`../topics/checks` for more on system checks.
+
 .. django-admin-option:: --verbosity {0,1,2,3}, -v {0,1,2,3}
 
 Specifies the amount of notification and debug information that a command
