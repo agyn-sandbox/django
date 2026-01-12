@@ -64,10 +64,31 @@ class ResolverMatch:
 
 
 @functools.lru_cache(maxsize=None)
+def _get_resolver_cached(urlconf):
+    return URLResolver(RegexPattern(r'^/'), urlconf)
+
+
 def get_resolver(urlconf=None):
+    """Return the cached URLResolver for *urlconf*.
+
+    Passing ``None`` reuses the resolver for ``settings.ROOT_URLCONF``; that
+    instance is identical to calling ``get_resolver(settings.ROOT_URLCONF)``
+    explicitly. The cache key is the supplied ``urlconf`` argument, so module
+    paths, imported modules, and iterable URL pattern objects each maintain
+    independent resolver instances. Use ``get_resolver.cache_clear()`` (or
+    ``clear_url_caches()``) to reset the cache, ``get_resolver.cache_info()``
+    to inspect hit and miss counts, and ``get_resolver.cache_parameters()`` to
+    introspect configuration.
+    """
     if urlconf is None:
         urlconf = settings.ROOT_URLCONF
-    return URLResolver(RegexPattern(r'^/'), urlconf)
+    return _get_resolver_cached(urlconf)
+
+
+get_resolver.cache_clear = _get_resolver_cached.cache_clear
+get_resolver.cache_info = _get_resolver_cached.cache_info
+if hasattr(_get_resolver_cached, "cache_parameters"):
+    get_resolver.cache_parameters = _get_resolver_cached.cache_parameters
 
 
 @functools.lru_cache(maxsize=None)
