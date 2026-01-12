@@ -6,6 +6,10 @@ class RemovedInNextVersionWarning(DeprecationWarning):
     pass
 
 
+class RemovedInDjango16Warning(PendingDeprecationWarning):
+    pass
+
+
 class RemovedInDjango40Warning(PendingDeprecationWarning):
     pass
 
