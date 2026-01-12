@@ -812,8 +812,10 @@ details on these changes.
 * ``django.contrib.localflavor`` will be removed following an accelerated
   deprecation.
 
-* ``django.contrib.markup`` will be removed following an accelerated
-  deprecation.
+* ``django.contrib.markup`` will be removed in Django 1.6 following an
+  accelerated deprecation. Remove the app from :setting:`INSTALLED_APPS` and
+  add the required markup libraries or third-party template tags directly to
+  your project.
 
 * The compatibility modules ``django.utils.copycompat`` and
   ``django.utils.hashcompat`` as well as the functions

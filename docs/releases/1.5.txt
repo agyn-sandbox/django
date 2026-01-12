@@ -733,10 +733,25 @@ will be handed over to interested members of the community.
 ``django.contrib.markup``
 -------------------------
 
-The markup contrib module has been deprecated and will follow an accelerated
-deprecation schedule. Direct use of Python markup libraries or 3rd party tag
-libraries is preferred to Django maintaining this functionality in the
-framework.
+The :mod:`django.contrib.markup` application is deprecated and will be removed
+in Django 1.6 following an accelerated deprecation schedule. The contrib app
+has always been a thin shim around third-party markup libraries, and keeping it
+in Django no longer provides sufficient value to justify the maintenance cost
+for the core team.
+
+Projects should proactively migrate by:
+
+* removing ``'django.contrib.markup'`` from :setting:`INSTALLED_APPS`;
+* installing and importing the markup libraries you rely on directly (for
+  example, `Markdown <https://python-markdown.github.io/>`_,
+  `docutils <https://docutils.sourceforge.io/>`_, or
+  `PyTextile <https://github.com/textile/python-textile>`_);
+* updating templates that used ``{% load markup %}`` or the bundled
+  ``markdown``, ``textile``, or ``restructuredtext`` filters to use the
+  equivalents provided by those libraries or other maintained Django add-ons.
+
+Once these changes are in place, removing the contrib app should be a
+straightforward drop-in change ahead of the Django 1.6 release.
 
 ``AUTH_PROFILE_MODULE``
 -----------------------
