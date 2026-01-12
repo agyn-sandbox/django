@@ -17,6 +17,11 @@ from django.utils.deprecation import RemovedInDjango51Warning
 from django.utils.translation import gettext_lazy as _
 
 
+SESSION_AUTH_HASH_KEY_SALT = (
+    "django.contrib.auth.models.AbstractBaseUser.get_session_auth_hash"
+)
+
+
 class BaseUserManager(models.Manager):
     @classmethod
     def normalize_email(cls, email):
@@ -135,9 +140,8 @@ class AbstractBaseUser(models.Model):
         """
         Return an HMAC of the password field.
         """
-        key_salt = "django.contrib.auth.models.AbstractBaseUser.get_session_auth_hash"
         return salted_hmac(
-            key_salt,
+            SESSION_AUTH_HASH_KEY_SALT,
             self.password,
             algorithm="sha256",
         ).hexdigest()

@@ -5,7 +5,7 @@ from django.apps import apps as django_apps
 from django.conf import settings
 from django.core.exceptions import ImproperlyConfigured, PermissionDenied
 from django.middleware.csrf import rotate_token
-from django.utils.crypto import constant_time_compare
+from django.utils.crypto import constant_time_compare, salted_hmac
 from django.utils.module_loading import import_string
 from django.views.decorators.debug import sensitive_variables
 
@@ -199,9 +199,38 @@ def get_user(request):
             # Verify the session
             if hasattr(user, "get_session_auth_hash"):
                 session_hash = request.session.get(HASH_SESSION_KEY)
-                session_hash_verified = session_hash and constant_time_compare(
-                    session_hash, user.get_session_auth_hash()
-                )
+                session_hash_verified = False
+                if session_hash:
+                    from django.contrib.auth.base_user import (
+                        AbstractBaseUser,
+                        SESSION_AUTH_HASH_KEY_SALT,
+                    )
+
+                    default_getter = AbstractBaseUser.get_session_auth_hash
+                    if user.__class__.get_session_auth_hash is default_getter:
+                        secrets = [settings.SECRET_KEY]
+                        secrets.extend(
+                            getattr(settings, "SECRET_KEY_FALLBACKS", ())
+                        )
+                        for secret in secrets:
+                            candidate = salted_hmac(
+                                SESSION_AUTH_HASH_KEY_SALT,
+                                user.password,
+                                secret=secret,
+                                algorithm="sha256",
+                            ).hexdigest()
+                            if constant_time_compare(session_hash, candidate):
+                                session_hash_verified = True
+                                if secret != settings.SECRET_KEY:
+                                    request.session.cycle_key()
+                                    request.session[
+                                        HASH_SESSION_KEY
+                                    ] = user.get_session_auth_hash()
+                                break
+                    if not session_hash_verified:
+                        session_hash_verified = constant_time_compare(
+                            session_hash, user.get_session_auth_hash()
+                        )
                 if not session_hash_verified:
                     request.session.flush()
                     user = None
