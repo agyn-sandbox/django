@@ -1,8 +1,14 @@
 from django.db import migrations, models
+from django.db.models import Q
 from django.db.migrations import operations
 from django.db.migrations.optimizer import MigrationOptimizer
 from django.db.migrations.serializer import serializer_factory
 from django.test import SimpleTestCase
+
+try:
+    from django.contrib.postgres.indexes import GinIndex
+except ImportError:
+    GinIndex = None
 
 from .models import EmptyManager, UnicodeModel
 
@@ -1119,6 +1125,69 @@ class OptimizerTests(SimpleTestCase):
                     "Phou", [("name", models.CharField(max_length=255))]
                 ),
             ],
+        )
+
+    def test_add_index_remove_index(self):
+        index = models.Index(
+            name="PONY_IDX",
+            fields=["pink"],
+            condition=Q(pink=True),
+            include=["weight"],
+            opclasses=["varchar_pattern_ops"],
+        )
+        self.assertOptimizesTo(
+            [
+                migrations.AddIndex("Pony", index),
+                migrations.RemoveIndex("Pony", "pony_idx"),
+            ],
+            [],
+        )
+
+    def test_add_index_replaced_by_later_add_index(self):
+        first_index = models.Index(name="pony_idx", fields=["weight"])
+        second_index = (
+            GinIndex(name="pony_idx", fields=["weight"])
+            if GinIndex is not None
+            else models.Index(
+                name="pony_idx",
+                fields=["weight"],
+                condition=Q(weight__gt=0),
+            )
+        )
+        self.assertOptimizesTo(
+            [
+                migrations.AddIndex("Pony", first_index),
+                migrations.AddIndex("Pony", second_index),
+            ],
+            [migrations.AddIndex("Pony", second_index)],
+        )
+
+    def test_remove_index_remove_index(self):
+        self.assertOptimizesTo(
+            [
+                migrations.RemoveIndex("Pony", "PONY_IDX"),
+                migrations.RemoveIndex("Pony", "pony_idx"),
+            ],
+            [migrations.RemoveIndex("Pony", "PONY_IDX")],
+        )
+
+    def test_index_operations_do_not_cross_rename_boundaries(self):
+        index = models.Index(name="pony_idx", fields=["weight"])
+        self.assertDoesNotOptimize(
+            [
+                migrations.AddIndex("Pony", index),
+                migrations.RenameModel("Pony", "Horse"),
+                migrations.RemoveIndex("Horse", "pony_idx"),
+            ]
+        )
+        self.assertDoesNotOptimize(
+            [
+                migrations.AddIndex(
+                    "Pony", models.Index(name="pony_idx", fields=["weight"])
+                ),
+                migrations.RenameField("Pony", "weight", "mass"),
+                migrations.RemoveIndex("Pony", "pony_idx"),
+            ]
         )
 
     def test_rename_index(self):
