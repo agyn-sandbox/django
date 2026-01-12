@@ -173,17 +173,23 @@ class Collector:
         else:
             return [objs]
 
-    def _batch_key(self, batch):
-        return tuple(obj.pk for obj in batch)
+    def _batch_key(self, field, batch):
+        return tuple(self._target_value_for_fast_delete(field, obj) for obj in batch)
 
-    def _register_fast_delete_condition(self, related_model, field_name, batch):
+    def _target_value_for_fast_delete(self, field, obj):
+        related_values = field.get_foreign_related_value(obj)
+        if len(related_values) == 1:
+            return related_values[0]
+        return related_values
+
+    def _register_fast_delete_condition(self, related_model, field, batch):
         if not batch:
             return
         from django.db.models import Q
         batches = self.fast_delete_groups.setdefault(related_model, {})
-        key = self._batch_key(batch)
+        key = self._batch_key(field, batch)
         group = batches.setdefault(key, {"conditions": []})
-        group["conditions"].append(Q(**{f"{field_name}__in": key}))
+        group["conditions"].append(Q(**{f"{field.name}__in": key}))
 
     def _iter_coalesced_fast_deletes(self):
         for related_model, batches in self.fast_delete_groups.items():
@@ -270,7 +276,7 @@ class Collector:
                     if self.can_fast_delete(sub_objs, from_field=field):
                         self._register_fast_delete_condition(
                             related.related_model,
-                            field.name,
+                            field,
                             batch,
                         )
                         continue

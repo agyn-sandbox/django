@@ -4,11 +4,12 @@ from django.db import IntegrityError, connection, models
 from django.db.models.deletion import Collector
 from django.db.models.sql.constants import GET_ITERATOR_CHUNK_SIZE
 from django.test import TestCase, skipIfDBFeature, skipUnlessDBFeature
+from django.test.utils import CaptureQueriesContext
 
 from .models import (
     MR, A, Avatar, Base, Child, Entry, HiddenUser, HiddenUserProfile, M,
     M2MFrom, M2MTo, MRNull, Origin, Parent, R, RChild, RChildChild, Referrer,
-    S, T, User, create_a, get_default_r,
+    S, SecondReferrer, T, User, create_a, get_default_r,
 )
 
 
@@ -203,6 +204,32 @@ class DeletionTests(TestCase):
 
         self.assertFalse(User.objects.filter(pk=user.pk).exists())
         self.assertFalse(Entry.objects.exists())
+
+    def test_fast_deletes_respect_to_field_targets(self):
+        origin = Origin.objects.create()
+        referrer = Referrer.objects.create(origin=origin, unique_field=101, large_field="primary")
+        other = Referrer.objects.create(origin=origin, unique_field=202, large_field="secondary")
+        SecondReferrer.objects.create(referrer=other, other_referrer=referrer)
+
+        with CaptureQueriesContext(connection) as ctx:
+            referrer.delete()
+
+        delete_queries = [
+            query['sql']
+            for query in ctx.captured_queries
+            if 'delete_secondreferrer' in query['sql'].lower()
+        ]
+        self.assertTrue(delete_queries)
+        self.assertTrue(
+            any(str(referrer.unique_field) in sql for sql in delete_queries),
+            delete_queries,
+        )
+        self.assertFalse(Referrer.objects.filter(pk=referrer.pk).exists())
+        self.assertFalse(
+            SecondReferrer.objects.filter(
+                other_referrer__unique_field=referrer.unique_field
+            ).exists()
+        )
 
     def test_instance_update(self):
         deleted = []
