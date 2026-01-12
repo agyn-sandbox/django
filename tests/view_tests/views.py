@@ -17,7 +17,7 @@ from django.views.decorators.debug import (
 )
 
 
-def index_page(request):
+def index_page(request, slug=None):
     """Dummy index page"""
     return HttpResponse('<html><body>Dummy page</body></html>')
 

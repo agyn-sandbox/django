@@ -20,6 +20,10 @@ msgstr ""
 msgid "^translated/$"
 msgstr "^vertaald/$"
 
+#: urls.py:79
+msgid "^optional(?:/(?P<slug>[\\w-]+))?/$"
+msgstr "^optioneel(?:/(?P<slug>[\\w-]+))?/$"
+
 #: views/csrf.py:98
 msgid "Forbidden"
 msgstr "Verboden"

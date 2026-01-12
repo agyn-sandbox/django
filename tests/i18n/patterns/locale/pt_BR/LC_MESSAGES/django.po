@@ -29,7 +29,11 @@ msgstr "^traduzidos/(?P<slug>[\\w-]+)/$"
 msgid "^users/$"
 msgstr "^usuarios/$"
 
-#: urls/default.py:18 urls/wrong.py:7
+#: urls/default.py:18
+msgid "^optional(?:/(?P<slug>[\\w-]+))?/$"
+msgstr "^opcional(?:/(?P<slug>[\\w-]+))?/$"
+
+#: urls/default.py:19 urls/wrong.py:7
 msgid "^account/"
 msgstr "^conta/"
 

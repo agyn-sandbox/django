@@ -44,6 +44,11 @@ class TemplateTests(SimpleTestCase):
                 depth += 1
             self.assertGreater(depth, 5, "The traceback context was lost when reraising the traceback.")
 
+    @override_settings(ROOT_URLCONF='template_tests.urls')
+    def test_url_tag_optional_slug_none(self):
+        template = Engine().from_string('{% url "opt" slug=None %}')
+        self.assertEqual(template.render(Context()), '/opt/')
+
     def test_no_wrapped_exception(self):
         """
         # 16770 -- The template system doesn't wrap exceptions, but annotates

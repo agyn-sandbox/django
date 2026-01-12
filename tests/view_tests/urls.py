@@ -53,6 +53,7 @@ urlpatterns = [
 
 urlpatterns += i18n_patterns(
     re_path(_(r'^translated/$'), views.index_page, name='i18n_prefixed'),
+    re_path(_(r'^optional(?:/(?P<slug>[\w-]+))?/$'), views.index_page, name='i18n_optional'),
 )
 
 urlpatterns += [
