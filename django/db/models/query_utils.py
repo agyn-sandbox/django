@@ -27,6 +27,11 @@ _INTEGER_LIKE_FIELD_TYPES = {
     "SmallAutoField",
 }
 
+
+def _field_type_matches(field, candidates):
+    return any(base.__name__ in candidates for base in type(field).__mro__)
+
+
 # PathInfo is used when converting lookups (fk__somecol). The contents
 # describe the relation in Model terms (model Options and Fields for both
 # sides of the relation. The join_field is the field backing the relation.
@@ -154,11 +159,12 @@ class DeferredAttribute:
 
     def __set__(self, instance, value):
         if isinstance(value, enum.Enum):
-            internal_type = self.field.get_internal_type()
-            if (
-                isinstance(value, str) and internal_type in _STRING_LIKE_FIELD_TYPES
-            ) or (
-                isinstance(value, int) and internal_type in _INTEGER_LIKE_FIELD_TYPES
+            if isinstance(value, str) and _field_type_matches(
+                self.field, _STRING_LIKE_FIELD_TYPES
+            ):
+                value = value.value
+            elif isinstance(value, int) and _field_type_matches(
+                self.field, _INTEGER_LIKE_FIELD_TYPES
             ):
                 value = value.value
         instance.__dict__[self.field.attname] = value

@@ -8,6 +8,12 @@ from django.contrib.contenttypes.fields import (
 from django.contrib.contenttypes.models import ContentType
 from django.core.files.storage import FileSystemStorage
 from django.db import models
+try:
+    from django.contrib.postgres.fields import CICharField
+except ImportError:  # pragma: no cover - postgres extras may be unavailable.
+    class CICharField(models.CharField):
+        pass
+
 from django.db.models.fields.files import ImageField, ImageFieldFile
 from django.db.models.fields.related import (
     ForeignKey, ForeignObject, ManyToManyField, OneToOneField,
@@ -128,6 +134,13 @@ class PositiveIntegerModel(models.Model):
 class Post(models.Model):
     title = models.CharField(max_length=100)
     body = models.TextField()
+
+
+class CharSubclassChoicesModel(models.Model):
+    slug = models.SlugField(max_length=50)
+    email = models.EmailField()
+    url = models.URLField()
+    ci_label = CICharField(max_length=100)
 
 
 class NullBooleanModel(models.Model):
