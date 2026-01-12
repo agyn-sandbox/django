@@ -7,6 +7,7 @@ import smtpd
 import sys
 import tempfile
 import threading
+from unittest import mock
 from email import charset, message_from_binary_file, message_from_bytes
 from email.header import Header
 from email.mime.text import MIMEText
@@ -22,6 +23,7 @@ from django.core.mail import (
 )
 from django.core.mail.backends import console, dummy, filebased, locmem, smtp
 from django.core.mail.message import BadHeaderError, sanitize_address
+from django.core.mail.utils import DNS_NAME
 from django.test import SimpleTestCase, override_settings
 from django.test.utils import requires_tz_support
 from django.utils.translation import gettext_lazy
@@ -229,6 +231,30 @@ class MailTests(HeadersCheckMixin, SimpleTestCase):
             ('To', 'to@example.com'),
             ('date', 'Fri, 09 Nov 2001 01:08:47 -0000'),
         })
+
+    def test_message_id_punycode_hostname(self):
+        had_cached = hasattr(DNS_NAME, '_fqdn')
+        if had_cached:
+            cached_fqdn = DNS_NAME._fqdn
+            del DNS_NAME._fqdn
+            self.addCleanup(setattr, DNS_NAME, '_fqdn', cached_fqdn)
+        else:
+            def cleanup():
+                if hasattr(DNS_NAME, '_fqdn'):
+                    delattr(DNS_NAME, '_fqdn')
+            self.addCleanup(cleanup)
+
+        original_encoding = EmailMessage.encoding
+        EmailMessage.encoding = 'iso-8859-1'
+        self.addCleanup(setattr, EmailMessage, 'encoding', original_encoding)
+
+        with mock.patch('django.core.mail.utils.socket.getfqdn', return_value='漢字'):
+            email = EmailMessage('Subject', 'Content', 'from@example.com', ['to@example.com'])
+            message = email.message()
+
+        message_id = message['Message-ID']
+        self.assertIn('xn--p8s937b', message_id)
+        message_id.encode('ascii')
 
     def test_from_header(self):
         """
