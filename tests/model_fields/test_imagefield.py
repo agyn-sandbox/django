@@ -5,6 +5,7 @@ from unittest import skipIf
 from django.core.exceptions import ImproperlyConfigured
 from django.core.files import File
 from django.core.files.images import ImageFile
+from django.db.models import signals
 from django.test import TestCase
 from django.test.testcases import SerializeMixin
 
@@ -444,7 +445,7 @@ class TwoImageFieldTests(ImageFieldTestMixin, TestCase):
         self.assertIs(p.mugshot.was_opened, True)
         self.assertIs(p.headshot.was_opened, True)
         # Dimensions should now be cached, and if we reset was_opened and
-        # check dimensions again, the file should not have opened.
+        # check dimensions again, the files should not open.
         p.mugshot.was_opened = False
         p.headshot.was_opened = False
         self.check_dimensions(p, 4, 8, "mugshot")
@@ -452,12 +453,64 @@ class TwoImageFieldTests(ImageFieldTestMixin, TestCase):
         self.assertIs(p.mugshot.was_opened, False)
         self.assertIs(p.headshot.was_opened, False)
 
-        # If we assign a new image to the instance, the dimensions should
-        # update.
+        # If we assign new images to the instance, the dimensions should
+        # update and the files should reopen.
         p.mugshot = self.file2
         p.headshot = self.file1
         self.check_dimensions(p, 8, 4, "mugshot")
         self.check_dimensions(p, 4, 8, "headshot")
-        # Dimensions were recalculated, and hence file should have opened.
         self.assertIs(p.mugshot.was_opened, True)
         self.assertIs(p.headshot.was_opened, True)
+
+
+@skipIf(Image is None, "Pillow is required to test ImageField")
+class ImageFieldSignalRegistrationTests(TestCase):
+    def _is_update_dimension_receiver(self, receiver):
+        names = [
+            getattr(receiver, "__name__", ""),
+            getattr(receiver, "__qualname__", ""),
+        ]
+        if any(
+            name.split(".")[-1] == "update_dimension_fields"
+            for name in names
+            if name
+        ):
+            return True
+
+        bound = getattr(receiver, "__func__", None)
+        if bound and self._is_update_dimension_receiver(bound):
+            return True
+
+        func = getattr(receiver, "func", None)
+        if func and self._is_update_dimension_receiver(func):
+            return True
+
+        return False
+
+    def _count_dimension_receivers(self, model):
+        sync_receivers, async_receivers = signals.post_init._live_receivers(model)
+        all_receivers = [*sync_receivers, *async_receivers]
+        return sum(
+            1
+            for receiver in all_receivers
+            if self._is_update_dimension_receiver(receiver)
+        )
+
+    def test_no_listener_without_dimension_fields(self):
+        self.assertEqual(self._count_dimension_receivers(Person), 0)
+
+    def test_listener_connected_with_dimension_fields(self):
+        self.assertEqual(
+            self._count_dimension_receivers(PersonWithHeight),
+            1,
+        )
+        self.assertEqual(
+            self._count_dimension_receivers(PersonWithHeightAndWidth),
+            1,
+        )
+
+    def test_multiple_listeners_with_multiple_image_fields(self):
+        self.assertEqual(
+            self._count_dimension_receivers(PersonTwoImages),
+            2,
+        )
