@@ -74,6 +74,10 @@ class DatabaseFeatures(BaseDatabaseFeatures):
     }
     test_now_utc_template = "CURRENT_TIMESTAMP AT TIME ZONE 'UTC'"
 
+    @cached_property
+    def supports_json_negative_indexing(self):
+        return self.connection.oracle_version >= (21,)
+
     django_test_skips = {
         "Oracle doesn't support SHA224.": {
             "db_functions.text.test_sha224.SHA224Tests.test_basic",
