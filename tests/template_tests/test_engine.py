@@ -21,6 +21,31 @@ class RenderToStringTest(SimpleTestCase):
             'obj:test\n',
         )
 
+    def test_render_to_string_respects_autoescape_false(self):
+        engine = Engine(
+            autoescape=False,
+            loaders=[(
+                'django.template.loaders.locmem.Loader',
+                {'t': '{{ x }}'},
+            )],
+        )
+        self.assertEqual(
+            engine.render_to_string('t', {'x': '<b>a</b>'}),
+            '<b>a</b>',
+        )
+
+    def test_render_to_string_default_autoescape_true(self):
+        engine = Engine(
+            loaders=[(
+                'django.template.loaders.locmem.Loader',
+                {'t': '{{ x }}'},
+            )],
+        )
+        self.assertEqual(
+            engine.render_to_string('t', {'x': '<b>a</b>'}),
+            '&lt;b&gt;a&lt;/b&gt;',
+        )
+
 
 class GetDefaultTests(SimpleTestCase):
 
