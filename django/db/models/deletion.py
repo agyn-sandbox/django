@@ -1,3 +1,4 @@
+import math
 from collections import Counter
 from itertools import chain
 from operator import attrgetter
@@ -70,6 +71,7 @@ class Collector:
         # fast_deletes is a list of queryset-likes that can be deleted without
         # fetching the objects into memory.
         self.fast_deletes = []
+        self.fast_delete_groups = {}
 
         # Tracks deletion-order dependency for databases without transactions
         # or ability to defer constraint checks. Only concrete model classes
@@ -171,6 +173,53 @@ class Collector:
         else:
             return [objs]
 
+    def _batch_key(self, field, batch):
+        return tuple(self._target_value_for_fast_delete(field, obj) for obj in batch)
+
+    def _target_value_for_fast_delete(self, field, obj):
+        related_values = field.get_foreign_related_value(obj)
+        if len(related_values) == 1:
+            return related_values[0]
+        return related_values
+
+    def _register_fast_delete_condition(self, related_model, field, batch):
+        if not batch:
+            return
+        from django.db.models import Q
+        batches = self.fast_delete_groups.setdefault(related_model, {})
+        key = self._batch_key(field, batch)
+        group = batches.setdefault(key, {"conditions": []})
+        group["conditions"].append(Q(**{f"{field.name}__in": key}))
+
+    def _iter_coalesced_fast_deletes(self):
+        for related_model, batches in self.fast_delete_groups.items():
+            manager = related_model._base_manager.using(self.using)
+            for batch_key, group in batches.items():
+                conditions = group.get("conditions")
+                if not conditions:
+                    continue
+                batch_len = len(batch_key)
+                if not batch_len:
+                    continue
+                max_params = connections[self.using].features.max_query_params
+                if max_params is None:
+                    max_params = float('inf')
+                if math.isinf(max_params):
+                    raw_max_conds = len(conditions)
+                else:
+                    raw_max_conds = max_params // batch_len
+                if raw_max_conds == 0:
+                    for condition in conditions:
+                        yield manager.filter(condition)
+                    continue
+                max_conds_per_delete = max(1, raw_max_conds)
+                for start in range(0, len(conditions), max_conds_per_delete):
+                    chunk = conditions[start:start + max_conds_per_delete]
+                    combined_condition = chunk[0]
+                    for condition in chunk[1:]:
+                        combined_condition = combined_condition | condition
+                    yield manager.filter(combined_condition)
+
     def collect(self, objs, source=None, nullable=False, collect_related=True,
                 source_attr=None, reverse_dependency=False, keep_parents=False):
         """
@@ -225,24 +274,28 @@ class Collector:
                 for batch in batches:
                     sub_objs = self.related_objects(related, batch)
                     if self.can_fast_delete(sub_objs, from_field=field):
-                        self.fast_deletes.append(sub_objs)
-                    else:
-                        related_model = related.related_model
-                        # Non-referenced fields can be deferred if no signal
-                        # receivers are connected for the related model as
-                        # they'll never be exposed to the user. Skip field
-                        # deferring when some relationships are select_related
-                        # as interactions between both features are hard to
-                        # get right. This should only happen in the rare
-                        # cases where .related_objects is overridden anyway.
-                        if not (sub_objs.query.select_related or self._has_signal_listeners(related_model)):
-                            referenced_fields = set(chain.from_iterable(
-                                (rf.attname for rf in rel.field.foreign_related_fields)
-                                for rel in get_candidate_relations_to_delete(related_model._meta)
-                            ))
-                            sub_objs = sub_objs.only(*tuple(referenced_fields))
-                        if sub_objs:
-                            field.remote_field.on_delete(self, field, sub_objs, self.using)
+                        self._register_fast_delete_condition(
+                            related.related_model,
+                            field,
+                            batch,
+                        )
+                        continue
+                    related_model = related.related_model
+                    # Non-referenced fields can be deferred if no signal
+                    # receivers are connected for the related model as
+                    # they'll never be exposed to the user. Skip field
+                    # deferring when some relationships are select_related
+                    # as interactions between both features are hard to
+                    # get right. This should only happen in the rare
+                    # cases where .related_objects is overridden anyway.
+                    if not (sub_objs.query.select_related or self._has_signal_listeners(related_model)):
+                        referenced_fields = set(chain.from_iterable(
+                            (rf.attname for rf in rel.field.foreign_related_fields)
+                            for rel in get_candidate_relations_to_delete(related_model._meta)
+                        ))
+                        sub_objs = sub_objs.only(*tuple(referenced_fields))
+                    if sub_objs:
+                        field.remote_field.on_delete(self, field, sub_objs, self.using)
             for field in model._meta.private_fields:
                 if hasattr(field, 'bulk_related_objects'):
                     # It's something like generic foreign key.
@@ -310,7 +363,7 @@ class Collector:
                     )
 
             # fast deletes
-            for qs in self.fast_deletes:
+            for qs in list(self.fast_deletes) + list(self._iter_coalesced_fast_deletes()):
                 count = qs._raw_delete(using=self.using)
                 deleted_counter[qs.model._meta.label] += count
 

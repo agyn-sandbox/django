@@ -1,14 +1,15 @@
-from math import ceil
+from math import ceil, isinf
 
 from django.db import IntegrityError, connection, models
 from django.db.models.deletion import Collector
 from django.db.models.sql.constants import GET_ITERATOR_CHUNK_SIZE
 from django.test import TestCase, skipIfDBFeature, skipUnlessDBFeature
+from django.test.utils import CaptureQueriesContext
 
 from .models import (
-    MR, A, Avatar, Base, Child, HiddenUser, HiddenUserProfile, M, M2MFrom,
-    M2MTo, MRNull, Origin, Parent, R, RChild, RChildChild, Referrer, S, T,
-    User, create_a, get_default_r,
+    MR, A, Avatar, Base, Child, Entry, HiddenUser, HiddenUserProfile, M,
+    M2MFrom, M2MTo, MRNull, Origin, Parent, R, RChild, RChildChild, Referrer,
+    S, SecondReferrer, T, User, create_a, get_default_r,
 )
 
 
@@ -191,6 +192,45 @@ class DeletionTests(TestCase):
         self.assertNumQueries(5, s.delete)
         self.assertFalse(S.objects.exists())
 
+    def test_fast_deletes_coalesced_per_table(self):
+        user = User.objects.create()
+        other_author = User.objects.create()
+        other_editor = User.objects.create()
+        Entry.objects.create(author=user, editor=other_editor)
+        Entry.objects.create(author=other_author, editor=user)
+
+        with self.assertNumQueries(2):
+            user.delete()
+
+        self.assertFalse(User.objects.filter(pk=user.pk).exists())
+        self.assertFalse(Entry.objects.exists())
+
+    def test_fast_deletes_respect_to_field_targets(self):
+        origin = Origin.objects.create()
+        referrer = Referrer.objects.create(origin=origin, unique_field=101, large_field="primary")
+        other = Referrer.objects.create(origin=origin, unique_field=202, large_field="secondary")
+        SecondReferrer.objects.create(referrer=other, other_referrer=referrer)
+
+        with CaptureQueriesContext(connection) as ctx:
+            referrer.delete()
+
+        delete_queries = [
+            query['sql']
+            for query in ctx.captured_queries
+            if 'delete_secondreferrer' in query['sql'].lower()
+        ]
+        self.assertTrue(delete_queries)
+        self.assertTrue(
+            any(str(referrer.unique_field) in sql for sql in delete_queries),
+            delete_queries,
+        )
+        self.assertFalse(Referrer.objects.filter(pk=referrer.pk).exists())
+        self.assertFalse(
+            SecondReferrer.objects.filter(
+                other_referrer__unique_field=referrer.unique_field
+            ).exists()
+        )
+
     def test_instance_update(self):
         deleted = []
         related_setnull_sets = []
@@ -275,6 +315,7 @@ class DeletionTests(TestCase):
         )
         a = Avatar.objects.get(pk=u.avatar_id)
         # 1 query to find the users for the avatar.
+        # 1 query to delete the related entries
         # 1 query to delete the user
         # 1 query to delete the avatar
         # The important thing is that when we can defer constraint checks there
@@ -287,7 +328,7 @@ class DeletionTests(TestCase):
             calls.append('')
         models.signals.post_delete.connect(noop, sender=User)
 
-        self.assertNumQueries(3, a.delete)
+        self.assertNumQueries(4, a.delete)
         self.assertFalse(User.objects.exists())
         self.assertFalse(Avatar.objects.exists())
         self.assertEqual(len(calls), 1)
@@ -496,9 +537,11 @@ class FastDeleteTests(TestCase):
             avatar=Avatar.objects.create()
         )
         a = Avatar.objects.get(pk=u.avatar_id)
-        # 1 query to fast-delete the user
+        # 1 query to select related users for cascade
+        # 1 query to delete related entries (coalesced author/editor)
         # 1 query to delete the avatar
-        self.assertNumQueries(2, a.delete)
+        # 1 query to delete the user
+        self.assertNumQueries(4, a.delete)
         self.assertFalse(User.objects.exists())
         self.assertFalse(Avatar.objects.exists())
 
@@ -519,15 +562,14 @@ class FastDeleteTests(TestCase):
     def test_fast_delete_qs(self):
         u1 = User.objects.create()
         u2 = User.objects.create()
-        self.assertNumQueries(1, User.objects.filter(pk=u1.pk).delete)
+        self.assertNumQueries(3, User.objects.filter(pk=u1.pk).delete)
         self.assertEqual(User.objects.count(), 1)
         self.assertTrue(User.objects.filter(pk=u2.pk).exists())
 
     def test_fast_delete_instance_set_pk_none(self):
         u = User.objects.create()
-        # User can be fast-deleted.
         collector = Collector(using='default')
-        self.assertTrue(collector.can_fast_delete(u))
+        self.assertFalse(collector.can_fast_delete(u))
         u.delete()
         self.assertIsNone(u.pk)
 
@@ -536,7 +578,7 @@ class FastDeleteTests(TestCase):
         User.objects.create(avatar=a)
         u2 = User.objects.create()
         expected_queries = 1 if connection.features.update_can_self_select else 2
-        self.assertNumQueries(expected_queries,
+        self.assertNumQueries(expected_queries + 2,
                               User.objects.filter(avatar__desc='a').delete)
         self.assertEqual(User.objects.count(), 1)
         self.assertTrue(User.objects.filter(pk=u2.pk).exists())
@@ -560,15 +602,44 @@ class FastDeleteTests(TestCase):
         self.assertFalse(Child.objects.exists())
 
     def test_fast_delete_large_batch(self):
-        User.objects.bulk_create(User() for i in range(0, 2000))
-        # No problems here - we aren't going to cascade, so we will fast
-        # delete the objects in a single query.
-        self.assertNumQueries(1, User.objects.all().delete)
+        num_users = 2000
+        User.objects.bulk_create(User() for _ in range(0, num_users))
+        entry_batch_size = connection.ops.bulk_batch_size(['author'], [None] * num_users)
+        entry_batch_size = max(1, entry_batch_size)
+        num_entry_batches = ceil(num_users / entry_batch_size)
+        entry_batch_sizes = [
+            entry_batch_size if index < num_entry_batches - 1
+            else num_users - entry_batch_size * (num_entry_batches - 1)
+            for index in range(num_entry_batches)
+        ]
+        fk_fields = [
+            field for field in Entry._meta.fields
+            if field.is_relation and field.remote_field and field.remote_field.model is User
+        ]
+        conditions_per_batch = len(fk_fields)
+
+        def entry_queries_for_batch(batch_size):
+            if not conditions_per_batch or batch_size == 0:
+                return 0
+            max_params = connection.features.max_query_params
+            if max_params is None:
+                max_params = float('inf')
+            if isinf(max_params):
+                raw_max_conds = conditions_per_batch
+            else:
+                raw_max_conds = max_params // batch_size
+            if raw_max_conds == 0:
+                return conditions_per_batch
+            max_conds_per_delete = max(1, raw_max_conds)
+            return ceil(conditions_per_batch / max_conds_per_delete)
+
+        entry_queries = sum(entry_queries_for_batch(size) for size in entry_batch_sizes)
+        expected_queries = 1 + entry_queries + ceil(num_users / GET_ITERATOR_CHUNK_SIZE)
+        self.assertNumQueries(expected_queries, User.objects.all().delete)
         a = Avatar.objects.create(desc='a')
-        User.objects.bulk_create(User(avatar=a) for i in range(0, 2000))
-        # We don't hit parameter amount limits for a, so just one query for
-        # that + fast delete of the related objs.
-        self.assertNumQueries(2, a.delete)
+        User.objects.bulk_create(User(avatar=a) for _ in range(0, num_users))
+        expected_avatar_queries = expected_queries + 1
+        self.assertNumQueries(expected_avatar_queries, a.delete)
         self.assertEqual(User.objects.count(), 0)
 
     def test_fast_delete_empty_no_update_can_self_select(self):
@@ -580,5 +651,5 @@ class FastDeleteTests(TestCase):
         with self.assertNumQueries(1):
             self.assertEqual(
                 User.objects.filter(avatar__desc='missing').delete(),
-                (0, {'delete.User': 0})
+                (0, {})
             )
