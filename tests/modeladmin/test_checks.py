@@ -3,10 +3,12 @@ from django.contrib.admin import BooleanFieldListFilter, SimpleListFilter
 from django.contrib.admin.options import VERTICAL, ModelAdmin, TabularInline
 from django.contrib.admin.sites import AdminSite
 from django.core.checks import Error
+from django.db import models
 from django.db.models import F
 from django.db.models.functions import Upper
 from django.forms.models import BaseModelFormSet
 from django.test import SimpleTestCase
+from django.test.utils import isolate_apps
 
 from .models import (
     Band, Song, User, ValidationTestInlineModel, ValidationTestModel,
@@ -508,6 +510,37 @@ class ListDisplayTests(CheckTestCase):
             list_display = ('name', 'decade_published_in', 'a_method', a_callable)
 
         self.assertIsValid(TestModelAdmin, ValidationTestModel)
+
+    def test_field_accessible_only_via_instance(self):
+        class RaisingDescriptor:
+            def __init__(self, wrapped):
+                self.wrapped = wrapped
+
+            def __get__(self, instance, owner=None):
+                if instance is None:
+                    raise AttributeError('position unavailable on class')
+                return self.wrapped.__get__(instance, owner)
+
+            def __set__(self, instance, value):
+                return self.wrapped.__set__(instance, value)
+
+            def __delete__(self, instance):
+                return self.wrapped.__delete__(instance)
+
+        with isolate_apps('modeladmin'):
+            class TempModel(models.Model):
+                position = models.IntegerField()
+
+                class Meta:
+                    app_label = 'modeladmin'
+
+            descriptor = TempModel.__dict__['position']
+            TempModel.position = RaisingDescriptor(descriptor)
+
+            class TempModelAdmin(ModelAdmin):
+                list_display = ('position',)
+
+            self.assertIsValid(TempModelAdmin, TempModel)
 
 
 class ListDisplayLinksCheckTests(CheckTestCase):
