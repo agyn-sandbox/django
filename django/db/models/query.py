@@ -931,7 +931,9 @@ class QuerySet:
         # Clear limits and ordering so they can be reapplied
         clone.query.clear_ordering(True)
         clone.query.clear_limits()
-        clone.query.combined_queries = (self.query,) + tuple(qs.query for qs in other_qs)
+        subqueries = [self.query.clone()]
+        subqueries.extend(qs.query.clone() for qs in other_qs)
+        clone.query.combined_queries = tuple(subqueries)
         clone.query.combinator = combinator
         clone.query.combinator_all = all
         return clone

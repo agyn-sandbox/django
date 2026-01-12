@@ -153,6 +153,28 @@ class QuerySetSetOperationTests(TestCase):
         qs2 = Number.objects.filter(num=9)
         self.assertCountEqual(qs1.union(qs2).values_list('num', flat=True), [1, 9])
 
+    @skipUnlessDBFeature('supports_slicing_ordering_in_compound')
+    def test_union_reuse_after_values_list_evaluation(self):
+        qs = Number.objects.filter(num__lte=4).union(
+            Number.objects.filter(num__gte=5).order_by('id')
+        )
+        baseline = list(qs)
+        baseline_pks = {obj.pk for obj in baseline}
+        qs._result_cache = None  # Force fresh evaluation after derived queryset.
+        list(qs.order_by().values_list('pk', flat=True))
+        self.assertSetEqual({obj.pk for obj in qs}, baseline_pks)
+
+    @skipUnlessDBFeature('supports_slicing_ordering_in_compound')
+    def test_union_reuse_after_values_evaluation(self):
+        qs = Number.objects.filter(num__lte=4).union(
+            Number.objects.filter(num__gte=5).order_by('id')
+        )
+        baseline = list(qs)
+        baseline_pks = {obj.pk for obj in baseline}
+        qs._result_cache = None  # Force fresh evaluation after derived queryset.
+        list(qs.order_by().values('pk'))
+        self.assertSetEqual({obj.pk for obj in qs}, baseline_pks)
+
     def test_count_union(self):
         qs1 = Number.objects.filter(num__lte=1).values('num')
         qs2 = Number.objects.filter(num__gte=2, num__lte=3).values('num')
@@ -168,11 +190,35 @@ class QuerySetSetOperationTests(TestCase):
         qs2 = Number.objects.filter(num__lt=9)
         self.assertEqual(qs1.difference(qs2).count(), 1)
 
+    @skipUnlessDBFeature('supports_select_difference')
+    @skipUnlessDBFeature('supports_slicing_ordering_in_compound')
+    def test_difference_reuse_after_values_list_evaluation(self):
+        qs = Number.objects.filter(num__lt=7).difference(
+            Number.objects.filter(num__lt=5).order_by('id')
+        )
+        baseline = list(qs)
+        baseline_pks = {obj.pk for obj in baseline}
+        qs._result_cache = None  # Force fresh evaluation after derived queryset.
+        list(qs.order_by().values_list('pk', flat=True))
+        self.assertSetEqual({obj.pk for obj in qs}, baseline_pks)
+
     @skipUnlessDBFeature('supports_select_intersection')
     def test_count_intersection(self):
         qs1 = Number.objects.filter(num__gte=5)
         qs2 = Number.objects.filter(num__lte=5)
         self.assertEqual(qs1.intersection(qs2).count(), 1)
+
+    @skipUnlessDBFeature('supports_select_intersection')
+    @skipUnlessDBFeature('supports_slicing_ordering_in_compound')
+    def test_intersection_reuse_after_values_list_evaluation(self):
+        qs = Number.objects.filter(num__gte=3).intersection(
+            Number.objects.filter(num__lte=6).order_by('id')
+        )
+        baseline = list(qs)
+        baseline_pks = {obj.pk for obj in baseline}
+        qs._result_cache = None  # Force fresh evaluation after derived queryset.
+        list(qs.order_by().values_list('pk', flat=True))
+        self.assertSetEqual({obj.pk for obj in qs}, baseline_pks)
 
     @skipUnlessDBFeature('supports_slicing_ordering_in_compound')
     def test_ordering_subqueries(self):
