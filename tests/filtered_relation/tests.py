@@ -164,6 +164,27 @@ class FilteredRelationTests(TestCase):
             [self.author1, self.author2],
         )
 
+    def test_filtered_relations_with_distinct_conditions(self):
+        qs = (
+            Author.objects.alias(
+                books_alice=FilteredRelation(
+                    "book",
+                    condition=Q(book__title__icontains="alice"),
+                ),
+                books_jane=FilteredRelation(
+                    "book",
+                    condition=Q(book__title__icontains="jane"),
+                ),
+            )
+            .annotate(
+                alice_count=Count("books_alice"),
+                jane_count=Count("books_jane"),
+            )
+            .order_by("pk")
+            .values_list("alice_count", "jane_count")
+        )
+        self.assertEqual(list(qs), [(2, 0), (0, 2)])
+
     def test_with_join(self):
         self.assertSequenceEqual(
             Author.objects.annotate(

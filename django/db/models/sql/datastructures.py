@@ -162,8 +162,16 @@ class Join:
         return hash(self.identity)
 
     def equals(self, other):
-        # Ignore filtered_relation in equality check.
-        return self.identity[:-1] == other.identity[:-1]
+        if self.identity[:-1] != other.identity[:-1]:
+            return False
+        if self.filtered_relation is None or other.filtered_relation is None:
+            return True
+        return (
+            self.filtered_relation.relation_name
+            == other.filtered_relation.relation_name
+            and self.filtered_relation.condition
+            == other.filtered_relation.condition
+        )
 
     def demote(self):
         new = self.relabeled_clone({})
