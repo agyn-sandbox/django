@@ -139,6 +139,54 @@ class FilteredRelationTests(TestCase):
             [self.author1]
         )
 
+    def test_exclude_isnull_on_filtered_relation(self):
+        qs = Author.objects.annotate(
+            book_alice=FilteredRelation(
+                'book', condition=Q(book__title__iexact='poem by alice')
+            ),
+        ).exclude(book_alice__isnull=False)
+        self.assertSequenceEqual(qs.order_by('pk'), [self.author2])
+
+    def test_exclude_deep_lookup_on_filtered_relation(self):
+        qs = Author.objects.annotate(
+            book_alice=FilteredRelation(
+                'book', condition=Q(book__title__iexact='poem by alice')
+            ),
+        ).exclude(book_alice__title__icontains='Jane')
+        self.assertSequenceEqual(qs.order_by('pk'), [self.author1, self.author2])
+
+    def test_exclude_uses_filtered_alias_in_subquery(self):
+        qs = Author.objects.annotate(
+            book_jane=FilteredRelation(
+                'book', condition=Q(book__title__icontains='jane')
+            ),
+        ).exclude(book_jane__isnull=False)
+        sql = str(qs.query)
+        author_id = '%s.%s' % (
+            connection.ops.quote_name('filtered_relation_author'),
+            connection.ops.quote_name('id'),
+        )
+        self.assertIn(f'NOT ({author_id} IN', sql)
+        self.assertIn(connection.ops.quote_name('filtered_relation_book'), sql)
+        where_node = qs.query.where.children[0]
+        in_lookup = where_node.children[0]
+        subquery = in_lookup.rhs
+        filtered_aliases = [
+            join.filtered_relation.alias
+            for join in subquery.alias_map.values()
+            if getattr(join, 'filtered_relation', None)
+        ]
+        self.assertIn('book_jane', filtered_aliases)
+
+    def test_exclude_isnull_on_m2m_filtered_relation(self):
+        qs = Author.objects.annotate(
+            favorite_books_written_by_jane=FilteredRelation(
+                'favorite_books',
+                condition=Q(favorite_books__author=self.author2),
+            ),
+        ).exclude(favorite_books_written_by_jane__isnull=False)
+        self.assertSequenceEqual(qs.order_by('pk'), [self.author2])
+
     def test_exclude_relation_with_join(self):
         self.assertSequenceEqual(
             Author.objects.annotate(

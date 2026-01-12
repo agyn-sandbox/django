@@ -1666,11 +1666,18 @@ class Query(BaseExpression):
             filter_expr = (filter_lhs, OuterRef(filter_rhs.name))
         # Generate the inner query.
         query = Query(self.model)
+        if self._filtered_relations:
+            query._filtered_relations = {
+                alias: filtered_relation.clone()
+                for alias, filtered_relation in self._filtered_relations.items()
+            }
         query.add_filter(filter_expr)
         query.clear_ordering(True)
         # Try to have as simple as possible subquery -> trim leading joins from
         # the subquery.
         trimmed_prefix, contains_louter = query.trim_start(names_with_path)
+        if self._filtered_relations:
+            query.external_aliases.update(self._filtered_relations)
 
         # Add extra check to make sure the selected field will not be null
         # since we are adding an IN <subquery> clause. This prevents the
@@ -2119,13 +2126,22 @@ class Query(BaseExpression):
             t for t in self.alias_map
             if t in self._lookup_joins or t == self.base_table
         ]
-        for trimmed_paths, path in enumerate(all_paths):
-            if path.m2m:
+        trimmed_any = False
+        trimmed_paths = 0
+        for idx, current_path in enumerate(all_paths):
+            if current_path.m2m or current_path.filtered_relation is not None:
+                trimmed_paths = idx
+                path = current_path
                 break
-            if self.alias_map[lookup_tables[trimmed_paths + 1]].join_type == LOUTER:
+            next_alias = lookup_tables[idx + 1]
+            if self.alias_map[next_alias].join_type == LOUTER:
                 contains_louter = True
-            alias = lookup_tables[trimmed_paths]
+            alias = lookup_tables[idx]
             self.unref_alias(alias)
+            trimmed_any = True
+        else:
+            trimmed_paths = len(all_paths) - 1
+            path = all_paths[-1]
         # The path.join_field is a Rel, lets get the other side's field
         join_field = path.join_field.field
         # Build the filter prefix.
@@ -2145,7 +2161,8 @@ class Query(BaseExpression):
         if self.alias_map[lookup_tables[trimmed_paths + 1]].join_type != LOUTER:
             select_fields = [r[0] for r in join_field.related_fields]
             select_alias = lookup_tables[trimmed_paths + 1]
-            self.unref_alias(lookup_tables[trimmed_paths])
+            if trimmed_any:
+                self.unref_alias(lookup_tables[trimmed_paths])
             extra_restriction = join_field.get_extra_restriction(
                 self.where_class, None, lookup_tables[trimmed_paths + 1])
             if extra_restriction:
