@@ -1608,24 +1608,41 @@ templates used by the :class:`ModelAdmin` views:
             def get_sortable_by(self, request):
                 return {*self.get_list_display(request)} - {'rank'}
 
+.. method:: ModelAdmin.get_inlines(request, obj=None)
+
+    The ``get_inlines()`` method is given the ``HttpRequest`` and the ``obj``
+    being edited (or ``None`` on an add form). It must return an iterable of
+    :class:`~django.contrib.admin.InlineModelAdmin` subclasses to display on the
+    add or change form. The default implementation returns the classes defined
+    in :attr:`ModelAdmin.inlines <django.contrib.admin.ModelAdmin.inlines>`.
+
+    This hook allows you to vary the inlines shown depending on the current
+    request or object. For example, the following ``ModelAdmin`` only shows the
+    ``RestrictedInline`` for non-superusers::
+
+        class BandAdmin(admin.ModelAdmin):
+            inlines = (PublicInline, RestrictedInline)
+
+            def get_inlines(self, request, obj=None):
+                if request.user.is_superuser:
+                    return self.inlines
+                return (PublicInline,)
+
+    Returning ``None``, inline instances, or objects that aren't subclasses of
+    :class:`~django.contrib.admin.InlineModelAdmin` raises ``TypeError``.
+
 .. method:: ModelAdmin.get_inline_instances(request, obj=None)
 
     The ``get_inline_instances`` method is given the ``HttpRequest`` and the
-    ``obj`` being edited (or ``None`` on an add form) and is expected to return
-    a ``list`` or ``tuple`` of :class:`~django.contrib.admin.InlineModelAdmin`
-    objects, as described below in the :class:`~django.contrib.admin.InlineModelAdmin`
-    section. For example, the following would return inlines without the default
-    filtering based on add, change, delete, and view permissions::
+    ``obj`` being edited (or ``None`` on an add form) and returns a list of
+    :class:`~django.contrib.admin.InlineModelAdmin` objects, as described below
+    in the :class:`~django.contrib.admin.InlineModelAdmin` section. The default
+    implementation instantiates and permission-filters the classes returned by
+    :meth:`~django.contrib.admin.ModelAdmin.get_inlines`.
 
-        class MyModelAdmin(admin.ModelAdmin):
-            inlines = (MyInline,)
-
-            def get_inline_instances(self, request, obj=None):
-                return [inline(self.model, self.admin_site) for inline in self.inlines]
-
-    If you override this method, make sure that the returned inlines are
-    instances of the classes defined in :attr:`inlines` or you might encounter
-    a "Bad Request" error when adding related objects.
+    Overriding this method is rarely necessary. If you do, you are responsible
+    for instantiating each inline class and applying any permission checks you
+    require.
 
 .. method:: ModelAdmin.get_urls()
 
