@@ -28,10 +28,11 @@ datetime_re = re.compile(
 
 standard_duration_re = re.compile(
     r'^'
-    r'(?:(?P<days>-?\d+) (days?, )?)?'
-    r'((?:(?P<hours>-?\d+):)(?=\d+:\d+))?'
-    r'(?:(?P<minutes>-?\d+):)?'
-    r'(?P<seconds>-?\d+)'
+    r'(?P<sign>[-+]?)'
+    r'(?:(?P<days>\d+) (days?, )?)?'
+    r'((?:(?P<hours>\d+):)(?=\d+:\d+))?'
+    r'(?:(?P<minutes>\d+):)?'
+    r'(?P<seconds>\d+)'
     r'(?:\.(?P<microseconds>\d{1,6})\d{0,6})?'
     r'$'
 )
@@ -41,6 +42,7 @@ standard_duration_re = re.compile(
 iso8601_duration_re = re.compile(
     r'^(?P<sign>[-+]?)'
     r'P'
+    r'(?:(?P<weeks>\d+(.\d+)?)W)?'
     r'(?:(?P<days>\d+(.\d+)?)D)?'
     r'(?:T'
     r'(?:(?P<hours>\d+(.\d+)?)H)?'
@@ -129,18 +131,49 @@ def parse_duration(value):
     Also supports ISO 8601 representation and PostgreSQL's day-time interval
     format.
     """
-    match = (
-        standard_duration_re.match(value) or
-        iso8601_duration_re.match(value) or
-        postgres_interval_re.match(value)
-    )
+    match = standard_duration_re.match(value)
+    if match:
+        kw = match.groupdict()
+        sign = -1 if kw.pop('sign', '+') == '-' else 1
+        microseconds = kw.pop('microseconds')
+        if microseconds:
+            microseconds = int(microseconds.ljust(6, '0'))
+        else:
+            microseconds = 0
+        total = datetime.timedelta(
+            days=int(kw.pop('days') or 0),
+            hours=int(kw.pop('hours') or 0),
+            minutes=int(kw.pop('minutes') or 0),
+            seconds=int(kw.pop('seconds') or 0),
+            microseconds=microseconds,
+        )
+        return total if sign > 0 else -total
+
+    match = iso8601_duration_re.match(value)
+    if match:
+        kw = match.groupdict()
+        sign = -1 if kw.pop('sign', '+') == '-' else 1
+        weeks = kw.pop('weeks')
+
+        def _parse_iso_component(component):
+            if component is None:
+                return 0
+            return float(component.replace(',', '.'))
+
+        total = datetime.timedelta(
+            days=_parse_iso_component(kw.get('days')) + _parse_iso_component(weeks) * 7,
+            hours=_parse_iso_component(kw.get('hours')),
+            minutes=_parse_iso_component(kw.get('minutes')),
+            seconds=_parse_iso_component(kw.get('seconds')),
+        )
+        return total if sign > 0 else -total
+
+    match = postgres_interval_re.match(value)
     if match:
         kw = match.groupdict()
         days = datetime.timedelta(float(kw.pop('days', 0) or 0))
         sign = -1 if kw.pop('sign', '+') == '-' else 1
         if kw.get('microseconds'):
             kw['microseconds'] = kw['microseconds'].ljust(6, '0')
-        if kw.get('seconds') and kw.get('microseconds') and kw['seconds'].startswith('-'):
-            kw['microseconds'] = '-' + kw['microseconds']
         kw = {k: float(v) for k, v in kw.items() if v is not None}
         return days + sign * datetime.timedelta(**kw)
