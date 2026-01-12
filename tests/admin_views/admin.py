@@ -18,6 +18,7 @@ from django.utils.html import format_html
 from django.utils.safestring import mark_safe
 from django.views.decorators.common import no_append_slash
 
+from . import models as admin_views_models
 from .forms import MediaActionForm
 from .models import (
     Actor,
@@ -311,6 +312,16 @@ class CustomArticleAdmin(admin.ModelAdmin):
 
 class ThingAdmin(admin.ModelAdmin):
     list_filter = ("color", "color__warm", "color__value", "pub_date")
+
+
+class SubThingUUIDFKInline(admin.TabularInline):
+    model = admin_views_models.SubThingUUIDFK
+
+
+class ThingWithUUIDAdmin(admin.ModelAdmin):
+    inlines = [SubThingUUIDFKInline]
+    list_display = ("uuid", "name")
+    readonly_fields = ("uuid",)
 
 
 class InquisitionAdmin(admin.ModelAdmin):
@@ -1189,6 +1200,7 @@ site.register(
 site.register(ModelWithStringPrimaryKey)
 site.register(Color)
 site.register(Thing, ThingAdmin)
+site.register(admin_views_models.ThingWithUUID, ThingWithUUIDAdmin)
 site.register(Actor)
 site.register(Inquisition, InquisitionAdmin)
 site.register(Sketch, SketchAdmin)

@@ -159,6 +159,21 @@ class Thing(models.Model):
         return self.title
 
 
+class ThingWithUUID(models.Model):
+    uuid = models.UUIDField(default=uuid.uuid4, unique=True, editable=False)
+    name = models.CharField(max_length=20, blank=True)
+
+
+class SubThingUUIDFK(models.Model):
+    thing = models.ForeignKey(
+        ThingWithUUID,
+        models.CASCADE,
+        to_field="uuid",
+        related_name="subthings",
+    )
+    name = models.CharField(max_length=20)
+
+
 class Actor(models.Model):
     name = models.CharField(max_length=50)
     age = models.IntegerField()
