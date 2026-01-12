@@ -498,6 +498,14 @@ def safeseq(value):
     return [mark_safe(obj) for obj in value]
 
 
+@register.filter(is_safe=True, needs_autoescape=True)
+def escapeseq(value, autoescape=True):
+    """Escape each element in a sequence and return a list."""
+    if autoescape:
+        return [conditional_escape(obj) for obj in value]
+    return [escape(obj) for obj in value]
+
+
 @register.filter(is_safe=True)
 @stringfilter
 def striptags(value):
