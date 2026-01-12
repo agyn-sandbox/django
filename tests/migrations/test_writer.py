@@ -211,6 +211,14 @@ class WriterTests(SimpleTestCase):
         X = "X", "X value"
         Y = "Y", "Y value"
 
+    class NestedChoicesWithDefault(models.TextChoices):
+        A = "A", "A value"
+        B = "B", "B value"
+
+        @classmethod
+        def default(cls):
+            return cls.A
+
     def safe_exec(self, string, value=None):
         d = {}
         try:
@@ -467,6 +475,23 @@ class WriterTests(SimpleTestCase):
                         {"import migrations.test_writer"},
                     ),
                 )
+
+    def test_serialize_nested_class_method_default(self):
+        field = models.CharField(
+            choices=WriterTests.NestedChoicesWithDefault,
+            default=WriterTests.NestedChoicesWithDefault.default,
+            max_length=1,
+        )
+        string = MigrationWriter.serialize(field)[0]
+        self.assertEqual(
+            string,
+            (
+                "models.CharField(choices=[('A', 'A value'), ('B', 'B value')], "
+                "default=migrations.test_writer.WriterTests."
+                "NestedChoicesWithDefault.default, "
+                "max_length=1)"
+            ),
+        )
 
     def test_serialize_uuid(self):
         self.assertSerializedEqual(uuid.uuid1())
