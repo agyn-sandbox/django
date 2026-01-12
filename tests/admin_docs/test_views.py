@@ -354,6 +354,21 @@ class AdminDocViewFunctionsTests(SimpleTestCase):
             (r'^(?P<a>(x|y))/b/(?P<c>\w+)ab', '/<a>/b/<c>ab'),
             (r'^(?P<a>(x|y)(\(|\)))/b/(?P<c>\w+)ab', '/<a>/b/<c>ab'),
             (r'^a/?$', '/a/'),
+            (
+                r'entries/(?P<pk>[^/.]+)/relationships/(?P<related_field>\w+)',
+                '/entries/<pk>/relationships/<related_field>',
+            ),
+            (
+                r'^entries/(?P<pk>[^/.]+)/relationships/(?P<related_field>\w+)$',
+                '/entries/<pk>/relationships/<related_field>',
+            ),
+            (
+                r'entries/(?P<pk>[^/.]+)/relationships/(?P<related_field>\w+)/',
+                '/entries/<pk>/relationships/<related_field>/',
+            ),
+            (r'entries/(\w+)', '/entries/<var>'),
+            (r'(?P<a>\w+)/b/(\w+)', '/<a>/b/<var>'),
+            (r'foo/(?P<a>(x|y)(\(|\)))', '/foo/<a>'),
         )
         for pattern, output in tests:
             with self.subTest(pattern=pattern):
