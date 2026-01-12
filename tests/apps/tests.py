@@ -166,6 +166,22 @@ class AppsTests(SimpleTestCase):
         with self.assertRaisesMessage(LookupError, msg):
             apps.get_app_config("django.contrib.auth")
 
+    def test_clear_cache_clears_swappable_settings_cache(self):
+        with override_settings(
+            INSTALLED_APPS=[
+                "django.contrib.contenttypes",
+                "django.contrib.auth",
+            ]
+        ):
+            self.assertEqual(
+                apps.get_swappable_settings_name("auth.User"),
+                "AUTH_USER_MODEL",
+            )
+            with override_settings(INSTALLED_APPS=["django.contrib.contenttypes"]):
+                self.assertIsNone(
+                    apps.get_swappable_settings_name("auth.User")
+                )
+
     @override_settings(INSTALLED_APPS=SOME_INSTALLED_APPS)
     def test_is_installed(self):
         """
