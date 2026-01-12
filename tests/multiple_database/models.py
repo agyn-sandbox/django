@@ -79,3 +79,34 @@ class UserProfile(models.Model):
 
     class Meta:
         ordering = ("flavor",)
+
+
+class AuthorNKManager(models.Manager):
+    def get_by_natural_key(self, name):
+        return self.get(name=name)
+
+
+class AuthorNK(models.Model):
+    name = models.CharField(max_length=64, unique=True)
+    objects = AuthorNKManager()
+
+    def natural_key(self):
+        return (self.name,)
+
+    natural_key.dependencies = []
+
+
+class BookNKManager(models.Manager):
+    def get_by_natural_key(self, title, author_name):
+        return self.get(title=title, author__name=author_name)
+
+
+class BookNK(models.Model):
+    title = models.CharField(max_length=128)
+    author = models.ForeignKey(AuthorNK, on_delete=models.CASCADE)
+    objects = BookNKManager()
+
+    def natural_key(self):
+        return (self.title, self.author.name)
+
+    natural_key.dependencies = ["multiple_database.AuthorNK"]
