@@ -10,10 +10,10 @@ from django.forms import (
     BooleanField, CharField, CheckboxSelectMultiple, ChoiceField, DateField,
     DateTimeField, EmailField, FileField, FileInput, FloatField, Form,
     HiddenInput, ImageField, IntegerField, MultipleChoiceField,
-    MultipleHiddenInput, MultiWidget, MultiValueField, NullBooleanField,
+    MultipleHiddenInput, MultiValueField, MultiWidget, NullBooleanField,
     PasswordInput, RadioSelect, Select, SplitDateTimeField,
-    SplitHiddenDateTimeWidget, Textarea, TextInput, TimeField,
-    ValidationError, forms,
+    SplitHiddenDateTimeWidget, Textarea, TextInput, TimeField, ValidationError,
+    forms,
 )
 from django.forms.renderers import DjangoTemplates, get_default_renderer
 from django.forms.utils import ErrorList
