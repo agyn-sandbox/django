@@ -52,8 +52,17 @@ class Q(tree.Node):
             return type(self)(*args, **kwargs)
         # Or if this Q is empty, ignore it and just use `other`.
         elif not self:
-            _, args, kwargs = other.deconstruct()
-            return type(other)(*args, **kwargs)
+            if isinstance(other, Q):
+                _, args, kwargs = other.deconstruct()
+                return type(other)(*args, **kwargs)
+            copier = getattr(other, 'copy', None)
+            if callable(copier):
+                return copier()
+            deconstruct = getattr(other, 'deconstruct', None)
+            if callable(deconstruct):
+                _, args, kwargs = deconstruct()
+                return type(other)(*args, **kwargs)
+            return other
 
         obj = type(self)()
         obj.connector = conn

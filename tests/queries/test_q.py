@@ -120,6 +120,15 @@ class QTests(SimpleTestCase):
         self.assertFalse(args[1].value)
         self.assertEqual(kwargs, {'_connector': 'OR'})
 
+    def test_boolean_literals_combination_empty_self(self):
+        and_q = Q() & True
+        self.assertIsInstance(and_q, Value)
+        self.assertTrue(and_q.value)
+
+        or_q = Q() | False
+        self.assertIsInstance(or_q, Value)
+        self.assertFalse(or_q.value)
+
     def test_reconstruct(self):
         q = Q(price__gt=F('discounted_price'))
         path, args, kwargs = q.deconstruct()
@@ -163,3 +172,15 @@ class QTests(SimpleTestCase):
         path, args, kwargs = and_q.deconstruct()
         self.assertEqual(args, (('x', 1), value_true))
         self.assertEqual(kwargs, {})
+
+    def test_conditional_expression_combination_empty_self(self):
+        exists = Exists(Author.objects.filter(pk=OuterRef('pk')))
+        and_combined = Q() & exists
+        self.assertIsInstance(and_combined, Exists)
+        self.assertIsNot(and_combined, exists)
+        self.assertEqual(and_combined.negated, exists.negated)
+
+        or_combined = Q() | exists
+        self.assertIsInstance(or_combined, Exists)
+        self.assertIsNot(or_combined, exists)
+        self.assertEqual(or_combined.negated, exists.negated)
