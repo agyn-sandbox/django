@@ -60,16 +60,12 @@ class UpdateQuery(Query):
         would normally be set in __init__() should go here instead.
         """
         self.values = []
-        self.related_ids = {}
+        self.related_ids = None
         self.related_updates = {}
 
     def clone(self):
         obj = super().clone()
         obj.related_updates = self.related_updates.copy()
-        obj.related_ids = {
-            model: ids[:] if isinstance(ids, list) else ids
-            for model, ids in self.related_ids.items()
-        }
         return obj
 
     def update_batch(self, pk_list, values, using):
@@ -133,6 +129,8 @@ class UpdateQuery(Query):
         """
         if not self.related_updates:
             return []
+        if self.related_ids is None:
+            raise AssertionError("Missing related ids for ancestor update")
         result = []
         for model, values in self.related_updates.items():
             query = UpdateQuery(model)
@@ -140,9 +138,7 @@ class UpdateQuery(Query):
             try:
                 ids = self.related_ids[model]
             except KeyError as exc:
-                raise AssertionError(
-                    "Missing related ids for ancestor update"
-                ) from exc
+                raise AssertionError("Missing related ids for ancestor update") from exc
             query.add_filter("pk__in", ids)
             result.append(query)
         return result
