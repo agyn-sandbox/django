@@ -20,7 +20,7 @@ from django.core.cache import (
 )
 from django.core.cache.backends.base import InvalidCacheBackendError
 from django.core.cache.utils import make_template_fragment_key
-from django.db import close_old_connections, connection, connections
+from django.db import close_old_connections, connection, connections, router
 from django.http import (
     HttpRequest, HttpResponse, HttpResponseNotModified, StreamingHttpResponse,
 )
@@ -1040,6 +1040,53 @@ class DBCacheTests(BaseCacheTests, TransactionTestCase):
     def test_zero_cull(self):
         self._perform_cull_test('zero_cull', 50, 18)
 
+    def test_cull_frequency_one_culls_all_but_latest_entry(self):
+        cache_config = caches_setting_for_tests(
+            BACKEND='django.core.cache.backends.db.DatabaseCache',
+            LOCATION='test cache table',
+            OPTIONS={'MAX_ENTRIES': 2, 'CULL_FREQUENCY': 1},
+        )
+        with self.settings(CACHES=cache_config):
+            db_cache = caches['default']
+            db_cache.clear()
+            db_cache.set('first', 'first')
+            db_cache.set('second', 'second')
+            db_cache.set('third', 'third')
+            db_cache.set('latest', 'latest')
+            with connection.cursor() as cursor:
+                table_name = connection.ops.quote_name('test cache table')
+                cursor.execute('SELECT COUNT(*) FROM %s' % table_name)
+                remaining = cursor.fetchone()[0]
+            self.assertEqual(remaining, 1)
+            self.assertEqual(db_cache.get('latest'), 'latest')
+            db_cache.clear()
+
+    def test_cull_handles_missing_pivot_row(self):
+        cache_config = caches_setting_for_tests(
+            BACKEND='django.core.cache.backends.db.DatabaseCache',
+            LOCATION='test cache table',
+            OPTIONS={'MAX_ENTRIES': 1, 'CULL_FREQUENCY': 3},
+        )
+        with self.settings(CACHES=cache_config):
+            db_cache = caches['default']
+            db_alias = router.db_for_write(db_cache.cache_model_class)
+            db_connection = connections[db_alias]
+            table = db_connection.ops.quote_name(db_cache._table)
+            num = db_cache._max_entries + 1
+            cursor = mock.MagicMock()
+            cursor.fetchone.side_effect = [(num,), None]
+
+            db_cache._cull(db_alias, cursor, timezone.now())
+
+            cursor.execute.assert_any_call(
+                db_connection.ops.cache_key_culling_sql() % table,
+                [num // db_cache._cull_frequency],
+            )
+            self.assertEqual(cursor.fetchone.call_count, 2)
+            self.assertFalse(
+                any('cache_key <' in call.args[0] for call in cursor.execute.call_args_list)
+            )
+
     def test_second_call_doesnt_crash(self):
         out = io.StringIO()
         management.call_command('createcachetable', stdout=out)
@@ -1527,7 +1574,7 @@ class DefaultNonExpiringCacheKeyTests(SimpleTestCase):
         self.DEFAULT_TIMEOUT = caches[DEFAULT_CACHE_ALIAS].default_timeout
 
     def tearDown(self):
-        del(self.DEFAULT_TIMEOUT)
+        del self.DEFAULT_TIMEOUT
 
     def test_default_expiration_time_for_keys_is_5_minutes(self):
         """The default expiration time of a cache key is 5 minutes.
