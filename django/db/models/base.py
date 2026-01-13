@@ -51,7 +51,11 @@ from django.db.models.signals import (
     pre_init,
     pre_save,
 )
-from django.db.models.utils import AltersData, convert_returning_values, make_model_tuple
+from django.db.models.utils import (
+    AltersData,
+    convert_returning_values,
+    make_model_tuple,
+)
 from django.utils.encoding import force_str
 from django.utils.hashable import make_hashable
 from django.utils.text import capfirst, get_text_list

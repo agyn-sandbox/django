@@ -79,16 +79,34 @@ class ReturningValuesTests(TestCase):
 
 class ReturningValueConvertersTests(TestCase):
     def test_insert_returning_runs_pk_converters(self):
-        with mock.patch.object(type(connection.features), 'can_return_columns_from_insert', True), \
-                mock.patch('django.db.models.query.QuerySet._insert', return_value=[(1,)]):
+        with (
+            mock.patch.object(
+                type(connection.features),
+                "can_return_columns_from_insert",
+                True,
+            ),
+            mock.patch(
+                "django.db.models.query.QuerySet._insert",
+                return_value=[(1,)],
+            ),
+        ):
             obj = WrappedAutoFieldModel()
             obj.save()
         self.assertIsInstance(obj.pk, WrappedInt)
 
     def test_bulk_insert_runs_pk_converters(self):
         objs = [WrappedAutoFieldModel(), WrappedAutoFieldModel()]
-        with mock.patch.object(type(connection.features), 'can_return_rows_from_bulk_insert', True), \
-                mock.patch('django.db.models.query.QuerySet._insert', return_value=[(1,), (2,)]):
+        with (
+            mock.patch.object(
+                type(connection.features),
+                "can_return_rows_from_bulk_insert",
+                True,
+            ),
+            mock.patch(
+                "django.db.models.query.QuerySet._insert",
+                return_value=[(1,), (2,)],
+            ),
+        ):
             WrappedAutoFieldModel.objects.bulk_create(objs)
         for obj in objs:
             with self.subTest(obj=obj):
