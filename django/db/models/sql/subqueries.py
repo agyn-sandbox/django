@@ -129,12 +129,17 @@ class UpdateQuery(Query):
         """
         if not self.related_updates:
             return []
+        if self.related_ids is None:
+            raise AssertionError("Missing related ids for ancestor update")
         result = []
         for model, values in self.related_updates.items():
             query = UpdateQuery(model)
             query.values = values
-            if self.related_ids is not None:
-                query.add_filter("pk__in", self.related_ids)
+            try:
+                ids = self.related_ids[model]
+            except KeyError as exc:
+                raise AssertionError("Missing related ids for ancestor update") from exc
+            query.add_filter("pk__in", ids)
             result.append(query)
         return result
 

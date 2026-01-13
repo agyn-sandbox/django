@@ -1836,7 +1836,25 @@ class SQLUpdateCompiler(SQLCompiler):
         query.clear_ordering(force=True)
         query.extra = {}
         query.select = []
-        query.add_fields([query.get_meta().pk.name])
+        meta = query.get_meta()
+        fields = [meta.pk.name]
+        related_ids_index = []
+        if self.query.related_updates:
+            for model in self.query.related_updates:
+                path = meta.get_path_to_parent(model)
+                if path is None:
+                    raise AssertionError(
+                        "Related update requested for non-ancestor model"
+                    )
+                if all(step.join_field.primary_key for step in path):
+                    related_ids_index.append((model, 0))
+                    continue
+                parent_link = meta.get_ancestor_link(model)
+                if parent_link is None:
+                    raise AssertionError("Missing parent link for ancestor update")
+                related_ids_index.append((model, len(fields)))
+                fields.append(parent_link.attname)
+        query.add_fields(fields)
         super().pre_sql_setup()
 
         must_pre_select = (
@@ -1846,15 +1864,53 @@ class SQLUpdateCompiler(SQLCompiler):
         # Now we adjust the current query: reset the where clause and get rid
         # of all the tables we don't need (since they're in the sub-select).
         self.query.clear_where()
+        self.query.related_ids = None
         if self.query.related_updates or must_pre_select:
             # Either we're using the idents in multiple update queries (so
             # don't want them to change), or the db backend doesn't support
             # selecting from the updating table (e.g. MySQL).
             idents = []
-            for rows in query.get_compiler(self.using).execute_sql(MULTI):
-                idents.extend(r[0] for r in rows)
+            related_ids = {model: [] for model, _ in related_ids_index}
+            compiler = query.get_compiler(self.using)
+            for rows in compiler.execute_sql(MULTI):
+                for row in rows:
+                    if isinstance(row, (list, tuple)):
+                        child_id = row[0]
+                    else:
+                        child_id = row
+                    idents.append(child_id)
+                    for model, index in related_ids_index:
+                        if index == 0:
+                            value = child_id
+                        else:
+                            if not isinstance(row, (list, tuple)):
+                                raise AssertionError(
+                                    "Expected multi-column row for ancestor update"
+                                )
+                            try:
+                                value = row[index]
+                            except IndexError as exc:
+                                raise AssertionError(
+                                    "Missing related id column for ancestor update"
+                                ) from exc
+                        if value is None:
+                            raise AssertionError(
+                                "Missing related id for ancestor update"
+                            )
+                        related_ids[model].append(value)
             self.query.add_filter("pk__in", idents)
-            self.query.related_ids = idents
+            if self.query.related_updates:
+                missing = [
+                    model._meta.label
+                    for model, values in related_ids.items()
+                    if len(values) != len(idents)
+                ]
+                if missing:
+                    raise AssertionError(
+                        "Missing related ids for ancestor updates: %s"
+                        % ", ".join(sorted(missing))
+                    )
+                self.query.related_ids = related_ids
         else:
             # The fast path. Filters and updates in one query.
             self.query.add_filter("pk__in", query)
