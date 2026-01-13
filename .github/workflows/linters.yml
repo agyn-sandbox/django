@@ -58,5 +58,27 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v3
-      - name: black
-        uses: psf/black@stable
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+      - name: Determine changed Python files
+        id: changed-python
+        uses: tj-actions/changed-files@v45
+        with:
+          files: |
+            **/*.py
+      - name: Install black
+        if: steps.changed-python.outputs.any_changed == 'true'
+        run: python -m pip install black
+      - name: black --check changed files
+        if: steps.changed-python.outputs.any_changed == 'true'
+        run: |
+          CHANGED="${{ steps.changed-python.outputs.all_changed_files }}"
+          echo "Checking files:"
+          printf '%s\n' "$CHANGED"
+          FILES=$(echo "$CHANGED" | tr '\n' ' ')
+          black --check --diff $FILES
+      - name: Skip black (no Python changes)
+        if: steps.changed-python.outputs.any_changed != 'true'
+        run: echo 'No Python files changed; skipping black.'
