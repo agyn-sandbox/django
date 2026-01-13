@@ -85,6 +85,8 @@ class PasswordResetTokenGenerator:
            same password is chosen, due to password salting).
         2. The last_login field will usually be updated very shortly after
            a password reset.
+        3. The user's current email address invalidates the token if it
+           changes.
         Failing those things, settings.PASSWORD_RESET_TIMEOUT eventually
         invalidates the token.
 
@@ -94,7 +96,11 @@ class PasswordResetTokenGenerator:
         # Truncate microseconds so that tokens are consistent even if the
         # database doesn't support microseconds.
         login_timestamp = '' if user.last_login is None else user.last_login.replace(microsecond=0, tzinfo=None)
-        return str(user.pk) + user.password + str(login_timestamp) + str(timestamp)
+        email_field = type(user).get_email_field_name()
+        email = getattr(user, email_field)
+        if email is None:
+            email = ''
+        return str(user.pk) + user.password + str(login_timestamp) + str(timestamp) + email
 
     def _num_seconds(self, dt):
         return int((dt - datetime(2001, 1, 1)).total_seconds())
