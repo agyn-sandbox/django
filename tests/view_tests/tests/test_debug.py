@@ -359,6 +359,17 @@ class NonDjangoTemplatesDebugViewTests(SimpleTestCase):
 class ExceptionReporterTests(SimpleTestCase):
     rf = RequestFactory()
 
+    def _frames_for_tb_chain(self, tb, frames):
+        chain_ids = set()
+        current = tb
+        while current is not None:
+            chain_ids.add(id(current))
+            current = current.tb_next
+        return [
+            frame for frame in frames
+            if frame['tb'] is not None and id(frame['tb']) in chain_ids
+        ]
+
     def test_request_and_exception(self):
         "A simple exception report can be generated"
         try:
@@ -466,6 +477,54 @@ class ExceptionReporterTests(SimpleTestCase):
         self.assertIn('<h2>Request information</h2>', html)
         self.assertIn('<p>Request data not supplied</p>', html)
         self.assertNotIn('During handling of the above exception', html)
+
+        frames = reporter.get_traceback_frames()
+        outer_frames = self._frames_for_tb_chain(tb, frames)
+        self.assertTrue(outer_frames)
+        self.assertEqual({frame['exc_cause'] for frame in outer_frames}, {None})
+        self.assertEqual({frame['exc_cause_explicit'] for frame in outer_frames}, {False})
+
+    def test_traceback_frames_prefer_explicit_cause(self):
+        try:
+            try:
+                raise RuntimeError('inner')
+            except RuntimeError as explicit:
+                raise ValueError('outer') from explicit
+        except ValueError:
+            exc_type, exc_value, tb = sys.exc_info()
+
+        reporter = ExceptionReporter(None, exc_type, exc_value, tb)
+        html = reporter.get_traceback_html()
+        self.assertIn('was the direct cause of the following exception', html)
+
+        frames = reporter.get_traceback_frames()
+        outer_frames = self._frames_for_tb_chain(tb, frames)
+        self.assertTrue(outer_frames)
+        explicit_cause = exc_value.__cause__
+        self.assertIsNotNone(explicit_cause)
+        self.assertTrue(all(frame['exc_cause'] is explicit_cause for frame in outer_frames))
+        self.assertEqual({frame['exc_cause_explicit'] for frame in outer_frames}, {True})
+
+    def test_traceback_frames_include_unsuppressed_context(self):
+        try:
+            try:
+                raise RuntimeError('inner')
+            except RuntimeError:
+                raise ValueError('outer')
+        except ValueError:
+            exc_type, exc_value, tb = sys.exc_info()
+
+        reporter = ExceptionReporter(None, exc_type, exc_value, tb)
+        html = reporter.get_traceback_html()
+        self.assertIn('During handling of the above exception', html)
+
+        frames = reporter.get_traceback_frames()
+        outer_frames = self._frames_for_tb_chain(tb, frames)
+        self.assertTrue(outer_frames)
+        implicit_context = exc_value.__context__
+        self.assertIsNotNone(implicit_context)
+        self.assertTrue(all(frame['exc_cause'] is implicit_context for frame in outer_frames))
+        self.assertEqual({frame['exc_cause_explicit'] for frame in outer_frames}, {False})
 
     def test_reporting_of_nested_exceptions(self):
         request = self.rf.get('/test_view/')
