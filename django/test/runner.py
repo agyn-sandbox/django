@@ -182,6 +182,12 @@ class RemoteTestResult(unittest.TestResult):
         the parent process. Let the exception rise, if not.
         """
         pickle.loads(pickle.dumps(obj))
+        if tblib is not None and isinstance(obj, BaseException):
+            args = getattr(obj, "args", ())
+            try:
+                obj.__class__(*args)
+            except TypeError as exc:
+                raise exc
 
     def _print_unpicklable_subtest(self, test, subtest, pickle_exc):
         print(
