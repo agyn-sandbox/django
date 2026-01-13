@@ -74,6 +74,7 @@ class HttpRequest:
         self.resolver_match = None
         self.content_type = None
         self.content_params = None
+        self.current_app = None
 
     def __repr__(self):
         if self.method is None or not self.get_full_path():

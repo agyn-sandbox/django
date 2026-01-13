@@ -211,6 +211,21 @@ class QuerySet:
     @query.setter
     def query(self, value):
         self._query = value
+        output_fields = getattr(value, '_output_fields', None)
+        self._fields = tuple(output_fields) if output_fields is not None else None
+
+        output_type = getattr(value, '_output_type', None)
+        if output_type == 'values':
+            self._iterable_class = ValuesIterable
+        elif output_type == 'values_list':
+            if getattr(value, '_output_named', False):
+                self._iterable_class = NamedValuesListIterable
+            elif getattr(value, '_output_flat', False):
+                self._iterable_class = FlatValuesListIterable
+            else:
+                self._iterable_class = ValuesListIterable
+        else:
+            self._iterable_class = ModelIterable
 
     def as_manager(cls):
         # Address the circular dependency between `Queryset` and `Manager`.
@@ -828,6 +843,10 @@ class QuerySet:
     def values(self, *fields, **expressions):
         fields += tuple(expressions)
         clone = self._values(*fields, **expressions)
+        clone.query._output_type = 'values'
+        clone.query._output_named = False
+        clone.query._output_flat = False
+        clone.query._output_fields = fields
         clone._iterable_class = ValuesIterable
         return clone
 
@@ -855,6 +874,10 @@ class QuerySet:
                 _fields.append(field)
 
         clone = self._values(*_fields, **expressions)
+        clone.query._output_type = 'values_list'
+        clone.query._output_named = named
+        clone.query._output_flat = flat
+        clone.query._output_fields = tuple(_fields)
         clone._iterable_class = (
             NamedValuesListIterable if named
             else FlatValuesListIterable if flat
