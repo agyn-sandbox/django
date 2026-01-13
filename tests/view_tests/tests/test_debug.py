@@ -360,12 +360,15 @@ class ExceptionReporterTests(SimpleTestCase):
     rf = RequestFactory()
 
     def _frames_for_tb_chain(self, tb, frames):
-        chain = set()
+        chain_ids = set()
         current = tb
         while current is not None:
-            chain.add(current)
+            chain_ids.add(id(current))
             current = current.tb_next
-        return [frame for frame in frames if frame['tb'] in chain]
+        return [
+            frame for frame in frames
+            if frame['tb'] is not None and id(frame['tb']) in chain_ids
+        ]
 
     def test_request_and_exception(self):
         "A simple exception report can be generated"
