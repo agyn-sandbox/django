@@ -2943,6 +2943,23 @@ Good luck picking a username that doesn&#x27;t already exist.</p>
         )
         self.assertHTMLEqual(f['field2'].label_tag(), '<label for="id_field2">Field2:</label>')
 
+    def test_label_tag_respects_custom_required_css_class(self):
+        class SomeForm(Form):
+            required_css_class = 'required-field'
+            field = CharField()
+
+        form = SomeForm()
+        bound = form['field']
+        self.assertHTMLEqual(
+            bound.label_tag(),
+            '<label for="id_field" class="required-field">Field:</label>',
+        )
+        form.required_css_class = 'badge-required'
+        self.assertHTMLEqual(
+            bound.label_tag(),
+            '<label for="id_field" class="badge-required">Field:</label>',
+        )
+
     def test_label_split_datetime_not_displayed(self):
         class EventForm(Form):
             happened_at = SplitDateTimeField(widget=SplitHiddenDateTimeWidget)
