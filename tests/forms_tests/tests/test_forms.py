@@ -620,13 +620,27 @@ Java</label></li>
         # accessibility for screen reader users.
         self.assertHTMLEqual(
             f.as_table(),
-            """<tr><th><label for="id_name">Name:</label></th><td><input type="text" name="name" id="id_name" required></td></tr>
-<tr><th><label>Language:</label></th><td><ul id="id_language">
-<li><label for="id_language_0"><input type="radio" id="id_language_0" value="P" name="language" required>
-Python</label></li>
-<li><label for="id_language_1"><input type="radio" id="id_language_1" value="J" name="language" required>
-Java</label></li>
-</ul></td></tr>"""
+            "\n".join(
+                [
+                    (
+                        "<tr><th><label for=\"id_name\">Name:</label></th><td>"
+                        "<input type=\"text\" name=\"name\" id=\"id_name\" required>"
+                        "</td></tr>"
+                    ),
+                    "<tr><th><label>Language:</label></th><td><ul id=\"id_language\">",
+                    (
+                        "<li><label for=\"id_language_0\"><input type=\"radio\" "
+                        "id=\"id_language_0\" value=\"P\" name=\"language\" required>\n"
+                        "Python</label></li>"
+                    ),
+                    (
+                        "<li><label for=\"id_language_1\"><input type=\"radio\" "
+                        "id=\"id_language_1\" value=\"J\" name=\"language\" required>\n"
+                        "Java</label></li>"
+                    ),
+                    "</ul></td></tr>",
+                ]
+            ),
         )
         self.assertHTMLEqual(
             f.as_ul(),
@@ -1541,20 +1555,69 @@ value="Should escape &lt; &amp; &gt; and &lt;script&gt;alert(&#x27;xss&#x27;)&lt
             field14 = CharField()
 
         p = TestForm(auto_id=False)
-        self.assertHTMLEqual(p.as_table(), """<tr><th>Field1:</th><td><input type="text" name="field1" required></td></tr>
-<tr><th>Field2:</th><td><input type="text" name="field2" required></td></tr>
-<tr><th>Field3:</th><td><input type="text" name="field3" required></td></tr>
-<tr><th>Field4:</th><td><input type="text" name="field4" required></td></tr>
-<tr><th>Field5:</th><td><input type="text" name="field5" required></td></tr>
-<tr><th>Field6:</th><td><input type="text" name="field6" required></td></tr>
-<tr><th>Field7:</th><td><input type="text" name="field7" required></td></tr>
-<tr><th>Field8:</th><td><input type="text" name="field8" required></td></tr>
-<tr><th>Field9:</th><td><input type="text" name="field9" required></td></tr>
-<tr><th>Field10:</th><td><input type="text" name="field10" required></td></tr>
-<tr><th>Field11:</th><td><input type="text" name="field11" required></td></tr>
-<tr><th>Field12:</th><td><input type="text" name="field12" required></td></tr>
-<tr><th>Field13:</th><td><input type="text" name="field13" required></td></tr>
-<tr><th>Field14:</th><td><input type="text" name="field14" required></td></tr>""")
+        self.assertHTMLEqual(
+            p.as_table(),
+            "\n".join(
+                [
+                    (
+                        "<tr><th>Field1:</th><td><input type=\"text\" name=\"field1\" "
+                        "required></td></tr>"
+                    ),
+                    (
+                        "<tr><th>Field2:</th><td><input type=\"text\" name=\"field2\" "
+                        "required></td></tr>"
+                    ),
+                    (
+                        "<tr><th>Field3:</th><td><input type=\"text\" name=\"field3\" "
+                        "required></td></tr>"
+                    ),
+                    (
+                        "<tr><th>Field4:</th><td><input type=\"text\" name=\"field4\" "
+                        "required></td></tr>"
+                    ),
+                    (
+                        "<tr><th>Field5:</th><td><input type=\"text\" name=\"field5\" "
+                        "required></td></tr>"
+                    ),
+                    (
+                        "<tr><th>Field6:</th><td><input type=\"text\" name=\"field6\" "
+                        "required></td></tr>"
+                    ),
+                    (
+                        "<tr><th>Field7:</th><td><input type=\"text\" name=\"field7\" "
+                        "required></td></tr>"
+                    ),
+                    (
+                        "<tr><th>Field8:</th><td><input type=\"text\" name=\"field8\" "
+                        "required></td></tr>"
+                    ),
+                    (
+                        "<tr><th>Field9:</th><td><input type=\"text\" name=\"field9\" "
+                        "required></td></tr>"
+                    ),
+                    (
+                        "<tr><th>Field10:</th><td><input type=\"text\" name=\"field10\" "
+                        "required></td></tr>"
+                    ),
+                    (
+                        "<tr><th>Field11:</th><td><input type=\"text\" name=\"field11\" "
+                        "required></td></tr>"
+                    ),
+                    (
+                        "<tr><th>Field12:</th><td><input type=\"text\" name=\"field12\" "
+                        "required></td></tr>"
+                    ),
+                    (
+                        "<tr><th>Field13:</th><td><input type=\"text\" name=\"field13\" "
+                        "required></td></tr>"
+                    ),
+                    (
+                        "<tr><th>Field14:</th><td><input type=\"text\" name=\"field14\" "
+                        "required></td></tr>"
+                    ),
+                ]
+            ),
+        )
 
     def test_explicit_field_order(self):
         class TestFormParent(Form):

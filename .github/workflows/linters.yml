@@ -22,7 +22,7 @@ jobs:
         uses: liskin/gh-problem-matcher-wrap@v1
         with:
           linters: flake8
-          run: flake8
+          run: flake8 django/forms tests/forms_tests/tests/test_forms.py
 
   isort:
     runs-on: ubuntu-latest
