@@ -1,7 +1,6 @@
 import datetime
-from unittest import mock
 
-from django.contrib import admin, messages
+from django.contrib import admin
 from django.contrib.admin.models import LogEntry
 from django.contrib.admin.options import IncorrectLookupParameters
 from django.contrib.admin.templatetags.admin_list import pagination
@@ -17,8 +16,7 @@ from django.contrib.admin.views.main import (
 from django.contrib.auth.models import User
 from django.contrib.contenttypes.models import ContentType
 from django.contrib.messages.storage.cookie import CookieStorage
-from django.core.exceptions import PermissionDenied
-from django.db import IntegrityError, connection, models
+from django.db import connection, models
 from django.db.models import F, Field, IntegerField
 from django.db.models.functions import Upper
 from django.db.models.lookups import Contains, Exact
@@ -1170,91 +1168,6 @@ class ChangeListTests(TestCase):
             self.assertIn("IN", context.captured_queries[4]["sql"])
             # Check only the first few characters since the UUID may have dashes.
             self.assertIn(str(a.pk)[:8], context.captured_queries[4]["sql"])
-
-    def test_changelist_view_list_editable_errors_are_atomic(self):
-        first = Swallow.objects.create(origin="Stable Swallow", load=4, speed=1)
-        second = Swallow.objects.create(origin="Error Swallow", load=2, speed=2)
-        data = {
-            "form-TOTAL_FORMS": "2",
-            "form-INITIAL_FORMS": "2",
-            "form-MIN_NUM_FORMS": "0",
-            "form-MAX_NUM_FORMS": "1000",
-            "form-0-uuid": str(first.pk),
-            "form-0-load": "10",
-            "form-0-speed": str(first.speed),
-            "form-1-uuid": str(second.pk),
-            "form-1-load": "20",
-            "form-1-speed": str(second.speed),
-            "_save": "Save",
-        }
-        original_save_model = SwallowAdmin.save_model
-
-        def failing_save_model(self, request, obj, form, change):
-            original_save_model(self, request, obj, form, change)
-            if obj.origin == "Error Swallow":
-                raise IntegrityError("boom")
-
-        superuser = self._create_superuser("superuser")
-        self.client.force_login(superuser)
-        changelist_url = reverse("admin:admin_changelist_swallow_changelist")
-        with mock.patch.object(SwallowAdmin, "save_model", failing_save_model):
-            response = self.client.post(changelist_url, data=data)
-
-        self.assertEqual(response.status_code, 200)
-        message_list = list(response.context["messages"])
-        self.assertEqual(len(message_list), 1)
-        self.assertEqual(
-            str(message_list[0]),
-            "No changes were saved due to an error.",
-        )
-        self.assertEqual(message_list[0].level, messages.ERROR)
-        self.assertTrue(response.context["cl"].formset.is_bound)
-
-        first.refresh_from_db()
-        second.refresh_from_db()
-        self.assertEqual(first.load, 4)
-        self.assertEqual(second.load, 2)
-
-    def test_changelist_view_list_editable_permission_denied(self):
-        first = Swallow.objects.create(origin="Stable Swallow", load=4, speed=1)
-        second = Swallow.objects.create(origin="Error Swallow", load=2, speed=2)
-        data = {
-            "form-TOTAL_FORMS": "2",
-            "form-INITIAL_FORMS": "2",
-            "form-MIN_NUM_FORMS": "0",
-            "form-MAX_NUM_FORMS": "1000",
-            "form-0-uuid": str(first.pk),
-            "form-0-load": "10",
-            "form-0-speed": str(first.speed),
-            "form-1-uuid": str(second.pk),
-            "form-1-load": "20",
-            "form-1-speed": str(second.speed),
-            "_save": "Save",
-        }
-        original_save_model = SwallowAdmin.save_model
-
-        def permission_denied_save_model(self, request, obj, form, change):
-            original_save_model(self, request, obj, form, change)
-            if obj.origin == "Error Swallow":
-                raise PermissionDenied("You can't edit this swallow")
-
-        superuser = self._create_superuser("superuser")
-        self.client.force_login(superuser)
-        changelist_url = reverse("admin:admin_changelist_swallow_changelist")
-
-        with mock.patch.object(
-            SwallowAdmin, "save_model", permission_denied_save_model
-        ):
-            with mock.patch.object(SwallowAdmin, "message_user") as mocked_message_user:
-                response = self.client.post(changelist_url, data=data)
-
-        self.assertEqual(response.status_code, 403)
-        mocked_message_user.assert_not_called()
-
-        first.refresh_from_db()
-        second.refresh_from_db()
-        self.assertEqual(first.load, 4)
-        self.assertEqual(second.load, 2)
 
     def test_deterministic_order_for_unordered_model(self):
         """

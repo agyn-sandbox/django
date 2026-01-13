@@ -2014,43 +2014,29 @@ class ModelAdmin(BaseModelAdmin):
             )
             if formset.is_valid():
                 changecount = 0
-                error_message = _("No changes were saved due to an error.")
+                with transaction.atomic(using=router.db_for_write(self.model)):
+                    for form in formset.forms:
+                        if form.has_changed():
+                            obj = self.save_form(request, form, change=True)
+                            self.save_model(request, obj, form, change=True)
+                            self.save_related(request, form, formsets=[], change=True)
+                            change_msg = self.construct_change_message(
+                                request, form, None
+                            )
+                            self.log_change(request, obj, change_msg)
+                            changecount += 1
+                if changecount:
+                    msg = ngettext(
+                        "%(count)s %(name)s was changed successfully.",
+                        "%(count)s %(name)s were changed successfully.",
+                        changecount,
+                    ) % {
+                        "count": changecount,
+                        "name": model_ngettext(self.opts, changecount),
+                    }
+                    self.message_user(request, msg, messages.SUCCESS)
 
-                try:
-                    with transaction.atomic(using=router.db_for_write(self.model)):
-                        for form in formset.forms:
-                            if form.has_changed():
-                                obj = self.save_form(request, form, change=True)
-                                self.save_model(request, obj, form, change=True)
-                                self.save_related(
-                                    request, form, formsets=[], change=True
-                                )
-                                change_msg = self.construct_change_message(
-                                    request, form, None
-                                )
-                                self.log_change(request, obj, change_msg)
-                                changecount += 1
-                except PermissionDenied:
-                    raise
-                except Exception:
-                    self.message_user(
-                        request,
-                        error_message,
-                        messages.ERROR,
-                    )
-                else:
-                    if changecount:
-                        msg = ngettext(
-                            "%(count)s %(name)s was changed successfully.",
-                            "%(count)s %(name)s were changed successfully.",
-                            changecount,
-                        ) % {
-                            "count": changecount,
-                            "name": model_ngettext(self.opts, changecount),
-                        }
-                        self.message_user(request, msg, messages.SUCCESS)
-
-                    return HttpResponseRedirect(request.get_full_path())
+                return HttpResponseRedirect(request.get_full_path())
 
         # Handle GET -- construct a formset for display.
         elif cl.list_editable and self.has_change_permission(request):
