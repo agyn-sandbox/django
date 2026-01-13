@@ -982,7 +982,7 @@ class ModelAdmin(BaseModelAdmin):
         base_action_names = {name for _, name, _ in base_actions}
 
         # Gather actions from the admin site first
-        for (name, func) in self.admin_site.actions:
+        for name, func in self.admin_site.actions:
             if name in base_action_names:
                 continue
             description = self._get_action_description(func, name)
@@ -1106,6 +1106,7 @@ class ModelAdmin(BaseModelAdmin):
         Return a tuple containing a queryset to implement the search
         and a boolean indicating if the results may contain duplicates.
         """
+
         # Apply keyword searches.
         def construct_search(field_name):
             if field_name.startswith("^"):
@@ -1691,9 +1692,9 @@ class ModelAdmin(BaseModelAdmin):
                 has_delete_permission = inline.has_delete_permission(request, obj)
             else:
                 # Disable all edit-permissions, and override formset settings.
-                has_add_permission = (
-                    has_change_permission
-                ) = has_delete_permission = False
+                has_add_permission = has_change_permission = has_delete_permission = (
+                    False
+                )
                 formset.extra = formset.max_num = 0
             has_view_permission = inline.has_view_permission(request, obj)
             prepopulated = dict(inline.get_prepopulated_fields(request, obj))
@@ -1828,9 +1829,11 @@ class ModelAdmin(BaseModelAdmin):
             form,
             list(fieldsets),
             # Clear prepopulated fields on a view-only form to avoid a crash.
-            self.get_prepopulated_fields(request, obj)
-            if add or self.has_change_permission(request, obj)
-            else {},
+            (
+                self.get_prepopulated_fields(request, obj)
+                if add or self.has_change_permission(request, obj)
+                else {}
+            ),
             readonly_fields,
             model_admin=self,
         )
@@ -2014,9 +2017,7 @@ class ModelAdmin(BaseModelAdmin):
                 error_message = _("No changes were saved due to an error.")
 
                 try:
-                    with transaction.atomic(
-                        using=router.db_for_write(self.model)
-                    ):
+                    with transaction.atomic(using=router.db_for_write(self.model)):
                         for form in formset.forms:
                             if form.has_changed():
                                 obj = self.save_form(request, form, change=True)

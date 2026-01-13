@@ -17,8 +17,8 @@ from django.contrib.admin.views.main import (
 from django.contrib.auth.models import User
 from django.contrib.contenttypes.models import ContentType
 from django.contrib.messages.storage.cookie import CookieStorage
-from django.db import IntegrityError, connection, models
 from django.core.exceptions import PermissionDenied
+from django.db import IntegrityError, connection, models
 from django.db.models import F, Field, IntegerField
 from django.db.models.functions import Upper
 from django.db.models.lookups import Contains, Exact
@@ -1245,9 +1245,7 @@ class ChangeListTests(TestCase):
         with mock.patch.object(
             SwallowAdmin, "save_model", permission_denied_save_model
         ):
-            with mock.patch.object(
-                SwallowAdmin, "message_user"
-            ) as mocked_message_user:
+            with mock.patch.object(SwallowAdmin, "message_user") as mocked_message_user:
                 response = self.client.post(changelist_url, data=data)
 
         self.assertEqual(response.status_code, 403)
