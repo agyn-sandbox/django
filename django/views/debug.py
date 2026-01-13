@@ -448,7 +448,7 @@ class ExceptionReporter:
                 post_context = []
             frames.append({
                 'exc_cause': explicit_or_implicit_cause(exc_value),
-                'exc_cause_explicit': bool(getattr(exc_value, '__cause__', None)),
+                'exc_cause_explicit': getattr(exc_value, '__cause__', None) is not None,
                 'tb': tb,
                 'type': 'django' if module_name.startswith('django.') else 'user',
                 'filename': filename,
