@@ -6,7 +6,8 @@ from itertools import chain
 from django.core.exceptions import EmptyResultSet, FieldError
 from django.db import DatabaseError, NotSupportedError
 from django.db.models.constants import LOOKUP_SEP
-from django.db.models.expressions import F, OrderBy, RawSQL, Ref, Value
+from django.db.models.expressions import Col, F, OrderBy, RawSQL, Ref, Value
+from django.db.models.fields import Field
 from django.db.models.functions import Cast, Random
 from django.db.models.query_utils import Q, select_related_descend
 from django.db.models.sql.constants import (
@@ -1101,6 +1102,8 @@ class SQLCompiler:
         converters = {}
         for i, expression in enumerate(expressions):
             if expression:
+                if isinstance(expression, Field):
+                    expression = Col(None, expression)
                 backend_converters = self.connection.ops.get_db_converters(expression)
                 field_converters = expression.get_db_converters(self.connection)
                 if backend_converters or field_converters:
@@ -1412,13 +1415,18 @@ class SQLInsertCompiler(SQLCompiler):
             if not self.returning_fields:
                 return []
             if self.connection.features.can_return_rows_from_bulk_insert and len(self.query.objs) > 1:
-                return self.connection.ops.fetch_returned_insert_rows(cursor)
-            if self.connection.features.can_return_columns_from_insert:
+                rows = list(self.connection.ops.fetch_returned_insert_rows(cursor))
+            elif self.connection.features.can_return_columns_from_insert:
                 assert len(self.query.objs) == 1
-                return [self.connection.ops.fetch_returned_insert_columns(cursor, self.returning_params)]
-            return [(self.connection.ops.last_insert_id(
-                cursor, self.query.get_meta().db_table, self.query.get_meta().pk.column
-            ),)]
+                rows = [self.connection.ops.fetch_returned_insert_columns(cursor, self.returning_params)]
+            else:
+                rows = [(self.connection.ops.last_insert_id(
+                    cursor, self.query.get_meta().db_table, self.query.get_meta().pk.column
+                ),)]
+            converters = self.get_converters(self.returning_fields)
+            if converters:
+                rows = [tuple(row) for row in self.apply_converters(rows, converters)]
+            return rows
 
 
 class SQLDeleteCompiler(SQLCompiler):
