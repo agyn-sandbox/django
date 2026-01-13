@@ -1,10 +1,16 @@
 import datetime
 
 from django.db import connection
-from django.test import TestCase, skipUnlessDBFeature
+from django.test import TestCase, skipIfDBFeature, skipUnlessDBFeature
 from django.test.utils import CaptureQueriesContext
 
-from .models import DumbCategory, NonIntegerPKReturningModel, ReturningModel
+from .models import (
+    ConvertedPKReturningModel,
+    DumbCategory,
+    NonIntegerPKReturningModel,
+    ReturningModel,
+    WrappedId,
+)
 
 
 @skipUnlessDBFeature('can_return_columns_from_insert')
@@ -41,6 +47,10 @@ class ReturningValuesTests(TestCase):
         self.assertTrue(obj.pk)
         self.assertIsInstance(obj.created, datetime.datetime)
 
+    def test_insert_returning_runs_field_converters(self):
+        obj = ConvertedPKReturningModel.objects.create()
+        self.assertIsInstance(obj.id, WrappedId)
+
     @skipUnlessDBFeature('can_return_rows_from_bulk_insert')
     def test_bulk_insert(self):
         objs = [ReturningModel(), ReturningModel(pk=2 ** 11), ReturningModel()]
@@ -49,3 +59,19 @@ class ReturningValuesTests(TestCase):
             with self.subTest(obj=obj):
                 self.assertTrue(obj.pk)
                 self.assertIsInstance(obj.created, datetime.datetime)
+
+    @skipUnlessDBFeature('can_return_rows_from_bulk_insert')
+    def test_bulk_insert_runs_field_converters(self):
+        objs = [ConvertedPKReturningModel(), ConvertedPKReturningModel()]
+        ConvertedPKReturningModel.objects.bulk_create(objs)
+        for obj in objs:
+            with self.subTest(obj=obj):
+                self.assertIsInstance(obj.id, WrappedId)
+
+
+@skipIfDBFeature('can_return_columns_from_insert')
+class ReturningLastInsertIdTests(TestCase):
+
+    def test_insert_uses_field_converters(self):
+        obj = ConvertedPKReturningModel.objects.create()
+        self.assertIsInstance(obj.id, WrappedId)

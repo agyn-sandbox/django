@@ -735,12 +735,41 @@ class CreatedField(models.DateTimeField):
         super().__init__(*args, **kwargs)
 
 
+class WrappedId(int):
+    pass
+
+
+class WrappedBigAutoField(models.BigAutoField):
+
+    def from_db_value(self, value, expression, connection):
+        if value is None:
+            return value
+        return WrappedId(value)
+
+    def to_python(self, value):
+        if value is None or isinstance(value, WrappedId):
+            return value
+        value = super().to_python(value)
+        if value is None:
+            return value
+        return WrappedId(value)
+
+    def get_prep_value(self, value):
+        if isinstance(value, WrappedId):
+            value = int(value)
+        return super().get_prep_value(value)
+
+
 class ReturningModel(models.Model):
     created = CreatedField(editable=False)
 
 
 class NonIntegerPKReturningModel(models.Model):
     created = CreatedField(editable=False, primary_key=True)
+
+
+class ConvertedPKReturningModel(models.Model):
+    id = WrappedBigAutoField(primary_key=True)
 
 
 class JSONFieldNullable(models.Model):
