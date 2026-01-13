@@ -258,9 +258,13 @@ class InspectDBTestCase(TestCase):
         out = StringIO()
         orig_data_types_reverse = connection.introspection.data_types_reverse
         try:
-            connection.introspection.data_types_reverse = {
+            mapping = {
                 'text': 'myfields.TextField',
                 'bigint': 'BigIntegerField',
+            }
+            connection.introspection.data_types_reverse = {
+                **mapping,
+                **{key.upper(): value for key, value in mapping.items()},
             }
             call_command('inspectdb', 'inspectdb_columntypes', stdout=out)
             output = out.getvalue()

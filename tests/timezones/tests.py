@@ -710,7 +710,11 @@ class SerializationTests(SimpleTestCase):
             data = serializers.serialize('yaml', [Event(dt=dt)], default_flow_style=None)
             self.assert_yaml_contains_datetime(data, "2011-09-01 17:20:30.405060+07:00")
             obj = next(serializers.deserialize('yaml', data)).object
-            self.assertEqual(obj.dt.replace(tzinfo=UTC), dt)
+            deserialized = obj.dt
+            if deserialized.tzinfo == dt.tzinfo:
+                self.assertEqual(deserialized, dt)
+            else:
+                self.assertEqual(deserialized.replace(tzinfo=UTC), dt)
 
     def test_aware_datetime_in_utc(self):
         dt = datetime.datetime(2011, 9, 1, 10, 20, 30, tzinfo=UTC)
@@ -734,7 +738,11 @@ class SerializationTests(SimpleTestCase):
             data = serializers.serialize('yaml', [Event(dt=dt)], default_flow_style=None)
             self.assert_yaml_contains_datetime(data, "2011-09-01 10:20:30+00:00")
             obj = next(serializers.deserialize('yaml', data)).object
-            self.assertEqual(obj.dt.replace(tzinfo=UTC), dt)
+            deserialized = obj.dt
+            if deserialized.tzinfo == dt.tzinfo:
+                self.assertEqual(deserialized, dt)
+            else:
+                self.assertEqual(deserialized.replace(tzinfo=UTC), dt)
 
     def test_aware_datetime_in_local_timezone(self):
         dt = datetime.datetime(2011, 9, 1, 13, 20, 30, tzinfo=EAT)
@@ -758,7 +766,11 @@ class SerializationTests(SimpleTestCase):
             data = serializers.serialize('yaml', [Event(dt=dt)], default_flow_style=None)
             self.assert_yaml_contains_datetime(data, "2011-09-01 13:20:30+03:00")
             obj = next(serializers.deserialize('yaml', data)).object
-            self.assertEqual(obj.dt.replace(tzinfo=UTC), dt)
+            deserialized = obj.dt
+            if deserialized.tzinfo == dt.tzinfo:
+                self.assertEqual(deserialized, dt)
+            else:
+                self.assertEqual(deserialized.replace(tzinfo=UTC), dt)
 
     def test_aware_datetime_in_other_timezone(self):
         dt = datetime.datetime(2011, 9, 1, 17, 20, 30, tzinfo=ICT)
@@ -782,7 +794,11 @@ class SerializationTests(SimpleTestCase):
             data = serializers.serialize('yaml', [Event(dt=dt)], default_flow_style=None)
             self.assert_yaml_contains_datetime(data, "2011-09-01 17:20:30+07:00")
             obj = next(serializers.deserialize('yaml', data)).object
-            self.assertEqual(obj.dt.replace(tzinfo=UTC), dt)
+            deserialized = obj.dt
+            if deserialized.tzinfo == dt.tzinfo:
+                self.assertEqual(deserialized, dt)
+            else:
+                self.assertEqual(deserialized.replace(tzinfo=UTC), dt)
 
 
 @override_settings(DATETIME_FORMAT='c', TIME_ZONE='Africa/Nairobi', USE_L10N=False, USE_TZ=True)

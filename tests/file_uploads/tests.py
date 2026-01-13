@@ -540,6 +540,8 @@ class DirectoryCreationTests(SimpleTestCase):
     @unittest.skipIf(sys.platform == 'win32', "Python on Windows doesn't have working os.chmod().")
     def test_readonly_root(self):
         """Permission errors are not swallowed"""
+        if hasattr(os, 'geteuid') and os.geteuid() == 0:
+            self.skipTest('Root user can bypass directory permissions')
         os.chmod(MEDIA_ROOT, 0o500)
         self.addCleanup(os.chmod, MEDIA_ROOT, 0o700)
         with self.assertRaises(PermissionError):

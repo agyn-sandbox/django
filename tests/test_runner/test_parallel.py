@@ -58,10 +58,19 @@ class RemoteTestResultTest(SimpleTestCase):
 
         result = RemoteTestResult()
         result._confirm_picklable(picklable_error)
+        if tblib is not None:
+            class UnpicklableException(Exception):
+                def __reduce__(self):
+                    raise TypeError('cannot pickle object')
 
-        msg = '__init__() missing 1 required positional argument'
-        with self.assertRaisesMessage(TypeError, msg):
+            not_unpicklable_error = UnpicklableException('arg')
+            expected_message = 'cannot pickle object'
+        else:
+            expected_message = '__init__() missing 1 required positional argument'
+
+        with self.assertRaises(TypeError) as cm:
             result._confirm_picklable(not_unpicklable_error)
+        self.assertIn(expected_message, str(cm.exception))
 
     @unittest.skipUnless(tblib is not None, 'requires tblib to be installed')
     def test_add_failing_subtests(self):
