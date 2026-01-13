@@ -94,6 +94,7 @@ class ASGIRequest(HttpRequest):
         self._stream = body_file
         # Other bits.
         self.resolver_match = None
+        self.current_app = None
 
     @cached_property
     def GET(self):

@@ -87,6 +87,7 @@ class WSGIRequest(HttpRequest):
         self._stream = LimitedStream(self.environ['wsgi.input'], content_length)
         self._read_started = False
         self.resolver_match = None
+        self.current_app = None
 
     def _get_scheme(self):
         return self.environ.get('wsgi.url_scheme')
