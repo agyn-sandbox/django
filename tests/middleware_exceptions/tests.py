@@ -313,7 +313,7 @@ class MiddlewareSyncAsyncTests(SimpleTestCase):
         mw.ToolbarSyncMiddleware.init_is_async = None
         response = await self.async_client.get('/middleware_exceptions/view/')
         self.assertEqual(response.status_code, 200)
-        self.assertFalse(mw.ToolbarSyncMiddleware.init_is_async)
+        self.assertIs(mw.ToolbarSyncMiddleware.init_is_async, False)
         self.assertTrue(mw.AsyncProbeMiddleware.init_is_async)
 
 
