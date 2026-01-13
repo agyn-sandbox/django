@@ -1205,7 +1205,7 @@ class ChangeListTests(TestCase):
         self.assertEqual(len(message_list), 1)
         self.assertEqual(
             str(message_list[0]),
-            "No changes were saved due to an error: boom",
+            "No changes were saved due to an error.",
         )
         self.assertEqual(message_list[0].level, messages.ERROR)
         self.assertTrue(response.context["cl"].formset.is_bound)
@@ -1251,13 +1251,7 @@ class ChangeListTests(TestCase):
                 response = self.client.post(changelist_url, data=data)
 
         self.assertEqual(response.status_code, 403)
-        mocked_message_user.assert_called_once()
-        _, message_text, level = mocked_message_user.call_args[0]
-        self.assertEqual(
-            message_text,
-            "No changes were saved due to an error: You can't edit this swallow",
-        )
-        self.assertEqual(level, messages.ERROR)
+        mocked_message_user.assert_not_called()
 
         first.refresh_from_db()
         second.refresh_from_db()
