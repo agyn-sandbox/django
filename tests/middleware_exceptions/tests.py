@@ -1,5 +1,10 @@
+import os
+from importlib import import_module
+
+from asgiref.sync import async_to_sync
 from django.conf import settings
-from django.core.exceptions import MiddlewareNotUsed
+from django.core.asgi import get_asgi_application
+from django.core.exceptions import ImproperlyConfigured, MiddlewareNotUsed
 from django.http import HttpResponse
 from django.test import RequestFactory, SimpleTestCase, override_settings
 
@@ -187,6 +192,13 @@ class MiddlewareNotUsedTests(SimpleTestCase):
     ROOT_URLCONF='middleware_exceptions.urls',
 )
 class MiddlewareSyncAsyncTests(SimpleTestCase):
+
+    def tearDown(self):
+        mw.log = []
+        mw.AsyncProbeMiddleware.init_is_async = None
+        mw.ToolbarSyncMiddleware.init_is_async = None
+        super().tearDown()
+
     @override_settings(MIDDLEWARE=[
         'middleware_exceptions.middleware.PaymentMiddleware',
     ])
@@ -282,6 +294,28 @@ class MiddlewareSyncAsyncTests(SimpleTestCase):
         self.assertEqual(response.content, b'OK')
         self.assertEqual(response.status_code, 200)
 
+    @override_settings(MIDDLEWARE=[
+        'middleware_exceptions.middleware.NotUsedSyncMiddleware',
+        'middleware_exceptions.middleware.AsyncProbeMiddleware',
+    ])
+    async def test_not_used_sync_middleware_does_not_leak_async_handler(self):
+        mw.AsyncProbeMiddleware.init_is_async = None
+        response = await self.async_client.get('/middleware_exceptions/view/')
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(mw.AsyncProbeMiddleware.init_is_async)
+
+    @override_settings(MIDDLEWARE=[
+        'middleware_exceptions.middleware.ToolbarSyncMiddleware',
+        'middleware_exceptions.middleware.AsyncProbeMiddleware',
+    ])
+    async def test_mixed_sync_async_middleware_preserves_handler_modes(self):
+        mw.AsyncProbeMiddleware.init_is_async = None
+        mw.ToolbarSyncMiddleware.init_is_async = None
+        response = await self.async_client.get('/middleware_exceptions/view/')
+        self.assertEqual(response.status_code, 200)
+        self.assertIs(mw.ToolbarSyncMiddleware.init_is_async, False)
+        self.assertTrue(mw.AsyncProbeMiddleware.init_is_async)
+
 
 @override_settings(ROOT_URLCONF='middleware_exceptions.urls')
 class AsyncMiddlewareTests(SimpleTestCase):
@@ -339,3 +373,64 @@ class AsyncMiddlewareTests(SimpleTestCase):
     async def test_process_view_return_response(self):
         response = await self.async_client.get('/middleware_exceptions/view/')
         self.assertEqual(response.content, b'Processed view normal_view')
+
+
+@override_settings(ROOT_URLCONF='middleware_exceptions.urls')
+class ASGIMiddlewareExceptionTests(SimpleTestCase):
+
+    def tearDown(self):
+        mw.log = []
+        mw.AsyncProbeMiddleware.init_is_async = None
+        mw.ToolbarSyncMiddleware.init_is_async = None
+        super().tearDown()
+
+    def test_get_asgi_application_surfaces_improperly_configured(self):
+        session_dir = os.path.join(os.path.dirname(__file__), 'nonexistent_sessions_dir')
+        if os.path.exists(session_dir):
+            session_dir = os.path.join(session_dir, 'missing')
+        with self.settings(
+            DEBUG=True,
+            SESSION_ENGINE='django.contrib.sessions.backends.file',
+            SESSION_FILE_PATH=session_dir,
+            MIDDLEWARE=['django.contrib.sessions.middleware.SessionMiddleware'],
+        ):
+            engine = import_module(settings.SESSION_ENGINE)
+            if hasattr(engine.SessionStore, '_storage_path'):
+                del engine.SessionStore._storage_path
+            with self.assertRaises(ImproperlyConfigured):
+                engine.SessionStore()
+            application = get_asgi_application()
+            scope = {
+                'type': 'http',
+                'http_version': '1.1',
+                'method': 'GET',
+                'path': '/',
+                'raw_path': b'/',
+                'headers': [],
+                'query_string': b'',
+                'client': ('127.0.0.1', 0),
+                'server': ('testserver', 80),
+            }
+
+            async def receive():
+                return {'type': 'http.request', 'body': b'', 'more_body': False}
+
+            sent_messages = []
+
+            async def send(message):
+                sent_messages.append(message)
+
+            async_to_sync(application)(scope, receive, send)
+
+            self.assertTrue(sent_messages)
+            response_start = next(
+                message for message in sent_messages
+                if message['type'] == 'http.response.start'
+            )
+            self.assertEqual(response_start['status'], 500)
+            body = b''.join(
+                message.get('body', b'')
+                for message in sent_messages
+                if message['type'] == 'http.response.body'
+            )
+            self.assertIn(b'The session storage path', body)
