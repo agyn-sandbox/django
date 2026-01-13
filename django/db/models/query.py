@@ -841,6 +841,7 @@ class QuerySet(AltersData):
                     unique_fields=unique_fields,
                 )
                 for obj_with_pk, results in zip(objs_with_pk, returned_columns):
+                    assert results is not None
                     converted = convert_returning_values(
                         connection,
                         opts.db_returning_fields,
@@ -868,6 +869,7 @@ class QuerySet(AltersData):
                 ):
                     assert len(returned_columns) == len(objs_without_pk)
                 for obj_without_pk, results in zip(objs_without_pk, returned_columns):
+                    assert results is not None
                     converted = convert_returning_values(
                         connection,
                         opts.db_returning_fields,
