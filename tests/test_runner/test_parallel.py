@@ -104,7 +104,11 @@ class RemoteTestResultTest(SimpleTestCase):
         result._confirm_picklable(picklable_error)
 
         msg = "__init__() missing 1 required positional argument"
-        with self.assertRaisesMessage(TypeError, msg):
+        if tblib is None:
+            with self.assertRaisesMessage(TypeError, msg):
+                result._confirm_picklable(not_unpicklable_error)
+        else:
+            # tblib installs reducers that make exceptions picklable.
             result._confirm_picklable(not_unpicklable_error)
 
     @unittest.skipUnless(tblib is not None, "requires tblib to be installed")

@@ -14,7 +14,9 @@ from urllib.parse import (
     unquote,
 )
 from urllib.parse import urlencode as original_urlencode
-from urllib.parse import uses_params
+from urllib.parse import (
+    uses_params,
+)
 
 from django.utils.datastructures import MultiValueDict
 from django.utils.regex_helper import _lazy_re_compile

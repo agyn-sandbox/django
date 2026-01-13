@@ -1,6 +1,7 @@
 """
 Tests for django test runner
 """
+
 import collections.abc
 import multiprocessing
 import os

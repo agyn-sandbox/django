@@ -97,10 +97,10 @@ class Extract(TimezoneMixin, Transform):
                 "TimeField, or DurationField."
             )
         # Passing dates to functions expecting datetimes is most likely a mistake.
-        if type(field) == DateField and copy.lookup_name in (
-            "hour",
-            "minute",
-            "second",
+        if (
+            isinstance(field, DateField)
+            and not isinstance(field, DateTimeField)
+            and copy.lookup_name in ("hour", "minute", "second")
         ):
             raise ValueError(
                 "Cannot extract time component '%s' from DateField '%s'."
@@ -309,17 +309,23 @@ class TruncBase(TimezoneMixin, Transform):
         has_explicit_output_field = (
             class_output_field or field.__class__ is not copy.output_field.__class__
         )
-        if type(field) == DateField and (
-            isinstance(output_field, DateTimeField)
-            or copy.kind in ("hour", "minute", "second", "time")
+        if (
+            isinstance(field, DateField)
+            and not isinstance(field, DateTimeField)
+            and (
+                isinstance(output_field, DateTimeField)
+                or copy.kind in ("hour", "minute", "second", "time")
+            )
         ):
             raise ValueError(
                 "Cannot truncate DateField '%s' to %s."
                 % (
                     field.name,
-                    output_field.__class__.__name__
-                    if has_explicit_output_field
-                    else "DateTimeField",
+                    (
+                        output_field.__class__.__name__
+                        if has_explicit_output_field
+                        else "DateTimeField"
+                    ),
                 )
             )
         elif isinstance(field, TimeField) and (
@@ -330,9 +336,11 @@ class TruncBase(TimezoneMixin, Transform):
                 "Cannot truncate TimeField '%s' to %s."
                 % (
                     field.name,
-                    output_field.__class__.__name__
-                    if has_explicit_output_field
-                    else "DateTimeField",
+                    (
+                        output_field.__class__.__name__
+                        if has_explicit_output_field
+                        else "DateTimeField"
+                    ),
                 )
             )
         return copy

@@ -660,9 +660,9 @@ class BaseDatabaseSchemaEditor:
                 namespace, _ = split_identifier(model._meta.db_table)
                 definition += " " + self.sql_create_column_inline_fk % {
                     "name": self._fk_constraint_name(model, field, constraint_suffix),
-                    "namespace": "%s." % self.quote_name(namespace)
-                    if namespace
-                    else "",
+                    "namespace": (
+                        "%s." % self.quote_name(namespace) if namespace else ""
+                    ),
                     "column": self.quote_name(field.column),
                     "to_table": self.quote_name(to_table),
                     "to_column": self.quote_name(to_column),
@@ -1239,9 +1239,9 @@ class BaseDatabaseSchemaEditor:
             % {
                 "column": self.quote_name(new_field.column),
                 "type": new_type,
-                "collation": " " + self._collate_sql(new_collation)
-                if new_collation
-                else "",
+                "collation": (
+                    " " + self._collate_sql(new_collation) if new_collation else ""
+                ),
             },
             [],
         )

@@ -1,4 +1,5 @@
 """Translation helper functions."""
+
 import functools
 import gettext as gettext_module
 import os
@@ -282,7 +283,6 @@ def translation(language):
     """
     Return a translation object in the default 'django' domain.
     """
-    global _translations
     if language not in _translations:
         _translations[language] = DjangoTranslation(language)
     return _translations[language]

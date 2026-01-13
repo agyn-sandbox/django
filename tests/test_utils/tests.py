@@ -70,6 +70,7 @@ class SkippingTestCase(SimpleTestCase):
         """
         Testing the django.test.skipUnlessDBFeature decorator.
         """
+
         # Total hack, but it works, just want an attribute that's always true.
         @skipUnlessDBFeature("__class__")
         def test_func():

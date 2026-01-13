@@ -6,6 +6,7 @@ test case that is capable of testing the capabilities of
 the serializers. This includes all valid data values, plus
 forward, backwards and self references.
 """
+
 import datetime
 import decimal
 import uuid
@@ -252,7 +253,7 @@ uuid_obj = uuid.uuid4()
 
 test_data = [
     # Format: (data type, PK value, Model Class, data)
-    (data_obj, 1, BinaryData, memoryview(b"\x05\xFD\x00")),
+    (data_obj, 1, BinaryData, memoryview(b"\x05\xfd\x00")),
     (data_obj, 2, BinaryData, None),
     (data_obj, 5, BooleanData, True),
     (data_obj, 6, BooleanData, False),
@@ -449,7 +450,7 @@ def serializerTest(self, format):
     # Create all the objects defined in the test data
     objects = []
     instance_count = {}
-    for (func, pk, klass, datum) in test_data:
+    for func, pk, klass, datum in test_data:
         with connection.constraint_checks_disabled():
             objects.extend(func[0](pk, klass, datum))
 
@@ -468,7 +469,7 @@ def serializerTest(self, format):
 
     # Assert that the deserialized data is the same
     # as the original source
-    for (func, pk, klass, datum) in test_data:
+    for func, pk, klass, datum in test_data:
         func[1](self, pk, klass, datum)
 
     # Assert that the number of objects deserialized is the
