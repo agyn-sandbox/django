@@ -31,18 +31,33 @@ class SHA384Tests(TestCase):
         self.assertSequenceEqual(
             authors,
             [
-                "9df976bfbcf96c66fbe5cba866cd4deaa8248806f15b69c4010a404112906e4ca7b57e"
-                "53b9967b80d77d4f5c2982cbc8",
-                "72202c8005492016cc670219cce82d47d6d2d4273464c742ab5811d691b1e82a748954"
-                "9e3a73ffa119694f90678ba2e3",
-                "eda87fae41e59692c36c49e43279c8111a00d79122a282a944e8ba9a403218f049a483"
-                "26676a43c7ba378621175853b0",
-                "38b060a751ac96384cd9327eb1b1e36a21fdb71114be07434c0cc7bf63f6e1da274ede"
-                "bfe76f65fbd51ad2f14898b95b",
-                "38b060a751ac96384cd9327eb1b1e36a21fdb71114be07434c0cc7bf63f6e1da274ede"
-                "bfe76f65fbd51ad2f14898b95b"
-                if connection.features.interprets_empty_strings_as_nulls
-                else None,
+                (
+                    "9df976bfbcf96c66fbe5cba866cd4dea"
+                    "a8248806f15b69c4010a404112906e4"
+                    "ca7b57e53b9967b80d77d4f5c2982cbc8"
+                ),
+                (
+                    "72202c8005492016cc670219cce82d47"
+                    "d6d2d4273464c742ab5811d691b1e82a"
+                    "7489549e3a73ffa119694f90678ba2e3"
+                ),
+                (
+                    "eda87fae41e59692c36c49e43279c811"
+                    "1a00d79122a282a944e8ba9a403218f0"
+                    "49a48326676a43c7ba378621175853b0"
+                ),
+                (
+                    "38b060a751ac96384cd9327eb1b1e36"
+                    "a21fdb71114be07434c0cc7bf63f6e1d"
+                    "a274edebfe76f65fbd51ad2f14898b95b"
+                ),
+                (
+                    "38b060a751ac96384cd9327eb1b1e36"
+                    "a21fdb71114be07434c0cc7bf63f6e1d"
+                    "a274edebfe76f65fbd51ad2f14898b95b"
+                    if connection.features.interprets_empty_strings_as_nulls
+                    else None
+                ),
             ],
         )
 

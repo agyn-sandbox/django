@@ -209,7 +209,7 @@ class DummyCacheTests(SimpleTestCase):
             "Iñtërnâtiônàlizætiøn": "Iñtërnâtiônàlizætiøn2",
             "ascii2": {"x": 1},
         }
-        for (key, value) in stuff.items():
+        for key, value in stuff.items():
             with self.subTest(key=key):
                 cache.set(key, value)
                 self.assertIsNone(cache.get(key))
@@ -514,23 +514,23 @@ class BaseCacheTests:
             "ascii2": {"x": 1},
         }
         # Test `set`
-        for (key, value) in stuff.items():
+        for key, value in stuff.items():
             with self.subTest(key=key):
                 cache.set(key, value)
                 self.assertEqual(cache.get(key), value)
 
         # Test `add`
-        for (key, value) in stuff.items():
+        for key, value in stuff.items():
             with self.subTest(key=key):
                 self.assertIs(cache.delete(key), True)
                 self.assertIs(cache.add(key, value), True)
                 self.assertEqual(cache.get(key), value)
 
         # Test `set_many`
-        for (key, value) in stuff.items():
+        for key, value in stuff.items():
             self.assertIs(cache.delete(key), True)
         cache.set_many(stuff)
-        for (key, value) in stuff.items():
+        for key, value in stuff.items():
             with self.subTest(key=key):
                 self.assertEqual(cache.get(key), value)
 
@@ -704,6 +704,7 @@ class BaseCacheTests:
         portable caching code without making it too difficult to use production
         backends with more liberal key rules. Refs #6447.
         """
+
         # mimic custom ``make_key`` method being defined since the default will
         # never show the below warnings
         def func(key, *args):

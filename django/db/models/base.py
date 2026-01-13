@@ -2107,9 +2107,11 @@ class Model(metaclass=ModelBase):
         opts = cls._meta
         valid_fields = set(
             chain.from_iterable(
-                (f.name, f.attname)
-                if not (f.auto_created and not f.concrete)
-                else (f.field.related_query_name(),)
+                (
+                    (f.name, f.attname)
+                    if not (f.auto_created and not f.concrete)
+                    else (f.field.related_query_name(),)
+                )
                 for f in chain(opts.fields, opts.related_objects)
             )
         )

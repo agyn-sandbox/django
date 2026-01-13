@@ -73,6 +73,7 @@ class AdminFormfieldForDBFieldTests(SimpleTestCase):
         Helper to call formfield_for_dbfield for a given model and field name
         and verify that the returned formfield is appropriate.
         """
+
         # Override any settings on the model admin
         class MyModelAdmin(admin.ModelAdmin):
             pass

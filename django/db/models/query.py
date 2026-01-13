@@ -105,9 +105,11 @@ class ModelIterable(BaseIterable):
                 related_objs,
                 operator.attrgetter(
                     *[
-                        field.attname
-                        if from_field == "self"
-                        else queryset.model._meta.get_field(from_field).attname
+                        (
+                            field.attname
+                            if from_field == "self"
+                            else queryset.model._meta.get_field(from_field).attname
+                        )
                         for from_field in field.from_fields
                     ]
                 ),
@@ -586,7 +588,7 @@ class QuerySet:
             kwargs[arg.default_alias] = arg
 
         query = self.query.chain()
-        for (alias, aggregate_expr) in kwargs.items():
+        for alias, aggregate_expr in kwargs.items():
             query.add_annotation(aggregate_expr, alias, is_summary=True)
             annotation = query.annotations[alias]
             if not annotation.contains_aggregate:
@@ -1358,9 +1360,7 @@ class QuerySet:
         clone._iterable_class = (
             NamedValuesListIterable
             if named
-            else FlatValuesListIterable
-            if flat
-            else ValuesListIterable
+            else FlatValuesListIterable if flat else ValuesListIterable
         )
         return clone
 
@@ -1631,9 +1631,11 @@ class QuerySet:
         if names is None:
             names = set(
                 chain.from_iterable(
-                    (field.name, field.attname)
-                    if hasattr(field, "attname")
-                    else (field.name,)
+                    (
+                        (field.name, field.attname)
+                        if hasattr(field, "attname")
+                        else (field.name,)
+                    )
                     for field in self.model._meta.get_fields()
                 )
             )
@@ -2136,7 +2138,7 @@ class RawQuerySet:
         """
         columns = self.query.get_columns()
         # Adjust any column names which don't match field names
-        for (query_name, model_name) in self.translations.items():
+        for query_name, model_name in self.translations.items():
             # Ignore translations for nonexistent column names
             try:
                 index = columns.index(query_name)

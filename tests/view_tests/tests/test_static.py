@@ -73,7 +73,7 @@ class StaticTests(SimpleTestCase):
         file_name = "file.txt"
         response = self.client.get(
             "/%s/%s" % (self.prefix, file_name),
-            HTTP_IF_MODIFIED_SINCE="Mon, 18 Jan 2038 05:14:07 GMT"
+            HTTP_IF_MODIFIED_SINCE="Mon, 18 Jan 2038 05:14:07 GMT",
             # This is 24h before max Unix time. Remember to fix Django and
             # update this test well before 2038 :)
         )
