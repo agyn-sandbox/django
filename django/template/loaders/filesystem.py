@@ -2,6 +2,9 @@
 Wrapper for loading templates from the filesystem.
 """
 
+import os
+import stat
+
 from django.core.exceptions import SuspiciousFileOperation
 from django.template import Origin, TemplateDoesNotExist
 from django.utils._os import safe_join
@@ -20,6 +23,8 @@ class Loader(BaseLoader):
 
     def get_contents(self, origin):
         try:
+            if os.name == 'posix':
+                self._ensure_read_access(origin.name)
             with open(origin.name, encoding=self.engine.file_charset) as fp:
                 return fp.read()
         except FileNotFoundError:
@@ -44,3 +49,23 @@ class Loader(BaseLoader):
                 template_name=template_name,
                 loader=self,
             )
+
+    def _ensure_read_access(self, path):
+        try:
+            info = os.stat(path)
+        except FileNotFoundError:
+            raise
+
+        mode = info.st_mode
+        uid = os.geteuid()
+        if uid == info.st_uid and mode & stat.S_IRUSR:
+            return
+
+        gids = {os.getegid(), *os.getgroups()}
+        if info.st_gid in gids and mode & stat.S_IRGRP:
+            return
+
+        if mode & stat.S_IROTH:
+            return
+
+        raise PermissionError('Permission denied')

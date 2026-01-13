@@ -36,6 +36,17 @@ class DebugSQLTextTestResult(unittest.TextTestResult):
         self.logger.setLevel(logging.DEBUG)
         super().__init__(stream, descriptions, verbosity)
 
+    def getDescription(self, test):
+        if isinstance(test, unittest.TestCase):
+            method_name = getattr(test, '_testMethodName', str(test))
+            case_name = "%s.%s" % (test.__class__.__module__, test.__class__.__qualname__)
+            description = "%s (%s)" % (method_name, case_name)
+            doc = test.shortDescription()
+            if doc and self.descriptions:
+                return "%s\n%s" % (description, doc)
+            return description
+        return super().getDescription(test)
+
     def startTest(self, test):
         self.debug_sql_stream = StringIO()
         self.handler = logging.StreamHandler(self.debug_sql_stream)
