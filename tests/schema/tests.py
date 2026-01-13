@@ -242,7 +242,7 @@ class SchemaTests(TransactionTestCase):
                 "SELECT {} FROM {};".format(field_name, model._meta.db_table)
             )
             database_default = cursor.fetchall()[0][0]
-            if cast_function and type(database_default) != type(expected_default):
+            if cast_function and type(database_default) is not type(expected_default):
                 database_default = cast_function(database_default)
             self.assertEqual(database_default, expected_default)
 
@@ -2734,9 +2734,11 @@ class SchemaTests(TransactionTestCase):
         )
         # Redundant foreign key index is not added.
         self.assertEqual(
-            len(old_constraints) - 1
-            if connection.features.supports_partial_indexes
-            else len(old_constraints),
+            (
+                len(old_constraints) - 1
+                if connection.features.supports_partial_indexes
+                else len(old_constraints)
+            ),
             len(new_constraints),
         )
 

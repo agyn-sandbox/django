@@ -1,3 +1,4 @@
+import sys
 from datetime import date
 
 from django.forms import DateField, Form, SelectDateWidget
@@ -620,6 +621,19 @@ class SelectDateWidgetTest(WidgetTest):
                 self.assertEqual(
                     self.widget.value_from_datadict(data, {}, "field"), expected
                 )
+
+    def test_value_from_datadict_overflow_returns_pseudo_iso(self):
+        overflowing_year = str(sys.maxsize + 1)
+        data = {
+            "field_year": overflowing_year,
+            "field_month": "12",
+            "field_day": "1",
+        }
+        expected_value = "%s-12-1" % overflowing_year
+        self.assertEqual(
+            self.widget.value_from_datadict(data, {}, "field"),
+            expected_value,
+        )
 
     def test_value_omitted_from_data(self):
         self.assertIs(self.widget.value_omitted_from_data({}, {}, "field"), True)
