@@ -280,7 +280,10 @@ class ManyToManyExclusionTestCase(TestCase):
         self.assertEqual(form.instance.choice.pk, data['choice'])
         self.assertEqual(form.instance.choice_int.pk, data['choice_int'])
         self.assertEqual(list(form.instance.multi_choice.all()), [opt2, opt3])
-        self.assertEqual([obj.pk for obj in form.instance.multi_choice_int.all()], data['multi_choice_int'])
+        self.assertEqual(
+            [obj.pk for obj in form.instance.multi_choice_int.all()],
+            data['multi_choice_int'],
+        )
 
 
 class EmptyLabelTestCase(TestCase):
@@ -288,25 +291,31 @@ class EmptyLabelTestCase(TestCase):
         f = EmptyCharLabelChoiceForm()
         self.assertHTMLEqual(
             f.as_p(),
-            """<p><label for="id_name">Name:</label> <input id="id_name" maxlength="10" name="name" type="text" required></p>
-<p><label for="id_choice">Choice:</label> <select id="id_choice" name="choice">
-<option value="" selected>No Preference</option>
-<option value="f">Foo</option>
-<option value="b">Bar</option>
-</select></p>"""
+            "\n".join([
+                "<p><label for=\"id_name\">Name:</label> <input id=\"id_name\" maxlength=\"10\" "
+                "name=\"name\" type=\"text\" required></p>",
+                "<p><label for=\"id_choice\">Choice:</label> <select id=\"id_choice\" name=\"choice\">",
+                "<option value=\"\" selected>No Preference</option>",
+                "<option value=\"f\">Foo</option>",
+                "<option value=\"b\">Bar</option>",
+                "</select></p>",
+            ]),
         )
 
     def test_empty_field_char_none(self):
         f = EmptyCharLabelNoneChoiceForm()
         self.assertHTMLEqual(
             f.as_p(),
-            """<p><label for="id_name">Name:</label> <input id="id_name" maxlength="10" name="name" type="text" required></p>
-<p><label for="id_choice_string_w_none">Choice string w none:</label>
-<select id="id_choice_string_w_none" name="choice_string_w_none">
-<option value="" selected>No Preference</option>
-<option value="f">Foo</option>
-<option value="b">Bar</option>
-</select></p>"""
+            "\n".join([
+                "<p><label for=\"id_name\">Name:</label> <input id=\"id_name\" maxlength=\"10\" "
+                "name=\"name\" type=\"text\" required></p>",
+                "<p><label for=\"id_choice_string_w_none\">Choice string w none:</label>",
+                "<select id=\"id_choice_string_w_none\" name=\"choice_string_w_none\">",
+                "<option value=\"\" selected>No Preference</option>",
+                "<option value=\"f\">Foo</option>",
+                "<option value=\"b\">Bar</option>",
+                "</select></p>",
+            ]),
         )
 
     def test_save_empty_label_forms(self):
@@ -330,13 +339,16 @@ class EmptyLabelTestCase(TestCase):
         f = EmptyIntegerLabelChoiceForm()
         self.assertHTMLEqual(
             f.as_p(),
-            """<p><label for="id_name">Name:</label> <input id="id_name" maxlength="10" name="name" type="text" required></p>
-<p><label for="id_choice_integer">Choice integer:</label>
-<select id="id_choice_integer" name="choice_integer">
-<option value="" selected>No Preference</option>
-<option value="1">Foo</option>
-<option value="2">Bar</option>
-</select></p>"""
+            "\n".join([
+                "<p><label for=\"id_name\">Name:</label> <input id=\"id_name\" maxlength=\"10\" "
+                "name=\"name\" type=\"text\" required></p>",
+                "<p><label for=\"id_choice_integer\">Choice integer:</label>",
+                "<select id=\"id_choice_integer\" name=\"choice_integer\">",
+                "<option value=\"\" selected>No Preference</option>",
+                "<option value=\"1\">Foo</option>",
+                "<option value=\"2\">Bar</option>",
+                "</select></p>",
+            ]),
         )
 
     def test_get_display_value_on_none(self):

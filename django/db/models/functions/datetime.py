@@ -73,7 +73,7 @@ class Extract(TimezoneMixin, Transform):
                 'TimeField, or DurationField.'
             )
         # Passing dates to functions expecting datetimes is most likely a mistake.
-        if type(field) == DateField and copy.lookup_name in ('hour', 'minute', 'second'):
+        if type(field) is DateField and copy.lookup_name in ('hour', 'minute', 'second'):
             raise ValueError(
                 "Cannot extract time component '%s' from DateField '%s'." % (copy.lookup_name, field.name)
             )
@@ -227,7 +227,7 @@ class TruncBase(TimezoneMixin, Transform):
         class_output_field = self.__class__.output_field if isinstance(self.__class__.output_field, Field) else None
         output_field = class_output_field or copy.output_field
         has_explicit_output_field = class_output_field or field.__class__ is not copy.output_field.__class__
-        if type(field) == DateField and (
+        if type(field) is DateField and (
                 isinstance(output_field, DateTimeField) or copy.kind in ('hour', 'minute', 'second', 'time')):
             raise ValueError("Cannot truncate DateField '%s' to %s." % (
                 field.name, output_field.__class__.__name__ if has_explicit_output_field else 'DateTimeField'

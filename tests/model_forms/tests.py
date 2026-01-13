@@ -1217,18 +1217,25 @@ class ModelFormBasicTests(TestCase):
         f = BaseCategoryForm()
         self.assertHTMLEqual(
             str(f),
-            """<tr><th><label for="id_name">Name:</label></th>
-<td><input id="id_name" type="text" name="name" maxlength="20" required></td></tr>
-<tr><th><label for="id_slug">Slug:</label></th>
-<td><input id="id_slug" type="text" name="slug" maxlength="20" required></td></tr>
-<tr><th><label for="id_url">The URL:</label></th>
-<td><input id="id_url" type="text" name="url" maxlength="40" required></td></tr>"""
+            "\n".join([
+                "<tr><th><label for=\"id_name\">Name:</label></th>",
+                "<td><input id=\"id_name\" type=\"text\" name=\"name\" maxlength=\"20\" required></td></tr>",
+                "<tr><th><label for=\"id_slug\">Slug:</label></th>",
+                "<td><input id=\"id_slug\" type=\"text\" name=\"slug\" maxlength=\"20\" required></td></tr>",
+                "<tr><th><label for=\"id_url\">The URL:</label></th>",
+                "<td><input id=\"id_url\" type=\"text\" name=\"url\" maxlength=\"40\" required></td></tr>",
+            ]),
         )
         self.assertHTMLEqual(
             str(f.as_ul()),
-            """<li><label for="id_name">Name:</label> <input id="id_name" type="text" name="name" maxlength="20" required></li>
-<li><label for="id_slug">Slug:</label> <input id="id_slug" type="text" name="slug" maxlength="20" required></li>
-<li><label for="id_url">The URL:</label> <input id="id_url" type="text" name="url" maxlength="40" required></li>"""
+            "\n".join([
+                "<li><label for=\"id_name\">Name:</label> <input id=\"id_name\" type=\"text\" "
+                "name=\"name\" maxlength=\"20\" required></li>",
+                "<li><label for=\"id_slug\">Slug:</label> <input id=\"id_slug\" type=\"text\" "
+                "name=\"slug\" maxlength=\"20\" required></li>",
+                "<li><label for=\"id_url\">The URL:</label> <input id=\"id_url\" type=\"text\" "
+                "name=\"url\" maxlength=\"40\" required></li>",
+            ]),
         )
         self.assertHTMLEqual(
             str(f["name"]),
@@ -1238,9 +1245,11 @@ class ModelFormBasicTests(TestCase):
         f = BaseCategoryForm(auto_id=False)
         self.assertHTMLEqual(
             str(f.as_ul()),
-            """<li>Name: <input type="text" name="name" maxlength="20" required></li>
-<li>Slug: <input type="text" name="slug" maxlength="20" required></li>
-<li>The URL: <input type="text" name="url" maxlength="40" required></li>"""
+            "\n".join([
+                "<li>Name: <input type=\"text\" name=\"name\" maxlength=\"20\" required></li>",
+                "<li>Slug: <input type=\"text\" name=\"slug\" maxlength=\"20\" required></li>",
+                "<li>The URL: <input type=\"text\" name=\"url\" maxlength=\"40\" required></li>",
+            ]),
         )
 
     def test_initial_values(self):
@@ -1254,26 +1263,38 @@ class ModelFormBasicTests(TestCase):
             })
         self.assertHTMLEqual(
             f.as_ul(),
-            '''<li>Headline: <input type="text" name="headline" value="Your headline here" maxlength="50" required></li>
-<li>Slug: <input type="text" name="slug" maxlength="50" required></li>
-<li>Pub date: <input type="text" name="pub_date" required></li>
-<li>Writer: <select name="writer" required>
-<option value="" selected>---------</option>
-<option value="%s">Bob Woodward</option>
-<option value="%s">Mike Royko</option>
-</select></li>
-<li>Article: <textarea rows="10" cols="40" name="article" required></textarea></li>
-<li>Categories: <select multiple name="categories">
-<option value="%s" selected>Entertainment</option>
-<option value="%s" selected>It&#x27;s a test</option>
-<option value="%s">Third test</option>
-</select></li>
-<li>Status: <select name="status">
-<option value="" selected>---------</option>
-<option value="1">Draft</option>
-<option value="2">Pending</option>
-<option value="3">Live</option>
-</select></li>''' % (self.w_woodward.pk, self.w_royko.pk, self.c1.pk, self.c2.pk, self.c3.pk))
+            "\n".join([
+                (
+                    "<li>Headline: <input type=\"text\" name=\"headline\" value=\"Your "
+                    "headline here\" maxlength=\"50\" required></li>"
+                ),
+                "<li>Slug: <input type=\"text\" name=\"slug\" maxlength=\"50\" required></li>",
+                "<li>Pub date: <input type=\"text\" name=\"pub_date\" required></li>",
+                "<li>Writer: <select name=\"writer\" required>",
+                "<option value=\"\" selected>---------</option>",
+                "<option value=\"%s\">Bob Woodward</option>",
+                "<option value=\"%s\">Mike Royko</option>",
+                "</select></li>",
+                "<li>Article: <textarea rows=\"10\" cols=\"40\" name=\"article\" required></textarea></li>",
+                "<li>Categories: <select multiple name=\"categories\">",
+                "<option value=\"%s\" selected>Entertainment</option>",
+                "<option value=\"%s\" selected>It&#x27;s a test</option>",
+                "<option value=\"%s\">Third test</option>",
+                "</select></li>",
+                "<li>Status: <select name=\"status\">",
+                "<option value=\"\" selected>---------</option>",
+                "<option value=\"1\">Draft</option>",
+                "<option value=\"2\">Pending</option>",
+                "<option value=\"3\">Live</option>",
+                "</select></li>",
+            ]) % (
+                self.w_woodward.pk,
+                self.w_royko.pk,
+                self.c1.pk,
+                self.c2.pk,
+                self.c3.pk,
+            )
+        )
 
         # When the ModelForm is passed an instance, that instance's current values are
         # inserted as 'initial' data in each Field.
@@ -2566,8 +2587,10 @@ class OtherModelFormTests(TestCase):
         self.assertEqual(list(CustomFieldForExclusionForm.base_fields), ['name'])
         self.assertHTMLEqual(
             str(CustomFieldForExclusionForm()),
-            '''<tr><th><label for="id_name">Name:</label></th>
-<td><input id="id_name" type="text" name="name" maxlength="10" required></td></tr>'''
+            "\n".join([
+                "<tr><th><label for=\"id_name\">Name:</label></th>",
+                "<td><input id=\"id_name\" type=\"text\" name=\"name\" maxlength=\"10\" required></td></tr>",
+            ]),
         )
 
     def test_iterable_model_m2m(self):
@@ -2581,12 +2604,16 @@ class OtherModelFormTests(TestCase):
         self.maxDiff = 1024
         self.assertHTMLEqual(
             form.as_p(),
-            """<p><label for="id_name">Name:</label> <input id="id_name" type="text" name="name" maxlength="50" required></p>
-        <p><label for="id_colours">Colours:</label>
-        <select multiple name="colours" id="id_colours" required>
-        <option value="%(blue_pk)s">Blue</option>
-        </select></p>"""
-            % {'blue_pk': colour.pk})
+            "\n".join([
+                "<p><label for=\"id_name\">Name:</label> <input id=\"id_name\" type=\"text\" "
+                "name=\"name\" maxlength=\"50\" required></p>",
+                "<p><label for=\"id_colours\">Colours:</label>",
+                "<select multiple name=\"colours\" id=\"id_colours\" required>",
+                "<option value=\"%(blue_pk)s\">Blue</option>",
+                "</select></p>",
+            ])
+            % {'blue_pk': colour.pk},
+        )
 
     def test_callable_field_default(self):
         class PublicationDefaultsForm(forms.ModelForm):
