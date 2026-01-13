@@ -218,7 +218,7 @@ class Signal:
             self._dead_receivers = False
             self.receivers = [
                 r for r in self.receivers
-                if not(isinstance(r[1], weakref.ReferenceType) and r[1]() is None)
+                if not (isinstance(r[1], weakref.ReferenceType) and r[1]() is None)
             ]
 
     def _live_receivers(self, sender):

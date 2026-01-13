@@ -1772,7 +1772,7 @@ class DefaultNonExpiringCacheKeyTests(SimpleTestCase):
         self.DEFAULT_TIMEOUT = caches[DEFAULT_CACHE_ALIAS].default_timeout
 
     def tearDown(self):
-        del(self.DEFAULT_TIMEOUT)
+        del self.DEFAULT_TIMEOUT
 
     def test_default_expiration_time_for_keys_is_5_minutes(self):
         """The default expiration time of a cache key is 5 minutes.

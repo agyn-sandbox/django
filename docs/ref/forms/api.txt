@@ -595,23 +595,27 @@ attributes::
 
     class ContactForm(forms.Form):
         error_css_class = 'error'
-        required_css_class = 'required'
+        required_css_class = 'required-field'
 
         # ... and the rest of your fields here
 
-Once you've done that, rows will be given ``"error"`` and/or ``"required"``
-classes, as needed. The HTML will look something like::
+Once you've done that, rows will be given the values of ``error_css_class``
+and/or ``required_css_class`` as classes, as needed. With the configuration
+above, the HTML will look something like::
 
     >>> f = ContactForm(data)
     >>> print(f.as_table())
-    <tr class="required"><th><label class="required" for="id_subject">Subject:</label>    ...
-    <tr class="required"><th><label class="required" for="id_message">Message:</label>    ...
-    <tr class="required error"><th><label class="required" for="id_sender">Sender:</label>      ...
-    <tr><th><label for="id_cc_myself">Cc myself:<label> ...
+    <tr class="required-field"><th><label class="required-field" for="id_subject">Subject:</label>    ...
+    <tr class="required-field"><th><label class="required-field" for="id_message">Message:</label>    ...
+    <tr class="required-field error"><th><label class="required-field" for="id_sender">Sender:</label>      ...
+    <tr><th><label for="id_cc_myself">Cc myself:</label> ...
     >>> f['subject'].label_tag()
-    <label class="required" for="id_subject">Subject:</label>
+    <label class="required-field" for="id_subject">Subject:</label>
     >>> f['subject'].label_tag(attrs={'class': 'foo'})
-    <label for="id_subject" class="foo required">Subject:</label>
+    <label for="id_subject" class="foo required-field">Subject:</label>
+
+The optional ``cc_myself`` row doesn't gain the ``required-field`` class
+because the checkbox isn't required.
 
 .. _ref-forms-api-configuring-label:
 

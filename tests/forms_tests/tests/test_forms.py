@@ -10,9 +10,10 @@ from django.forms import (
     BooleanField, CharField, CheckboxSelectMultiple, ChoiceField, DateField,
     DateTimeField, EmailField, FileField, FileInput, FloatField, Form,
     HiddenInput, ImageField, IntegerField, MultipleChoiceField,
-    MultipleHiddenInput, MultiValueField, NullBooleanField, PasswordInput,
-    RadioSelect, Select, SplitDateTimeField, SplitHiddenDateTimeWidget,
-    Textarea, TextInput, TimeField, ValidationError, forms,
+    MultipleHiddenInput, MultiValueField, MultiWidget, NullBooleanField,
+    PasswordInput, RadioSelect, Select, SplitDateTimeField,
+    SplitHiddenDateTimeWidget, Textarea, TextInput, TimeField, ValidationError,
+    forms,
 )
 from django.forms.renderers import DjangoTemplates, get_default_renderer
 from django.forms.utils import ErrorList
@@ -619,13 +620,27 @@ Java</label></li>
         # accessibility for screen reader users.
         self.assertHTMLEqual(
             f.as_table(),
-            """<tr><th><label for="id_name">Name:</label></th><td><input type="text" name="name" id="id_name" required></td></tr>
-<tr><th><label>Language:</label></th><td><ul id="id_language">
-<li><label for="id_language_0"><input type="radio" id="id_language_0" value="P" name="language" required>
-Python</label></li>
-<li><label for="id_language_1"><input type="radio" id="id_language_1" value="J" name="language" required>
-Java</label></li>
-</ul></td></tr>"""
+            "\n".join(
+                [
+                    (
+                        "<tr><th><label for=\"id_name\">Name:</label></th><td>"
+                        "<input type=\"text\" name=\"name\" id=\"id_name\" required>"
+                        "</td></tr>"
+                    ),
+                    "<tr><th><label>Language:</label></th><td><ul id=\"id_language\">",
+                    (
+                        "<li><label for=\"id_language_0\"><input type=\"radio\" "
+                        "id=\"id_language_0\" value=\"P\" name=\"language\" required>\n"
+                        "Python</label></li>"
+                    ),
+                    (
+                        "<li><label for=\"id_language_1\"><input type=\"radio\" "
+                        "id=\"id_language_1\" value=\"J\" name=\"language\" required>\n"
+                        "Java</label></li>"
+                    ),
+                    "</ul></td></tr>",
+                ]
+            ),
         )
         self.assertHTMLEqual(
             f.as_ul(),
@@ -1540,20 +1555,69 @@ value="Should escape &lt; &amp; &gt; and &lt;script&gt;alert(&#x27;xss&#x27;)&lt
             field14 = CharField()
 
         p = TestForm(auto_id=False)
-        self.assertHTMLEqual(p.as_table(), """<tr><th>Field1:</th><td><input type="text" name="field1" required></td></tr>
-<tr><th>Field2:</th><td><input type="text" name="field2" required></td></tr>
-<tr><th>Field3:</th><td><input type="text" name="field3" required></td></tr>
-<tr><th>Field4:</th><td><input type="text" name="field4" required></td></tr>
-<tr><th>Field5:</th><td><input type="text" name="field5" required></td></tr>
-<tr><th>Field6:</th><td><input type="text" name="field6" required></td></tr>
-<tr><th>Field7:</th><td><input type="text" name="field7" required></td></tr>
-<tr><th>Field8:</th><td><input type="text" name="field8" required></td></tr>
-<tr><th>Field9:</th><td><input type="text" name="field9" required></td></tr>
-<tr><th>Field10:</th><td><input type="text" name="field10" required></td></tr>
-<tr><th>Field11:</th><td><input type="text" name="field11" required></td></tr>
-<tr><th>Field12:</th><td><input type="text" name="field12" required></td></tr>
-<tr><th>Field13:</th><td><input type="text" name="field13" required></td></tr>
-<tr><th>Field14:</th><td><input type="text" name="field14" required></td></tr>""")
+        self.assertHTMLEqual(
+            p.as_table(),
+            "\n".join(
+                [
+                    (
+                        "<tr><th>Field1:</th><td><input type=\"text\" name=\"field1\" "
+                        "required></td></tr>"
+                    ),
+                    (
+                        "<tr><th>Field2:</th><td><input type=\"text\" name=\"field2\" "
+                        "required></td></tr>"
+                    ),
+                    (
+                        "<tr><th>Field3:</th><td><input type=\"text\" name=\"field3\" "
+                        "required></td></tr>"
+                    ),
+                    (
+                        "<tr><th>Field4:</th><td><input type=\"text\" name=\"field4\" "
+                        "required></td></tr>"
+                    ),
+                    (
+                        "<tr><th>Field5:</th><td><input type=\"text\" name=\"field5\" "
+                        "required></td></tr>"
+                    ),
+                    (
+                        "<tr><th>Field6:</th><td><input type=\"text\" name=\"field6\" "
+                        "required></td></tr>"
+                    ),
+                    (
+                        "<tr><th>Field7:</th><td><input type=\"text\" name=\"field7\" "
+                        "required></td></tr>"
+                    ),
+                    (
+                        "<tr><th>Field8:</th><td><input type=\"text\" name=\"field8\" "
+                        "required></td></tr>"
+                    ),
+                    (
+                        "<tr><th>Field9:</th><td><input type=\"text\" name=\"field9\" "
+                        "required></td></tr>"
+                    ),
+                    (
+                        "<tr><th>Field10:</th><td><input type=\"text\" name=\"field10\" "
+                        "required></td></tr>"
+                    ),
+                    (
+                        "<tr><th>Field11:</th><td><input type=\"text\" name=\"field11\" "
+                        "required></td></tr>"
+                    ),
+                    (
+                        "<tr><th>Field12:</th><td><input type=\"text\" name=\"field12\" "
+                        "required></td></tr>"
+                    ),
+                    (
+                        "<tr><th>Field13:</th><td><input type=\"text\" name=\"field13\" "
+                        "required></td></tr>"
+                    ),
+                    (
+                        "<tr><th>Field14:</th><td><input type=\"text\" name=\"field14\" "
+                        "required></td></tr>"
+                    ),
+                ]
+            ),
+        )
 
     def test_explicit_field_order(self):
         class TestFormParent(Form):
@@ -2942,6 +3006,23 @@ Good luck picking a username that doesn&#x27;t already exist.</p>
         )
         self.assertHTMLEqual(f['field2'].label_tag(), '<label for="id_field2">Field2:</label>')
 
+    def test_label_tag_respects_custom_required_css_class(self):
+        class SomeForm(Form):
+            required_css_class = 'required-field'
+            field = CharField()
+
+        form = SomeForm()
+        bound = form['field']
+        self.assertHTMLEqual(
+            bound.label_tag(),
+            '<label for="id_field" class="required-field">Field:</label>',
+        )
+        form.required_css_class = 'badge-required'
+        self.assertHTMLEqual(
+            bound.label_tag(),
+            '<label for="id_field" class="badge-required">Field:</label>',
+        )
+
     def test_label_split_datetime_not_displayed(self):
         class EventForm(Form):
             happened_at = SplitDateTimeField(widget=SplitHiddenDateTimeWidget)
@@ -3823,6 +3904,107 @@ Good luck picking a username that doesn&#x27;t already exist.</p>
         field_copy = copy.deepcopy(field)
         self.assertIsInstance(field_copy, CustomCharField)
         self.assertIsNot(field_copy.error_messages, field.error_messages)
+
+
+class _MixedRequiredWidget(MultiWidget):
+    def __init__(self, attrs=None):
+        widgets = (TextInput(), TextInput())
+        super().__init__(widgets, attrs)
+
+    def decompress(self, value):
+        if value in (None, ''):
+            return [None, None]
+        if isinstance(value, (list, tuple)):
+            values = list(value)
+        else:
+            values = [value]
+        values.extend([None] * (2 - len(values)))
+        return values[:2]
+
+
+class _MixedRequiredField(MultiValueField):
+    widget = _MixedRequiredWidget
+
+    def __init__(self, *, require_all_fields=True, **kwargs):
+        fields = (
+            CharField(label='Primary'),
+            CharField(label='Secondary', required=False),
+        )
+        super().__init__(fields, require_all_fields=require_all_fields, **kwargs)
+
+    def compress(self, data_list):
+        if any(value not in self.empty_values for value in data_list):
+            return tuple(data_list)
+        return None
+
+
+class MultiValueFieldRequiredAttributeTests(SimpleTestCase):
+    def _subwidgets(self, bound_field):
+        widget = bound_field.field.widget
+        id_ = widget.attrs.get('id') or bound_field.auto_id
+        attrs = {'id': id_} if id_ else {}
+        attrs = bound_field.build_widget_attrs(attrs)
+        context = widget.get_context(bound_field.html_name, bound_field.value(), attrs)
+        return context['widget']['subwidgets']
+
+    def _required_attrs(self, bound_field):
+        return [subwidget['attrs'].get('required') for subwidget in self._subwidgets(bound_field)]
+
+    def test_require_all_fields_false_renders_required_on_required_subwidgets(self):
+        class MixedRequiredForm(forms.Form):
+            multi = _MixedRequiredField(require_all_fields=False)
+
+        form = MixedRequiredForm()
+        self.assertEqual(self._required_attrs(form['multi']), [True, None])
+
+    def test_validation_semantics_preserved_for_mixed_required_field(self):
+        class MixedRequiredForm(forms.Form):
+            multi = _MixedRequiredField(require_all_fields=False)
+
+        form = MixedRequiredForm(data={'multi_0': 'alpha', 'multi_1': ''})
+        self.assertTrue(form.is_valid())
+        self.assertEqual(form.cleaned_data['multi'], ('alpha', ''))
+
+        form = MixedRequiredForm(data={'multi_0': 'alpha', 'multi_1': 'beta'})
+        self.assertTrue(form.is_valid())
+        self.assertEqual(form.cleaned_data['multi'], ('alpha', 'beta'))
+
+        form = MixedRequiredForm(data={'multi_0': '', 'multi_1': 'beta'})
+        self.assertFalse(form.is_valid())
+        self.assertEqual(form.errors['multi'], ['Enter a complete value.'])
+
+        form = MixedRequiredForm(data={'multi_0': '', 'multi_1': ''})
+        self.assertFalse(form.is_valid())
+        self.assertEqual(form.errors['multi'], ['This field is required.'])
+
+    def test_use_required_attribute_setting_disables_required_html(self):
+        class MixedRequiredForm(forms.Form):
+            use_required_attribute = False
+            multi = _MixedRequiredField(require_all_fields=False)
+
+        form = MixedRequiredForm()
+        self.assertEqual(self._required_attrs(form['multi']), [None, None])
+
+    def test_split_datetime_field_required_attributes(self):
+        class RequiredSplitDateTimeForm(forms.Form):
+            split = SplitDateTimeField()
+
+        required_form = RequiredSplitDateTimeForm()
+        self.assertEqual(self._required_attrs(required_form['split']), [True, True])
+
+        class OptionalSplitDateTimeForm(forms.Form):
+            split = SplitDateTimeField(required=False)
+
+        optional_form = OptionalSplitDateTimeForm()
+        self.assertEqual(self._required_attrs(optional_form['split']), [None, None])
+
+    def test_split_hidden_datetime_widget_never_sets_required_attribute(self):
+        class HiddenSplitDateTimeForm(forms.Form):
+            split = SplitDateTimeField(widget=SplitHiddenDateTimeWidget())
+
+        form = HiddenSplitDateTimeForm()
+        for subwidget in self._subwidgets(form['split']):
+            self.assertNotIn('required', subwidget['attrs'])
 
 
 class CustomRenderer(DjangoTemplates):

@@ -81,7 +81,7 @@ def submit_row(context):
         'show_save_and_add_another': can_save_and_add_another,
         'show_save_and_continue': can_save_and_continue,
         'show_save': show_save and can_save,
-        'show_close': not(show_save and can_save)
+        'show_close': not (show_save and can_save)
     })
     return ctx
 
