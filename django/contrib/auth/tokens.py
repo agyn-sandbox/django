@@ -97,7 +97,9 @@ class PasswordResetTokenGenerator:
         # database doesn't support microseconds.
         login_timestamp = '' if user.last_login is None else user.last_login.replace(microsecond=0, tzinfo=None)
         email_field = type(user).get_email_field_name()
-        email = getattr(user, email_field, '') or ''
+        email = getattr(user, email_field)
+        if email is None:
+            email = ''
         return str(user.pk) + user.password + str(login_timestamp) + str(timestamp) + email
 
     def _num_seconds(self, dt):
