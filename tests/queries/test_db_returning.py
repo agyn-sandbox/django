@@ -112,12 +112,15 @@ class ReturningValueConvertersTests(TestCase):
             with self.subTest(obj=obj):
                 self.assertIsInstance(obj.pk, WrappedInt)
 
-    @skipUnlessDBFeature('supports_ignore_conflicts')
+    @skipUnlessDBFeature("supports_ignore_conflicts")
     def test_bulk_insert_ignore_conflicts_without_returning(self):
-        objs = WrappedAutoFieldModel.objects.bulk_create([
-            WrappedAutoFieldModel(),
-            WrappedAutoFieldModel(),
-        ], ignore_conflicts=True)
+        objs = WrappedAutoFieldModel.objects.bulk_create(
+            [
+                WrappedAutoFieldModel(),
+                WrappedAutoFieldModel(),
+            ],
+            ignore_conflicts=True,
+        )
         self.assertEqual(WrappedAutoFieldModel.objects.count(), 2)
         for obj in objs:
             with self.subTest(obj=obj):
