@@ -186,6 +186,8 @@ class FileSystemLoaderTests(SimpleTestCase):
         "Python on Windows doesn't have working os.chmod().",
     )
     def test_permissions_error(self):
+        if hasattr(os, 'geteuid') and os.geteuid() == 0:
+            self.skipTest('Root user can bypass directory permissions')
         with tempfile.NamedTemporaryFile() as tmpfile:
             tmpdir = os.path.dirname(tmpfile.name)
             tmppath = os.path.join(tmpdir, tmpfile.name)

@@ -109,6 +109,11 @@ class URLValidator(RegexValidator):
             self.schemes = schemes
 
     def __call__(self, value):
+        if not isinstance(value, str):
+            value = str(value)
+        if value != value.strip():
+            raise ValidationError(self.message, code=self.code)
+
         # Check first if the scheme is valid
         scheme = value.split('://')[0].lower()
         if scheme not in self.schemes:

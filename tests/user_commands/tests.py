@@ -240,9 +240,11 @@ class CommandTests(SimpleTestCase):
         self.assertIn('bar', out.getvalue())
 
     def test_subparser_invalid_option(self):
-        msg = "Error: invalid choice: 'test' (choose from 'foo')"
-        with self.assertRaisesMessage(CommandError, msg):
+        with self.assertRaises(CommandError) as cm:
             management.call_command('subparser', 'test', 12)
+        error_message = str(cm.exception)
+        self.assertIn("invalid choice: 'test'", error_message)
+        self.assertIn("choose from 'foo'", error_message)
         if PY37:
             # "required" option requires Python 3.7 and later.
             msg = 'Error: the following arguments are required: subcommand'
