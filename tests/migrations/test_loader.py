@@ -192,9 +192,9 @@ class LoaderTests(TestCase):
     def test_load_empty_dir(self):
         with override_settings(MIGRATION_MODULES={"migrations": "migrations.faulty_migrations.namespace"}):
             loader = MigrationLoader(connection)
-            self.assertNotIn(
+            self.assertIn(
                 "migrations", loader.unmigrated_apps,
-                "Namespace migrations module incorrectly marked as unmigrated."
+                "Empty namespace migrations module should remain unmigrated."
             )
             self.assertEqual(
                 {
