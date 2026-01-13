@@ -119,7 +119,6 @@ class DeleteCookieTests(SimpleTestCase):
                 response.delete_cookie(cookie_name)
                 self.assertIs(response.cookies[cookie_name]['secure'], True)
 
-
     def test_delete_cookie_with_samesite(self):
         response = HttpResponse()
         # Lax
@@ -129,8 +128,16 @@ class DeleteCookieTests(SimpleTestCase):
         response.delete_cookie('c_strict', samesite='strict')
         self.assertEqual(response.cookies['c_strict']['samesite'], 'strict')
         # None
-        response.delete_cookie('c_none', samesite='none')
-        self.assertEqual(response.cookies['c_none']['samesite'], 'none')
+        for samesite_value in ('none', 'None'):
+            with self.subTest(samesite=samesite_value):
+                cookie_name = f'c_none_{samesite_value}'
+                response.delete_cookie(cookie_name, samesite=samesite_value)
+                none_cookie = response.cookies[cookie_name]
+                self.assertEqual(none_cookie['samesite'], samesite_value)
+                self.assertIs(none_cookie['secure'], True)
+                header = none_cookie.output(header='Set-Cookie')
+                self.assertIn('Secure', header)
+                self.assertIn(f'SameSite={samesite_value}', header)
 
     def test_delete_cookie_invalid_samesite(self):
         response = HttpResponse()

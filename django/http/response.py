@@ -214,6 +214,8 @@ class HttpResponseBase:
         # Most browsers ignore the Set-Cookie header if the cookie name starts
         # with __Host- or __Secure- and the cookie doesn't use the secure flag.
         secure = key.startswith(('__Secure-', '__Host-'))
+        if samesite and samesite.lower() == 'none':
+            secure = True
         self.set_cookie(
             key, max_age=0, path=path, domain=domain, secure=secure,
             expires='Thu, 01 Jan 1970 00:00:00 GMT',
