@@ -313,7 +313,7 @@ class HttpResponse(HttpResponseBase):
     @content.setter
     def content(self, value):
         # Consume iterators upon assignment to allow repeated iteration.
-        if hasattr(value, '__iter__') and not isinstance(value, (bytes, str, memoryview)):
+        if hasattr(value, '__iter__') and not isinstance(value, (bytes, str)):
             content = b''.join(self.make_bytes(chunk) for chunk in value)
             if hasattr(value, 'close'):
                 try:

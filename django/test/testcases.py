@@ -1,5 +1,4 @@
 import difflib
-import re
 import json
 import posixpath
 import sys
@@ -57,23 +56,8 @@ def to_list(value):
     return value
 
 
-_INVALID_CLOSING_TAG = re.compile(r'</\s+([A-Za-z][A-Za-z0-9:_-]*)')
-
-
 def assert_and_parse_html(self, html, user_msg, msg):
     try:
-        match = _INVALID_CLOSING_TAG.search(html)
-        if match:
-            index = match.start()
-            line = html.count('\n', 0, index) + 1
-            last_newline = html.rfind('\n', 0, index)
-            column = index if last_newline == -1 else index - last_newline - 1
-            if column < 1:
-                column = 1
-            raise HTMLParseError(
-                "Unexpected end tag `%s` (Line %d, Column %d)" % (match.group(1), line, column),
-                (line, column),
-            )
         dom = parse_html(html)
     except HTMLParseError as e:
         standardMsg = '%s\n%s' % (msg, e)
@@ -792,9 +776,8 @@ class SimpleTestCase(unittest.TestCase):
         dom2 = assert_and_parse_html(self, html2, msg, 'Second argument is not valid HTML:')
 
         if dom1 != dom2:
-            left = safe_repr(dom1, True).strip()
-            right = safe_repr(dom2, True).strip()
-            standardMsg = '%s != %s' % (left, right)
+            standardMsg = '%s != %s' % (
+                safe_repr(dom1, True), safe_repr(dom2, True))
             diff = ('\n' + '\n'.join(difflib.ndiff(
                 str(dom1).splitlines(), str(dom2).splitlines(),
             )))
@@ -1209,16 +1192,12 @@ def _deferredSkip(condition, reason, name):
             def skip_wrapper(*args, **kwargs):
                 if (args and isinstance(args[0], unittest.TestCase) and
                         connection.alias not in getattr(args[0], 'databases', {})):
-                    test_case = args[0]
-                    test_name = getattr(test_case, '_testMethodName', str(test_case))
-                    class_label = '%s.%s' % (test_case.__class__.__module__, test_case.__class__.__qualname__)
                     raise ValueError(
-                        "%s cannot be used on %s (%s) as %s doesn't allow queries "
+                        "%s cannot be used on %s as %s doesn't allow queries "
                         "against the %r database." % (
                             name,
-                            test_name,
-                            class_label,
-                            test_case.__class__.__qualname__,
+                            args[0],
+                            args[0].__class__.__qualname__,
                             connection.alias,
                         )
                     )
@@ -1233,19 +1212,10 @@ def _deferredSkip(condition, reason, name):
             if not databases or connection.alias not in databases:
                 # Defer raising to allow importing test class's module.
                 def condition():
-                    if isinstance(test_item, type):
-                        class_label = repr(test_item)
-                    else:
-                        owner_qualname = test_item.__qualname__.rsplit('.', 1)[0]
-                        class_label = '%s (%s.%s)' % (
-                            test_item.__name__,
-                            test_item.__module__,
-                            owner_qualname,
-                        )
                     raise ValueError(
                         "%s cannot be used on %s as it doesn't allow queries "
                         "against the '%s' database." % (
-                            name, class_label, connection.alias,
+                            name, test_item, connection.alias,
                         )
                     )
             # Retrieve the possibly existing value from the class's dict to

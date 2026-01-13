@@ -162,23 +162,6 @@ class MLStripper(HTMLParser):
     def handle_charref(self, name):
         self.fed.append('&#%s;' % name)
 
-    # Treat bogus comments (e.g. '<!' without a closing '>') as plain text
-    # instead of discarding them entirely. Python 3.12's HTMLParser consumes
-    # these sequences as comments, which truncates inputs such as
-    # '><!' + ('&' * 16000) + 'D' that historically round-tripped through
-    # strip_tags().
-    def parse_bogus_comment(self, i, report=1):
-        rawdata = self.rawdata
-        assert rawdata[i:i + 2] in ('<!', '</')
-        pos = rawdata.find('>', i + 2)
-        if pos == -1:
-            if report:
-                self.handle_data(rawdata[i:])
-            return -1
-        if report:
-            self.handle_data(rawdata[i:pos + 1])
-        return pos + 1
-
     def get_data(self):
         return ''.join(self.fed)
 
@@ -201,7 +184,7 @@ def strip_tags(value):
     value = str(value)
     while '<' in value and '>' in value:
         new_value = _strip_once(value)
-        if new_value.count('<') >= value.count('<'):
+        if value.count('<') == new_value.count('<'):
             # _strip_once wasn't able to detect more tags.
             break
         value = new_value
