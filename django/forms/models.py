@@ -13,7 +13,7 @@ from django.forms.forms import BaseForm, DeclarativeFieldsMetaclass
 from django.forms.formsets import BaseFormSet, formset_factory
 from django.forms.utils import ErrorList
 from django.forms.widgets import (
-    HiddenInput, MultipleHiddenInput, SelectMultiple,
+    HiddenInput, MultipleHiddenInput, RadioSelect, SelectMultiple,
 )
 from django.utils.text import capfirst, get_text_list
 from django.utils.translation import gettext, gettext_lazy as _
@@ -1196,6 +1196,8 @@ class ModelChoiceField(ChoiceField):
             self, required=required, widget=widget, label=label,
             initial=initial, help_text=help_text, **kwargs
         )
+        if required and isinstance(self.widget, RadioSelect):
+            self.empty_label = None
         self.queryset = queryset
         self.limit_choices_to = limit_choices_to   # limit the queryset later.
         self.to_field_name = to_field_name
