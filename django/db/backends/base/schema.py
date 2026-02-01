@@ -12,6 +12,7 @@ from django.db.backends.ddl_references import (
     Table,
 )
 from django.db.backends.utils import names_digest, split_identifier
+from django.db.migrations.utils import resolve_relation
 from django.db.models import Deferrable, Index
 from django.db.models.sql import Query
 from django.db.transaction import TransactionManagementError, atomic
@@ -197,6 +198,16 @@ class BaseDatabaseSchemaEditor:
         else:
             with self.connection.cursor() as cursor:
                 cursor.execute(sql, params)
+
+    def _resolve_through_model(self, model, through):
+        if isinstance(through, str):
+            app_label, object_name = resolve_relation(
+                through,
+                model._meta.app_label,
+                model._meta.object_name,
+            )
+            return model._meta.apps.get_model(app_label, object_name)
+        return through
 
     def quote_name(self, name):
         return self.connection.ops.quote_name(name)
@@ -450,15 +461,19 @@ class BaseDatabaseSchemaEditor:
 
         # Make M2M tables
         for field in model._meta.local_many_to_many:
-            if field.remote_field.through._meta.auto_created:
-                self.create_model(field.remote_field.through)
+            through = field.remote_field.through
+            through = self._resolve_through_model(model, through)
+            if through._meta.auto_created:
+                self.create_model(through)
 
     def delete_model(self, model):
         """Delete a model from the database."""
         # Handle auto-created intermediary models
         for field in model._meta.local_many_to_many:
-            if field.remote_field.through._meta.auto_created:
-                self.delete_model(field.remote_field.through)
+            through = field.remote_field.through
+            through = self._resolve_through_model(model, through)
+            if through._meta.auto_created:
+                self.delete_model(through)
 
         # Delete the table
         self.execute(
@@ -630,8 +645,11 @@ class BaseDatabaseSchemaEditor:
         involve adding a table instead (for M2M fields).
         """
         # Special-case implicit M2M tables
-        if field.many_to_many and field.remote_field.through._meta.auto_created:
-            return self.create_model(field.remote_field.through)
+        if field.many_to_many:
+            through = field.remote_field.through
+            through = self._resolve_through_model(model, through)
+            if through._meta.auto_created:
+                return self.create_model(through)
         # Get the column's definition
         definition, params = self.column_sql(model, field, include_default=True)
         # It might not actually have a column behind it
@@ -658,9 +676,9 @@ class BaseDatabaseSchemaEditor:
                 namespace, _ = split_identifier(model._meta.db_table)
                 definition += " " + self.sql_create_column_inline_fk % {
                     "name": self._fk_constraint_name(model, field, constraint_suffix),
-                    "namespace": "%s." % self.quote_name(namespace)
-                    if namespace
-                    else "",
+                    "namespace": (
+                        "%s." % self.quote_name(namespace) if namespace else ""
+                    ),
                     "column": self.quote_name(field.column),
                     "to_table": self.quote_name(to_table),
                     "to_column": self.quote_name(to_column),
@@ -704,8 +722,11 @@ class BaseDatabaseSchemaEditor:
         but for M2Ms may involve deleting a table.
         """
         # Special-case implicit M2M tables
-        if field.many_to_many and field.remote_field.through._meta.auto_created:
-            return self.delete_model(field.remote_field.through)
+        if field.many_to_many:
+            through = field.remote_field.through
+            through = self._resolve_through_model(model, through)
+            if through._meta.auto_created:
+                return self.delete_model(through)
         # It might not actually have a column behind it
         if field.db_parameters(connection=self.connection)["type"] is None:
             return
@@ -740,6 +761,16 @@ class BaseDatabaseSchemaEditor:
         """
         if not self._field_should_be_altered(old_field, new_field):
             return
+        if old_field.remote_field and getattr(old_field.remote_field, "through", None):
+            old_through = old_field.remote_field.through
+            old_field.remote_field.through = self._resolve_through_model(
+                model, old_through
+            )
+        if new_field.remote_field and getattr(new_field.remote_field, "through", None):
+            new_through = new_field.remote_field.through
+            new_field.remote_field.through = self._resolve_through_model(
+                model, new_through
+            )
         # Ensure this field is even column-based
         old_db_params = old_field.db_parameters(connection=self.connection)
         old_type = old_db_params["type"]
@@ -1237,9 +1268,9 @@ class BaseDatabaseSchemaEditor:
             % {
                 "column": self.quote_name(new_field.column),
                 "type": new_type,
-                "collation": " " + self._collate_sql(new_collation)
-                if new_collation
-                else "",
+                "collation": (
+                    " " + self._collate_sql(new_collation) if new_collation else ""
+                ),
             },
             [],
         )
