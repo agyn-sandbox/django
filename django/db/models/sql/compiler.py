@@ -409,28 +409,31 @@ class SQLCompiler:
 
     def get_combinator_sql(self, combinator, all):
         features = self.connection.features
-        compilers = [
-            query.get_compiler(self.using, self.connection)
-            for query in self.query.combined_queries if not query.is_empty()
+        queries = [
+            query for query in self.query.combined_queries
+            if not query.is_empty()
         ]
+        compilers = [query.get_compiler(self.using, self.connection) for query in queries]
         if not features.supports_slicing_ordering_in_compound:
-            for query, compiler in zip(self.query.combined_queries, compilers):
+            for query, compiler in zip(queries, compilers):
                 if query.low_mark or query.high_mark:
                     raise DatabaseError('LIMIT/OFFSET not allowed in subqueries of compound statements.')
                 if compiler.get_order_by():
                     raise DatabaseError('ORDER BY not allowed in subqueries of compound statements.')
         parts = ()
-        for compiler in compilers:
+        for query, compiler in zip(queries, compilers):
             try:
                 # If the columns list is limited, then all combined queries
                 # must have the same columns list. Set the selects defined on
                 # the query on all combined queries, if not already set.
                 if not compiler.query.values_select and self.query.values_select:
-                    compiler.query.set_values((
+                    query = query.clone()
+                    query.set_values((
                         *self.query.extra_select,
                         *self.query.values_select,
                         *self.query.annotation_select,
                     ))
+                    compiler = query.get_compiler(self.using, self.connection)
                 part_sql, part_args = compiler.as_sql()
                 if compiler.query.combinator:
                     # Wrap in a subquery if wrapping in parentheses isn't
