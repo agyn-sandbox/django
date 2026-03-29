@@ -69,6 +69,7 @@ class TestNumberFormat(SimpleTestCase):
         self.assertEqual(nformat(Decimal('-1234.33'), '.', decimal_pos=1), '-1234.3')
         self.assertEqual(nformat(Decimal('0.00000001'), '.', decimal_pos=8), '0.00000001')
         self.assertEqual(nformat(Decimal('9e-19'), '.', decimal_pos=2), '0.00')
+        self.assertEqual(nformat(Decimal('-1e-200'), '.', decimal_pos=2), '-0.00')
         self.assertEqual(nformat(Decimal('.00000000000099'), '.', decimal_pos=0), '0')
         self.assertEqual(
             nformat(Decimal('1e16'), '.', thousand_sep=',', grouping=3, force_grouping=True),
@@ -94,7 +95,9 @@ class TestNumberFormat(SimpleTestCase):
             ('1e-10', 8, '0.00000000'),
             ('1e-11', 8, '0.00000000'),
             ('1' + ('0' * 300), 3, '1.000e+300'),
-            ('0.{}1234'.format('0' * 299), 3, '1.234e-300'),
+            # With a fixed decimal_pos, extremely small numbers should round to zero
+            # rather than use scientific notation.
+            ('0.{}1234'.format('0' * 299), 3, '0.000'),
         ]
         for value, decimal_pos, expected_value in tests:
             with self.subTest(value=value):
