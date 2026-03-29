@@ -399,6 +399,7 @@ class ModelState:
     # on the actual save.
     adding = True
     fields_cache = ModelStateFieldsCacheDescriptor()
+    pk_set_explicitly = False
 
 
 class Model(metaclass=ModelBase):
@@ -414,6 +415,7 @@ class Model(metaclass=ModelBase):
 
         # Set up the storage for instance state
         self._state = ModelState()
+        self._state.pk_set_explicitly = False
 
         # There is a rather weird disparity here; if kwargs, it's set, then args
         # overrides it. It should be one or the other; don't duplicate the work
@@ -433,6 +435,8 @@ class Model(metaclass=ModelBase):
                 if val is _DEFERRED:
                     continue
                 _setattr(self, field.attname, val)
+                if field.primary_key:
+                    self._state.pk_set_explicitly = True
         else:
             # Slower, kwargs-ready version.
             fields_iter = iter(opts.fields)
@@ -440,6 +444,8 @@ class Model(metaclass=ModelBase):
                 if val is _DEFERRED:
                     continue
                 _setattr(self, field.attname, val)
+                if field.primary_key:
+                    self._state.pk_set_explicitly = True
                 kwargs.pop(field.name, None)
 
         # Now we're left with the unprocessed fields that *must* come from
@@ -450,29 +456,37 @@ class Model(metaclass=ModelBase):
             # Virtual field
             if field.attname not in kwargs and field.column is None:
                 continue
+            value_set_explicitly = None
             if kwargs:
                 if isinstance(field.remote_field, ForeignObjectRel):
                     try:
                         # Assume object instance was passed in.
                         rel_obj = kwargs.pop(field.name)
                         is_related_object = True
+                        if field.primary_key:
+                            self._state.pk_set_explicitly = True
                     except KeyError:
                         try:
                             # Object instance wasn't passed in -- must be an ID.
                             val = kwargs.pop(field.attname)
+                            value_set_explicitly = True
                         except KeyError:
                             val = field.get_default()
+                            value_set_explicitly = False
                 else:
                     try:
                         val = kwargs.pop(field.attname)
+                        value_set_explicitly = True
                     except KeyError:
                         # This is done with an exception rather than the
                         # default argument on pop because we don't want
                         # get_default() to be evaluated, and then not used.
                         # Refs #12057.
                         val = field.get_default()
+                        value_set_explicitly = False
             else:
                 val = field.get_default()
+                value_set_explicitly = False
 
             if is_related_object:
                 # If we are passed a related instance, set it using the
@@ -484,6 +498,8 @@ class Model(metaclass=ModelBase):
             else:
                 if val is not _DEFERRED:
                     _setattr(self, field.attname, val)
+                    if field.primary_key and value_set_explicitly is not None:
+                        self._state.pk_set_explicitly = value_set_explicitly
 
         if kwargs:
             property_names = opts._property_names
@@ -491,9 +507,19 @@ class Model(metaclass=ModelBase):
                 try:
                     # Any remaining kwargs must correspond to properties or
                     # virtual fields.
-                    if prop in property_names or opts.get_field(prop):
-                        if kwargs[prop] is not _DEFERRED:
-                            _setattr(self, prop, kwargs[prop])
+                    value = kwargs[prop]
+                    if prop in property_names:
+                        if value is not _DEFERRED:
+                            _setattr(self, prop, value)
+                            if prop == 'pk':
+                                self._state.pk_set_explicitly = True
+                        del kwargs[prop]
+                    else:
+                        field = opts.get_field(prop)
+                        if value is not _DEFERRED:
+                            _setattr(self, prop, value)
+                            if field.primary_key:
+                                self._state.pk_set_explicitly = True
                         del kwargs[prop]
                 except (AttributeError, FieldDoesNotExist):
                     pass
@@ -501,6 +527,16 @@ class Model(metaclass=ModelBase):
                 raise TypeError("%s() got an unexpected keyword argument '%s'" % (cls.__name__, kwarg))
         super().__init__()
         post_init.send(sender=cls, instance=self)
+
+    def __setattr__(self, name, value):
+        if (
+            name == self._meta.pk.attname and
+            value is not None and
+            value is not DEFERRED and
+            '_state' in self.__dict__
+        ):
+            self._state.pk_set_explicitly = True
+        super().__setattr__(name, value)
 
     @classmethod
     def from_db(cls, db, field_names, values):
@@ -843,6 +879,8 @@ class Model(metaclass=ModelBase):
         if pk_val is None:
             pk_val = meta.pk.get_pk_value_on_save(self)
             setattr(self, meta.pk.attname, pk_val)
+            if hasattr(self._state, 'pk_set_explicitly'):
+                self._state.pk_set_explicitly = False
         pk_set = pk_val is not None
         if not pk_set and (force_update or update_fields):
             raise ValueError("Cannot force an update in save() with no primary key.")
@@ -851,8 +889,9 @@ class Model(metaclass=ModelBase):
         if (
             not force_insert and
             self._state.adding and
-            self._meta.pk.default and
-            self._meta.pk.default is not NOT_PROVIDED
+            self._meta.pk.default is not NOT_PROVIDED and
+            not raw and
+            not getattr(self._state, 'pk_set_explicitly', False)
         ):
             force_insert = True
         # If possible, try an UPDATE. If that doesn't update anything, do an INSERT.
