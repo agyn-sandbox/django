@@ -51,7 +51,7 @@ class ModelChoiceFieldTests(TestCase):
         # instantiated. This proves clean() checks the database during clean()
         # rather than caching it at instantiation time.
         Category.objects.get(url='4th').delete()
-        msg = "['Select a valid choice. That choice is not one of the available choices.']"
+        msg = f"['Select a valid choice. {c4.id} is not one of the available choices.']"
         with self.assertRaisesMessage(ValidationError, msg):
             f.clean(c4.id)
 
@@ -59,9 +59,10 @@ class ModelChoiceFieldTests(TestCase):
         f = forms.ModelChoiceField(Category.objects.all())
         self.assertEqual(f.clean(self.c1), self.c1)
         # An instance of incorrect model.
-        msg = "['Select a valid choice. That choice is not one of the available choices.']"
+        book = Book.objects.create()
+        msg = f"['Select a valid choice. {book} is not one of the available choices.']"
         with self.assertRaisesMessage(ValidationError, msg):
-            f.clean(Book.objects.create())
+            f.clean(book)
 
     def test_clean_to_field_name(self):
         f = forms.ModelChoiceField(Category.objects.all(), to_field_name='slug')
@@ -212,11 +213,12 @@ class ModelChoiceFieldTests(TestCase):
                 model = Book
                 fields = ['author']
 
-        book = Book.objects.create(author=Writer.objects.create(name='Test writer'))
+        writer = Writer.objects.create(name='Test writer')
+        book = Book.objects.create(author=writer)
         form = ModelChoiceForm({}, instance=book)
         self.assertEqual(
             form.errors['author'],
-            ['Select a valid choice. That choice is not one of the available choices.']
+            [f'Select a valid choice. {writer.pk} is not one of the available choices.']
         )
 
     def test_disabled_modelchoicefield_has_changed(self):
