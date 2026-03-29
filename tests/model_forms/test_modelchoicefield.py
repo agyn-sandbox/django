@@ -7,7 +7,7 @@ from django.forms.widgets import CheckboxSelectMultiple
 from django.template import Context, Template
 from django.test import TestCase
 
-from .models import Article, Author, Book, Category, Writer
+from .models import Assignment, Article, Author, Book, Category, Department, Staff, Writer
 
 
 class ModelChoiceFieldTests(TestCase):
@@ -373,3 +373,75 @@ class ModelChoiceFieldTests(TestCase):
         )
         with self.assertNumQueries(2):
             template.render(Context({'form': CategoriesForm()}))
+
+
+class ModelChoiceFieldLimitChoicesToJoinTests(TestCase):
+    @classmethod
+    def setUpTestData(cls):
+        cls.alice = Staff.objects.create(name='Alice', code='ALICE')
+        cls.bruno = Staff.objects.create(name='Bruno', code='BRUNO')
+        cls.cara = Staff.objects.create(name='Cara', code='CARA')
+        cls.alice_hr_primary = Department.objects.create(name='HR', staff=cls.alice)
+        cls.alice_hr_secondary = Department.objects.create(name='HR', staff=cls.alice)
+        cls.bruno_hr = Department.objects.create(name='HR', staff=cls.bruno)
+        cls.cara_engineering = Department.objects.create(name='Engineering', staff=cls.cara)
+
+    def test_limit_choices_to_join_deduplicates_choices(self):
+        class AssignmentForm(forms.ModelForm):
+            class Meta:
+                model = Assignment
+                fields = ['staff']
+
+        choices = list(AssignmentForm().fields['staff'].choices)
+        self.assertEqual(choices[0], ('', '---------'))
+        self.assertEqual(choices[1:], [
+            (self.alice.pk, 'Alice'),
+            (self.bruno.pk, 'Bruno'),
+        ])
+
+    def test_clean_accepts_selected_pk_after_dedup(self):
+        class AssignmentForm(forms.ModelForm):
+            class Meta:
+                model = Assignment
+                fields = ['staff']
+
+        field = AssignmentForm().fields['staff']
+        self.assertEqual(field.clean(str(self.alice.pk)), self.alice)
+
+    def test_to_field_name_dedup_and_clean(self):
+        field = forms.ModelChoiceField(
+            Staff.objects.filter(department__name='HR'),
+            to_field_name='code',
+        )
+        choices = list(field.choices)
+        self.assertEqual(choices[0], ('', '---------'))
+        self.assertEqual(choices[1:], [
+            (self.alice.code, 'Alice'),
+            (self.bruno.code, 'Bruno'),
+        ])
+        self.assertEqual(field.clean(self.alice.code), self.alice)
+
+    def test_to_field_name_non_unique_raises_invalid_choice(self):
+        other_alice = Staff.objects.create(name='Alice', code='ALICE-DUP')
+        Department.objects.create(name='HR', staff=other_alice)
+        field = forms.ModelChoiceField(
+            Staff.objects.filter(department__name='HR'),
+            to_field_name='name',
+        )
+        with self.assertRaises(ValidationError):
+            field.clean('Alice')
+
+    def test_modelmultiplechoicefield_dedup_parity(self):
+        field = forms.ModelMultipleChoiceField(
+            Staff.objects.filter(department__name='HR'),
+        )
+        self.assertEqual(list(field.choices), [
+            (self.alice.pk, 'Alice'),
+            (self.bruno.pk, 'Bruno'),
+        ])
+        cleaned = field.clean([
+            str(self.alice.pk),
+            str(self.alice.pk),
+            str(self.bruno.pk),
+        ])
+        self.assertCountEqual([obj.pk for obj in cleaned], [self.alice.pk, self.bruno.pk])
