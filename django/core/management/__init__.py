@@ -2,7 +2,15 @@ import functools
 import os
 import pkgutil
 import sys
-from argparse import _SubParsersAction
+from argparse import (
+    _AppendAction,
+    _AppendConstAction,
+    _CountAction,
+    _StoreConstAction,
+    _StoreFalseAction,
+    _StoreTrueAction,
+    _SubParsersAction,
+)
 from collections import defaultdict
 from difflib import get_close_matches
 from importlib import import_module
@@ -129,7 +137,133 @@ def call_command(command_name, *args, **options):
             else:
                 yield opt
 
+    def get_mutually_exclusive_groups(current_parser):
+        groups = [group for group in current_parser._mutually_exclusive_groups if group.required]
+        for action in current_parser._actions:
+            if isinstance(action, _SubParsersAction):
+                for sub_parser in action.choices.values():
+                    groups.extend(get_mutually_exclusive_groups(sub_parser))
+        return groups
+
+    def option_present_in_args(option_strings, argv_tokens):
+        for token in argv_tokens:
+            for opt in option_strings:
+                if token == opt or token.startswith(opt + '='):
+                    return True
+        return False
+
+    def kwargs_provide_action(action, params):
+        if not action.option_strings or action.dest not in params:
+            return False
+        value = params[action.dest]
+        if isinstance(action, _StoreTrueAction):
+            return value is True
+        if isinstance(action, _StoreFalseAction):
+            return value is False
+        if isinstance(action, _StoreConstAction):
+            return value == action.const
+        if isinstance(action, _AppendConstAction):
+            if isinstance(value, (list, tuple)):
+                return action.const in value
+            return value == action.const
+        if isinstance(action, _AppendAction):
+            return bool(value)
+        if isinstance(action, _CountAction):
+            try:
+                return int(value) > 0
+            except (TypeError, ValueError):
+                return False
+        if action.nargs == 0:
+            return value != action.default
+        return value is not None
+
+    def tokens_for_action(action, value):
+        option_string = min(action.option_strings)
+        tokens = []
+
+        def append_with_values(raw_values):
+            string_values = [str(v) for v in raw_values]
+            if option_string.startswith('--') and len(string_values) == 1:
+                tokens.append('%s=%s' % (option_string, string_values[0]))
+            else:
+                tokens.append(option_string)
+                tokens.extend(string_values)
+
+        if isinstance(action, (_StoreTrueAction, _StoreFalseAction)):
+            tokens.append(option_string)
+            return tokens
+        if isinstance(action, _StoreConstAction):
+            tokens.append(option_string)
+            return tokens
+        if isinstance(action, _AppendConstAction):
+            occurrences = 1
+            if isinstance(value, (list, tuple)):
+                occurrences = sum(1 for item in value if item == action.const)
+                occurrences = max(occurrences, 1)
+            tokens.extend([option_string] * occurrences)
+            return tokens
+        if isinstance(action, _CountAction):
+            try:
+                count = int(value)
+            except (TypeError, ValueError):
+                return tokens
+            tokens.extend([option_string] * max(count, 0))
+            return tokens
+        if isinstance(action, _AppendAction):
+            entries = value if isinstance(value, (list, tuple)) else [value]
+            for entry in entries:
+                if action.nargs == 0:
+                    tokens.append(option_string)
+                    continue
+                if action.nargs == '?':
+                    if entry is None:
+                        if action.const is not None:
+                            tokens.append(option_string)
+                        continue
+                    append_with_values([entry])
+                    continue
+                if action.nargs in (None, 1):
+                    append_with_values([entry])
+                    continue
+                if isinstance(action.nargs, int):
+                    values = entry if isinstance(entry, (list, tuple)) else [entry]
+                    append_with_values(values)
+                    continue
+                if action.nargs in ('*', '+'):
+                    values = entry if isinstance(entry, (list, tuple)) else [entry]
+                    append_with_values(values)
+                    continue
+            return tokens
+        if action.nargs == 0:
+            tokens.append(option_string)
+            return tokens
+        if action.nargs == '?':
+            if value is None:
+                if action.const is not None:
+                    tokens.append(option_string)
+                return tokens
+            append_with_values([value])
+            return tokens
+        if action.nargs in (None, 1):
+            append_with_values([value])
+            return tokens
+        if isinstance(action.nargs, int) or action.nargs in ('*', '+'):
+            values = value if isinstance(value, (list, tuple)) else [value]
+            append_with_values(values)
+            return tokens
+        return tokens
+
     parser_actions = list(get_actions(parser))
+    for group in get_mutually_exclusive_groups(parser):
+        group_actions = [opt for opt in group._group_actions if opt.option_strings]
+        if not group_actions:
+            continue
+        if any(option_present_in_args(opt.option_strings, parse_args) for opt in group_actions):
+            continue
+        for opt in group_actions:
+            if kwargs_provide_action(opt, arg_options):
+                parse_args.extend(tokens_for_action(opt, arg_options[opt.dest]))
+                break
     # Any required arguments which are passed in via **options must be passed
     # to parse_args().
     parse_args += [

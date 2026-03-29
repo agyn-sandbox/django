@@ -209,6 +209,77 @@ class CommandTests(SimpleTestCase):
         self.assertIn('need_me', out.getvalue())
         self.assertIn('needme2', out.getvalue())
 
+    def test_call_command_required_mutually_exclusive_group_kwargs(self):
+        out = StringIO()
+        management.call_command('required_group_options', shop_id=1, stdout=out)
+        value = out.getvalue()
+        self.assertIn('shop_id=1', value)
+        self.assertIn('shop_name=None', value)
+
+        out = StringIO()
+        management.call_command('required_group_options', shop_name='Acme', stdout=out)
+        value = out.getvalue()
+        self.assertIn('shop_id=None', value)
+        self.assertIn('shop_name=Acme', value)
+
+    def test_call_command_required_mutually_exclusive_flags_kwargs(self):
+        out = StringIO()
+        management.call_command('required_group_flags', shop_enabled=True, stdout=out)
+        self.assertIn('shop_enabled=True', out.getvalue())
+
+        out = StringIO()
+        management.call_command('required_group_flags', shop_enabled=False, stdout=out)
+        self.assertIn('shop_enabled=False', out.getvalue())
+
+    def test_call_command_required_append_group_kwargs(self):
+        out = StringIO()
+        management.call_command(
+            'required_group_append',
+            tags=[['alpha', 'beta'], ['gamma', 'delta']],
+            stdout=out,
+        )
+        value = out.getvalue()
+        self.assertIn('tags=alpha beta|gamma delta', value)
+        self.assertIn('label=None', value)
+
+        out = StringIO()
+        management.call_command('required_group_append', label='fallback', stdout=out)
+        self.assertIn('tags=None', out.getvalue())
+
+    def test_call_command_multiple_required_mutually_exclusive_groups_kwargs(self):
+        out = StringIO()
+        management.call_command(
+            'multiple_required_groups',
+            primary_name='Primary',
+            region_id=7,
+            stdout=out,
+        )
+        value = out.getvalue()
+        self.assertIn('primary_name=Primary', value)
+        self.assertIn('region_id=7', value)
+
+    def test_call_command_non_required_mutually_exclusive_group(self):
+        out = StringIO()
+        management.call_command('non_required_group', stdout=out)
+        value = out.getvalue()
+        self.assertIn('optional_alpha=None', value)
+        self.assertIn('optional_beta=None', value)
+
+        out = StringIO()
+        management.call_command('non_required_group', optional_beta='beta', stdout=out)
+        self.assertIn('optional_beta=beta', out.getvalue())
+
+    def test_call_command_required_group_unknown_option(self):
+        with self.assertRaises(TypeError) as cm:
+            management.call_command('required_group_options', shop_id=1, unknown='value')
+        message = str(cm.exception)
+        self.assertIn(
+            "Unknown option(s) for required_group_options command: unknown.",
+            message,
+        )
+        self.assertIn('shop_id', message)
+        self.assertIn('shop_name', message)
+
     def test_command_add_arguments_after_common_arguments(self):
         out = StringIO()
         management.call_command('common_args', stdout=out)
@@ -230,9 +301,9 @@ class CommandTests(SimpleTestCase):
         self.assertIn('bar', out.getvalue())
 
     def test_subparser_invalid_option(self):
-        msg = "Error: invalid choice: 'test' (choose from 'foo')"
-        with self.assertRaisesMessage(CommandError, msg):
+        with self.assertRaises(CommandError) as cm:
             management.call_command('subparser', 'test', 12)
+        self.assertIn("invalid choice: 'test' (choose from 'foo')", str(cm.exception))
         if PY37:
             # "required" option requires Python 3.7 and later.
             msg = 'Error: the following arguments are required: subcommand'
