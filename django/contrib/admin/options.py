@@ -1031,17 +1031,37 @@ class ModelAdmin(BaseModelAdmin):
         if search_fields and search_term:
             orm_lookups = [construct_search(str(search_field))
                            for search_field in search_fields]
+            lookup_infos = [
+                (orm_lookup, lookup_spawns_duplicates(self.opts, orm_lookup))
+                for orm_lookup in orm_lookups
+            ]
+
+            # Build a single combined Q: AND across terms, OR across fields per term.
+            base_queryset = queryset
+            term_qs = []
             for bit in smart_split(search_term):
                 if bit.startswith(('"', "'")) and bit[0] == bit[-1]:
                     bit = unescape_string_literal(bit)
-                or_queries = models.Q(
-                    *((orm_lookup, bit) for orm_lookup in orm_lookups),
-                    _connector=models.Q.OR,
-                )
-                queryset = queryset.filter(or_queries)
+                or_q = models.Q()
+                for orm_lookup, spawns_duplicates in lookup_infos:
+                    if spawns_duplicates:
+                        related_qs = base_queryset.filter(
+                            **{orm_lookup: bit}
+                        ).values('pk').order_by()
+                        or_q |= models.Q(pk__in=models.Subquery(related_qs))
+                    else:
+                        or_q |= models.Q(**{orm_lookup: bit})
+                term_qs.append(or_q)
+
+            if term_qs:
+                combined_q = term_qs[0]
+                for q in term_qs[1:]:
+                    combined_q &= q
+                queryset = queryset.filter(combined_q)
+
             may_have_duplicates |= any(
-                lookup_spawns_duplicates(self.opts, search_spec)
-                for search_spec in orm_lookups
+                spawns_duplicates
+                for _, spawns_duplicates in lookup_infos
             )
         return queryset, may_have_duplicates
 

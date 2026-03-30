@@ -1,4 +1,5 @@
 import datetime
+import re
 
 from django.contrib import admin
 from django.contrib.admin.models import LogEntry
@@ -488,6 +489,23 @@ class ChangeListTests(TestCase):
         self.assertIs(cl.queryset.query.distinct, False)
         cl.queryset.delete()
         self.assertEqual(cl.queryset.count(), 0)
+
+    def test_multi_word_search_avoids_duplicate_fk_joins(self):
+        class ChildSearchAdmin(admin.ModelAdmin):
+            search_fields = ['parent__name']
+
+        parent = Parent.objects.create(name='Alpha Parent')
+        Child.objects.create(parent=parent, name='child')
+
+        m = ChildSearchAdmin(Child, custom_site)
+        request = self.factory.get('/child/', data={SEARCH_VAR: 'alpha beta gamma'})
+        request.user = self.superuser
+        cl = m.get_changelist_instance(request)
+        sql = str(cl.queryset.query)
+
+        parent_table = Parent._meta.db_table
+        pattern = re.compile(rf"\bjoin\s+[`\"]?{re.escape(parent_table)}[`\"]?", re.IGNORECASE)
+        self.assertEqual(len(pattern.findall(sql)), 1)
 
     def test_no_duplicates_for_many_to_many_at_second_level_in_search_fields(self):
         """
