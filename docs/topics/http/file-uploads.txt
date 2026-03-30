@@ -184,6 +184,15 @@ Together :class:`MemoryFileUploadHandler` and
 :class:`TemporaryFileUploadHandler` provide Django's default file upload
 behavior of reading small files into memory and large ones onto disk.
 
+.. note::
+
+    Prior to :setting:`FILE_UPLOAD_PERMISSIONS` defaulting to ``0o644``,
+    uploads handled in memory and those written to temporary files could
+    land on disk with different permissions when the setting was ``None``.
+    The ``0o644`` default ensures consistent permissions regardless of the
+    upload handler. Set :setting:`FILE_UPLOAD_PERMISSIONS` to ``None`` to
+    restore the historical, operating system-dependent behavior if needed.
+
 You can write custom handlers that customize how Django handles files. You
 could, for example, use custom handlers to enforce user-level quotas, compress
 data on the fly, render progress bars, and even send data to another storage

@@ -885,6 +885,12 @@ class FileStoragePermissions(unittest.TestCase):
         shutil.rmtree(self.storage_dir)
         os.umask(self.old_umask)
 
+    def test_file_upload_default_permissions(self):
+        self.storage = FileSystemStorage(self.storage_dir)
+        name = self.storage.save("the_file", ContentFile("data"))
+        mode = os.stat(self.storage.path(name))[0] & 0o777
+        self.assertEqual(mode, 0o644)
+
     @override_settings(FILE_UPLOAD_PERMISSIONS=0o654)
     def test_file_upload_permissions(self):
         self.storage = FileSystemStorage(self.storage_dir)
@@ -892,12 +898,31 @@ class FileStoragePermissions(unittest.TestCase):
         actual_mode = os.stat(self.storage.path(name))[0] & 0o777
         self.assertEqual(actual_mode, 0o654)
 
+    def test_temporary_upload_default_permissions(self):
+        self.storage = FileSystemStorage(self.storage_dir)
+        with TemporaryUploadedFile("the_file", 'text/plain', 4, 'utf8') as upload:
+            upload.write(b"data")
+            upload.seek(0)
+            name = self.storage.save("the_file", upload)
+        mode = os.stat(self.storage.path(name))[0] & 0o777
+        self.assertEqual(mode, 0o644)
+
     @override_settings(FILE_UPLOAD_PERMISSIONS=None)
-    def test_file_upload_default_permissions(self):
+    def test_file_upload_permissions_none_uses_umask(self):
         self.storage = FileSystemStorage(self.storage_dir)
         fname = self.storage.save("some_file", ContentFile("data"))
         mode = os.stat(self.storage.path(fname))[0] & 0o777
         self.assertEqual(mode, 0o666 & ~self.umask)
+
+    @override_settings(FILE_UPLOAD_PERMISSIONS=None)
+    def test_temporary_upload_permissions_none(self):
+        self.storage = FileSystemStorage(self.storage_dir)
+        with TemporaryUploadedFile("the_file", 'text/plain', 4, 'utf8') as upload:
+            upload.write(b"data")
+            upload.seek(0)
+            name = self.storage.save("the_file", upload)
+        mode = os.stat(self.storage.path(name))[0] & 0o777
+        self.assertEqual(mode, 0o600)
 
     @override_settings(FILE_UPLOAD_DIRECTORY_PERMISSIONS=0o765)
     def test_file_upload_directory_permissions(self):
