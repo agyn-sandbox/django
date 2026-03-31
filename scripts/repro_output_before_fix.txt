@@ -1,0 +1,7 @@
+Traceback (most recent call last):
+  File "/workspace/django/scripts/repro_unique_references_column.py", line 72, in <module>
+    main()
+  File "/workspace/django/scripts/repro_unique_references_column.py", line 61, in main
+    assert statement.references_column(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: Expected references_column('repro_author', 'email') to be True
