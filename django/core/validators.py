@@ -78,6 +78,14 @@ class URLValidator(RegexValidator):
     ipv4_re = r'(?:25[0-5]|2[0-4]\d|[0-1]?\d?\d)(?:\.(?:25[0-5]|2[0-4]\d|[0-1]?\d?\d)){3}'
     ipv6_re = r'\[[0-9a-f:\.]+\]'  # (simple regex, validated later)
 
+    userinfo_char_re = r"[A-Za-z0-9\-._~!$&'()*+,;=]"
+    userinfo_re = (
+        r'(?:'
+        r'(?:' + userinfo_char_re + r'|%[0-9A-Fa-f]{2})+'
+        r'(?::(?:' + userinfo_char_re + r'|%[0-9A-Fa-f]{2})*)?'
+        r'@)'
+    )
+
     # Host patterns
     hostname_re = r'[a-z' + ul + r'0-9](?:[a-z' + ul + r'0-9-]{0,61}[a-z' + ul + r'0-9])?'
     # Max length for domain name labels is 63 characters per RFC 1034 sec. 3.1
@@ -94,7 +102,7 @@ class URLValidator(RegexValidator):
 
     regex = _lazy_re_compile(
         r'^(?:[a-z0-9\.\-\+]*)://'  # scheme is validated separately
-        r'(?:\S+(?::\S*)?@)?'  # user:pass authentication
+        r'(?:' + userinfo_re + r')?'  # user:pass authentication
         r'(?:' + ipv4_re + '|' + ipv6_re + '|' + host_re + ')'
         r'(?::\d{2,5})?'  # port
         r'(?:[/?#][^\s]*)?'  # resource path
@@ -124,9 +132,12 @@ class URLValidator(RegexValidator):
                 except ValueError:  # for example, "Invalid IPv6 URL"
                     raise ValidationError(self.message, code=self.code)
                 try:
-                    netloc = netloc.encode('idna').decode('ascii')  # IDN -> ACE
+                    ascii_netloc = netloc.encode('idna').decode('ascii')  # IDN -> ACE
                 except UnicodeError:  # invalid domain part
                     raise e
+                if netloc == ascii_netloc:
+                    raise e
+                netloc = ascii_netloc
                 url = urlunsplit((scheme, netloc, path, query, fragment))
                 super().__call__(url)
             else:

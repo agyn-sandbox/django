@@ -31,6 +31,7 @@ http://userid@example.com:8080
 http://userid@example.com:8080/
 http://userid:password@example.com
 http://userid:password@example.com/
+http://user%20name:%23p%24@example.com/
 http://142.42.1.1/
 http://142.42.1.1:8080/
 http://➡.ws/䨹
@@ -48,7 +49,7 @@ http://foo.bar/?q=Test%20URL-encoded%20stuff
 http://مثال.إختبار
 http://例子.测试
 http://उदाहरण.परीक्षा
-http://-.~_!$&'()*+,;=:%40:80%2f::::::@example.com
+http://-.~_!$&'()*+,;=%40%2f:%3A%3A%3A%3A%3A@example.com
 http://xn--7sbb4ac0ad0be6cf.xn--p1ai
 http://1337.net
 http://a.b-c.de
