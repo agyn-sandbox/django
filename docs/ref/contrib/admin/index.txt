@@ -469,6 +469,13 @@ subclass::
         ``fields = []`` in the ``Meta`` class to satisfy the validation on the
         ``ModelForm``.
 
+    The built-in :class:`~django.contrib.auth.admin.UserAdmin` uses
+    :class:`~django.contrib.auth.forms.UserChangeForm`, where the ``password``
+    field is a disabled
+    :class:`~django.contrib.auth.forms.ReadOnlyPasswordHashField`. Any value
+    submitted for that field is ignored in favor of the stored hash; use the
+    "change password" workflow to update user credentials.
+
     .. admonition:: Note
 
         If your ``ModelForm`` and ``ModelAdmin`` both define an ``exclude``
